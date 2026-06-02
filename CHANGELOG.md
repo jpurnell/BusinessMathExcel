@@ -15,6 +15,9 @@ All notable changes to BusinessMathExcel will be documented in this file.
 - VerticalLayoutStrategy: default layout with 2-column gutter, labels in C, values in D
 - ModelExporter: converts ExcelModel DAG to SwiftXLSX Workbook with live formulas
 - 26 new tests across 2 test files (VerticalLayoutStrategyTests, ModelExporterTests)
+- AmortizationModelBuilder: constructs ExcelModel DAG with PMT/IPMT/PPMT formulas from loan parameters
+- DCFModelBuilder: constructs ExcelModel DAG with NPV/IRR formulas from cash flows
+- 30 new tests across 2 test files (AmortizationModelBuilderTests, DCFModelBuilderTests)
 
 ## [0.2.0] - 2026-06-02
 
