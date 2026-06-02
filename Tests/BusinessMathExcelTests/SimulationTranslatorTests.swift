@@ -19,7 +19,7 @@ final class SimulationTranslatorTests: XCTestCase {
         XCTAssertEqual(workbook.sheets[1].name, "Simulation Data")
     }
 
-    func testSummarySheetHasStatistics() {
+    func testSummarySheetHasFormulas() {
         let results = makeSampleResults()
         let workbook = SimulationTranslator.workbook(from: results)
         let summary = workbook.sheets[0]
@@ -27,19 +27,22 @@ final class SimulationTranslatorTests: XCTestCase {
         XCTAssertEqual(summary.cell(at: "A3"), .string("Statistic"))
         XCTAssertEqual(summary.cell(at: "B3"), .string("Value"))
 
-        if case .number(let mean) = summary.cell(at: "B4") {
-            XCTAssertEqual(mean, results.statistics.mean, accuracy: 0.01)
-        } else {
-            XCTFail("B4 should contain the mean value")
-        }
+        let dataRange = "'Simulation Data'!B2:B101"
+        XCTAssertEqual(summary.cell(at: "A4"), .string("Mean"))
+        XCTAssertEqual(summary.cell(at: "B4"), .formula("=AVERAGE(\(dataRange))"))
+        XCTAssertEqual(summary.cell(at: "A6"), .string("Std Deviation"))
+        XCTAssertEqual(summary.cell(at: "B6"), .formula("=STDEV(\(dataRange))"))
     }
 
-    func testSummarySheetHasPercentiles() {
+    func testSummarySheetHasPercentileFormulas() {
         let results = makeSampleResults()
         let workbook = SimulationTranslator.workbook(from: results)
         let summary = workbook.sheets[0]
 
         XCTAssertEqual(summary.cell(at: "A11"), .string("Percentile"))
+
+        let dataRange = "'Simulation Data'!B2:B101"
+        XCTAssertEqual(summary.cell(at: "B12"), .formula("=PERCENTILE(\(dataRange),0.05)"))
     }
 
     func testDataSheetHasAllTrials() {

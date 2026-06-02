@@ -56,7 +56,7 @@ final class SensitivityTranslatorTests: XCTestCase {
         }
     }
 
-    func testWritesOutputRange() {
+    func testWritesOutputRangeFormula() {
         let analysis = makeSampleAnalysis()
         let workbook = SensitivityTranslator.workbook(from: analysis)
         let sheet = workbook.sheets[0]
@@ -66,11 +66,10 @@ final class SensitivityTranslatorTests: XCTestCase {
         XCTAssertEqual(sheet.cell(at: ref.reference), .string("Output Range"))
 
         let valRef = CellRef(column: 2, row: rangeRow)
-        if case .number(let range) = sheet.cell(at: valRef.reference) {
-            XCTAssertEqual(range, 100, accuracy: 0.01)
-        } else {
-            XCTFail("Output range value should be 100")
-        }
+        XCTAssertEqual(
+            sheet.cell(at: valRef.reference),
+            .formula("=MAX(B3:B7)-MIN(B3:B7)")
+        )
     }
 
     func testMultipleAnalyses() {

@@ -69,11 +69,8 @@ final class TornadoTranslatorTests: XCTestCase {
         XCTAssertEqual(sheet.cell(at: "A5"), .string("Cost of Goods"))
         XCTAssertEqual(sheet.cell(at: "A6"), .string("Tax Rate"))
 
-        if case .number(let pct) = sheet.cell(at: "E4") {
-            XCTAssertEqual(pct, 0.5, accuracy: 0.01)
-        } else {
-            XCTFail("E4 should contain percent impact")
-        }
+        XCTAssertEqual(sheet.cell(at: "D4"), .formula("=C4-B4"))
+        XCTAssertEqual(sheet.cell(at: "E4"), .formula("=D4/$B$1"))
     }
 
     func testCustomSheetName() {

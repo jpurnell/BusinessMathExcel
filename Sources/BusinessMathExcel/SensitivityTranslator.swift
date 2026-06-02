@@ -51,6 +51,7 @@ public enum SensitivityTranslator {
         sheet.write("Output Value", to: CellRef(column: 2, row: row).reference, style: .header)
         row += 1
 
+        let dataStartRow = row
         for i in 0..<analysis.count {
             sheet.write(
                 analysis.inputValues[i],
@@ -64,9 +65,14 @@ public enum SensitivityTranslator {
             )
             row += 1
         }
+        let dataEndRow = row - 1
 
         sheet.write("Output Range", to: CellRef(column: 1, row: row).reference, style: .header)
-        sheet.write(analysis.outputRange, to: CellRef(column: 2, row: row).reference, style: .currency)
+        sheet.writeFormula(
+            "=MAX(B\(dataStartRow):B\(dataEndRow))-MIN(B\(dataStartRow):B\(dataEndRow))",
+            to: CellRef(column: 2, row: row).reference,
+            style: .currency
+        )
         row += 1
 
         return row

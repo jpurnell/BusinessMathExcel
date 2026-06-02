@@ -53,13 +53,17 @@ public enum TornadoTranslator {
             let high = analysis.highValues[input] ?? 0
             sheet.write(high, to: CellRef(column: 3, row: row).reference, style: .currency)
 
-            let impact = analysis.impacts[input] ?? 0
-            sheet.write(impact, to: CellRef(column: 4, row: row).reference, style: .currency)
+            sheet.writeFormula(
+                "=C\(row)-B\(row)",
+                to: CellRef(column: 4, row: row).reference,
+                style: .currency
+            )
 
-            if analysis.baseCaseOutput != 0 {
-                let pctImpact = impact / analysis.baseCaseOutput
-                sheet.write(pctImpact, to: CellRef(column: 5, row: row).reference, style: .percent)
-            }
+            sheet.writeFormula(
+                "=D\(row)/$B$1",
+                to: CellRef(column: 5, row: row).reference,
+                style: .percent
+            )
         }
     }
 

@@ -63,15 +63,27 @@ final class AmortizationTranslatorTests: XCTestCase {
         }
     }
 
-    func testTranslatorWritesTotalsRow() throws {
+    func testTranslatorWritesTotalsRowWithFormulas() throws {
         let schedule = makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(from: schedule)
         let sheet = workbook.sheets[0]
 
         let totalsRow = schedule.periods.count + 2
-        let totalsRef = "A\(totalsRow)"
+        XCTAssertEqual(sheet.cell(at: "A\(totalsRow)"), .string("Total"))
 
-        XCTAssertEqual(sheet.cell(at: totalsRef), .string("Total"))
+        let lastDataRow = schedule.periods.count + 1
+        XCTAssertEqual(
+            sheet.cell(at: "C\(totalsRow)"),
+            .formula("=SUM(C2:C\(lastDataRow))")
+        )
+        XCTAssertEqual(
+            sheet.cell(at: "D\(totalsRow)"),
+            .formula("=SUM(D2:D\(lastDataRow))")
+        )
+        XCTAssertEqual(
+            sheet.cell(at: "E\(totalsRow)"),
+            .formula("=SUM(E2:E\(lastDataRow))")
+        )
     }
 
     func testTranslatorSavesToFile() throws {

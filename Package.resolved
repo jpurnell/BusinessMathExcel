@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpurnell/SwiftXLSX.git",
       "state" : {
-        "revision" : "95563106119583f4451176ea1385f3ec811f9ff7",
-        "version" : "0.1.0"
+        "revision" : "8b7b1746dbb12c39fcffb1e71809cd69341d398c",
+        "version" : "0.1.1"
       }
     }
   ],

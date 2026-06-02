@@ -85,19 +85,27 @@ public enum AmortizationTranslator {
         from schedule: AmortizationSchedule,
         to sheet: Worksheet
     ) {
-        let totalsRow = schedule.periods.count + 2
+        let lastDataRow = schedule.periods.count + 1
+        let totalsRow = lastDataRow + 1
 
         let labelRef = CellRef(column: 1, row: totalsRow)
         sheet.write("Total", to: labelRef.reference, style: .header)
 
-        let payRef = CellRef(column: 3, row: totalsRow)
-        sheet.write(schedule.totalPayments, to: payRef.reference, style: .currency)
-
-        let princRef = CellRef(column: 4, row: totalsRow)
-        sheet.write(schedule.totalPrincipal, to: princRef.reference, style: .currency)
-
-        let intRef = CellRef(column: 5, row: totalsRow)
-        sheet.write(schedule.totalInterest, to: intRef.reference, style: .currency)
+        sheet.writeFormula(
+            "=SUM(C2:C\(lastDataRow))",
+            to: CellRef(column: 3, row: totalsRow).reference,
+            style: .currency
+        )
+        sheet.writeFormula(
+            "=SUM(D2:D\(lastDataRow))",
+            to: CellRef(column: 4, row: totalsRow).reference,
+            style: .currency
+        )
+        sheet.writeFormula(
+            "=SUM(E2:E\(lastDataRow))",
+            to: CellRef(column: 5, row: totalsRow).reference,
+            style: .currency
+        )
     }
 
     private static func setColumnWidths(on sheet: Worksheet) {
