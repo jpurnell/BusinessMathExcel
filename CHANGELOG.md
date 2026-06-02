@@ -18,6 +18,9 @@ All notable changes to BusinessMathExcel will be documented in this file.
 - AmortizationModelBuilder: constructs ExcelModel DAG with PMT/IPMT/PPMT formulas from loan parameters
 - DCFModelBuilder: constructs ExcelModel DAG with NPV/IRR formulas from cash flows
 - 30 new tests across 2 test files (AmortizationModelBuilderTests, DCFModelBuilderTests)
+- Distribution enum: normal, uniform, triangular, lognormal sampling with deterministic seed support
+- MonteCarloExtension: runs N-iteration simulation, writes Data + Summary sheets with PERCENTILE/AVERAGE/STDEV formulas
+- 15 new tests across 2 test files (MonteCarloExtensionTests, DistributionTests)
 
 ## [0.2.0] - 2026-06-02
 
