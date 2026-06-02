@@ -2,6 +2,7 @@ import BusinessMath
 import SwiftXLSX
 
 /// Translates a BusinessMath `ScenarioSensitivityAnalysis` into a SwiftXLSX `Workbook`.
+@available(*, deprecated, message: "Use ExcelModel with ModelExporter for live formulas")
 public enum SensitivityTranslator {
 
     /// Creates a workbook from one or more sensitivity analyses.

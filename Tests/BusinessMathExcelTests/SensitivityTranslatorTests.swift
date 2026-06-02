@@ -3,6 +3,7 @@ import XCTest
 import BusinessMath
 import SwiftXLSX
 
+@available(*, deprecated)
 final class SensitivityTranslatorTests: XCTestCase {
 
     private func makeSampleAnalysis() -> ScenarioSensitivityAnalysis {

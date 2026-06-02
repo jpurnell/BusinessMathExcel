@@ -3,6 +3,7 @@ import XCTest
 import BusinessMath
 import SwiftXLSX
 
+@available(*, deprecated)
 final class SimulationTranslatorTests: XCTestCase {
 
     private func makeSampleResults() -> SimulationResults {

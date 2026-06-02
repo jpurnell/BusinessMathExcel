@@ -2,6 +2,7 @@ import BusinessMath
 import SwiftXLSX
 
 /// Translates a BusinessMath `TornadoDiagramAnalysis` into a SwiftXLSX `Workbook`.
+@available(*, deprecated, message: "Use ExcelModel with ModelExporter for live formulas")
 public enum TornadoTranslator {
 
     /// Creates a workbook containing tornado diagram analysis data.

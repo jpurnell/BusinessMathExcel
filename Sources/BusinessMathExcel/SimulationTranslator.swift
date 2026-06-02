@@ -2,6 +2,7 @@ import BusinessMath
 import SwiftXLSX
 
 /// Translates a BusinessMath `SimulationResults` into a SwiftXLSX `Workbook`.
+@available(*, deprecated, message: "Use MonteCarloExtension with ModelExporter for live formulas")
 public enum SimulationTranslator {
 
     /// Creates a workbook containing simulation results with statistics and percentiles.

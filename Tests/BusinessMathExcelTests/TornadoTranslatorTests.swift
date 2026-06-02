@@ -3,6 +3,7 @@ import XCTest
 import BusinessMath
 import SwiftXLSX
 
+@available(*, deprecated)
 final class TornadoTranslatorTests: XCTestCase {
 
     private func makeSampleAnalysis() -> TornadoDiagramAnalysis {

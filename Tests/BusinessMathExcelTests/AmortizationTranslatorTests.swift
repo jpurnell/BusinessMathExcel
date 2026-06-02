@@ -4,6 +4,7 @@ import BusinessMath
 import SwiftXLSX
 import Foundation
 
+@available(*, deprecated)
 final class AmortizationTranslatorTests: XCTestCase {
 
     private func makeSampleSchedule() -> AmortizationSchedule {

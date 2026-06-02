@@ -2,6 +2,7 @@ import BusinessMath
 import SwiftXLSX
 
 /// Translates a BusinessMath `AmortizationSchedule` into a SwiftXLSX `Workbook`.
+@available(*, deprecated, message: "Use AmortizationModelBuilder with ModelExporter for live formulas")
 public enum AmortizationTranslator {
 
     /// Creates a workbook containing the amortization schedule.

@@ -4,6 +4,12 @@ All notable changes to BusinessMathExcel will be documented in this file.
 
 ## [0.3.0] - 2026-06-02
 
+### Deprecated
+- AmortizationTranslator: use AmortizationModelBuilder with ModelExporter for live formulas
+- SensitivityTranslator: use ExcelModel with ModelExporter for live formulas
+- SimulationTranslator: use MonteCarloExtension with ModelExporter for live formulas
+- TornadoTranslator: use ExcelModel with ModelExporter for live formulas
+
 ### Added
 - NodeRef: UUID-based stable node identity decoupled from cell positions
 - NodeFormula: recursive formula enum referencing NodeRefs, with resolve-to-FormulaAST
