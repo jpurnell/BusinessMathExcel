@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.2
 
 import PackageDescription
 
@@ -10,7 +10,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../BusinessMath"),
-        .package(url: "https://github.com/jpurnell/SwiftXLSX.git", from: "0.1.0"),
+        .package(path: "../SwiftXLSX"),
     ],
     targets: [
         .target(

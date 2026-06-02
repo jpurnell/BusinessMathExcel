@@ -35,12 +35,12 @@ final class AmortizationTranslatorTests: XCTestCase {
         let workbook = AmortizationTranslator.workbook(from: schedule)
         let sheet = workbook.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "A1"), .string("Period"))
-        XCTAssertEqual(sheet.cell(at: "B1"), .string("Beginning Balance"))
-        XCTAssertEqual(sheet.cell(at: "C1"), .string("Payment"))
-        XCTAssertEqual(sheet.cell(at: "D1"), .string("Principal"))
-        XCTAssertEqual(sheet.cell(at: "E1"), .string("Interest"))
-        XCTAssertEqual(sheet.cell(at: "F1"), .string("Ending Balance"))
+        XCTAssertEqual(sheet.cell(at: "A1"), .text("Period"))
+        XCTAssertEqual(sheet.cell(at: "B1"), .text("Beginning Balance"))
+        XCTAssertEqual(sheet.cell(at: "C1"), .text("Payment"))
+        XCTAssertEqual(sheet.cell(at: "D1"), .text("Principal"))
+        XCTAssertEqual(sheet.cell(at: "E1"), .text("Interest"))
+        XCTAssertEqual(sheet.cell(at: "F1"), .text("Ending Balance"))
     }
 
     func testTranslatorWritesDataRows() throws {
@@ -50,7 +50,7 @@ final class AmortizationTranslatorTests: XCTestCase {
 
         XCTAssertEqual(schedule.periods.count, 3)
 
-        if case .string(let label) = sheet.cell(at: "A2") {
+        if case .text(let label) = sheet.cell(at: "A2") {
             XCTAssertFalse(label.isEmpty, "Period label should not be empty")
         } else {
             XCTFail("A2 should be a string period label")
@@ -69,21 +69,25 @@ final class AmortizationTranslatorTests: XCTestCase {
         let sheet = workbook.sheets[0]
 
         let totalsRow = schedule.periods.count + 2
-        XCTAssertEqual(sheet.cell(at: "A\(totalsRow)"), .string("Total"))
+        XCTAssertEqual(sheet.cell(at: "A\(totalsRow)"), .text("Total"))
 
         let lastDataRow = schedule.periods.count + 1
-        XCTAssertEqual(
-            sheet.cell(at: "C\(totalsRow)"),
-            .formula("=SUM(C2:C\(lastDataRow))")
-        )
-        XCTAssertEqual(
-            sheet.cell(at: "D\(totalsRow)"),
-            .formula("=SUM(D2:D\(lastDataRow))")
-        )
-        XCTAssertEqual(
-            sheet.cell(at: "E\(totalsRow)"),
-            .formula("=SUM(E2:E\(lastDataRow))")
-        )
+        assertFormula(sheet, at: "C\(totalsRow)", equals: "SUM(C2:C\(lastDataRow))")
+        assertFormula(sheet, at: "D\(totalsRow)", equals: "SUM(D2:D\(lastDataRow))")
+        assertFormula(sheet, at: "E\(totalsRow)", equals: "SUM(E2:E\(lastDataRow))")
+    }
+
+    private func assertFormula(
+        _ sheet: Worksheet, at ref: String, equals expected: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard let cell = sheet.cell(at: ref), cell.isFormula,
+              let ast = cell.formulaAST else {
+            XCTFail("Expected formula at \(ref)", file: file, line: line)
+            return
+        }
+        let serialized = FormulaSerializer.serialize(ast)
+        XCTAssertEqual(serialized, expected, file: file, line: line)
     }
 
     func testTranslatorSavesToFile() throws {

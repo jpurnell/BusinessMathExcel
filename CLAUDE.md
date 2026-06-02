@@ -1,6 +1,6 @@
-# BusinessMathExcel — Native Swift XLSX Pipeline
+# BusinessMathExcel — Bidirectional Excel Translation Layer
 
-Translates BusinessMath result types into Excel workbooks. Pure Swift, zero external dependencies.
+Translates between BusinessMath computational models and Excel workbooks with live formulas. Pure Swift, Foundation only.
 
 ## Session Start
 
@@ -14,12 +14,12 @@ Read documents in this order for full context recovery:
 ## Development Workflow
 
 ```
-0. DESIGN   → Propose architecture (05_DESIGN_PROPOSAL.md)
-1. RED      → Write failing tests first
-2. GREEN    → Minimum code to pass
-3. REFACTOR → Clean up, keep tests green
-4. DOCUMENT → DocC comments and examples
-5. VERIFY   → swift build + swift test (zero warnings/errors)
+0. DESIGN   -> Propose architecture (05_DESIGN_PROPOSAL.md)
+1. RED      -> Write failing tests first
+2. GREEN    -> Minimum code to pass
+3. REFACTOR -> Clean up, keep tests green
+4. DOCUMENT -> DocC comments and examples
+5. VERIFY   -> swift build + swift test (zero warnings/errors)
 ```
 
 ## Key Rules
@@ -27,26 +27,36 @@ Read documents in this order for full context recovery:
 - No force unwraps (`!`), no `try!`, no force casts (`as!`)
 - Guard clauses for all validation; early returns over nested ifs
 - Division safety: always check for zero before dividing
-- Swift 6 strict concurrency compliance
+- Swift 6 strict concurrency compliance (all types Sendable)
 - All public APIs require DocC documentation
-- `SwiftXLSX` is a separate published package (github.com/jpurnell/SwiftXLSX)
-- `BusinessMathExcel` depends on `SwiftXLSX` (via SPM) and `BusinessMath` (local path)
 
 ## Architecture
 
 ```
-BusinessMath types → BusinessMathExcel (translation) → SwiftXLSX (XLSX writer) → .xlsx file
+Export: ExcelModel (DAG) -> LayoutStrategy -> ModelExporter -> SwiftXLSX Workbook -> .xlsx
+Import: .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> FormulaMapper -> BusinessMath
 ```
 
-XLSX format is ZIP + XML (Open XML / OOXML). SwiftXLSX writes the XML and packages it using Foundation's compression support. No Python, no openpyxl, no external dependencies.
+- `ExcelModel` is a DAG of InputNode/FormulaNode/OutputNode, connected by `NodeRef` identities
+- Cell positions (A1, B2) are assigned at export time by `LayoutStrategy`, not hardcoded in the model
+- `NodeFormula` references other nodes by `NodeRef`, resolved to `FormulaAST` at export
+- Builders (AmortizationModelBuilder, DCFModelBuilder) auto-construct models from BusinessMath types
+- Extensions (MonteCarloExtension) attach simulation to any model
+
+## Dependencies
+
+- `SwiftXLSX` (local path `../SwiftXLSX`) — bidirectional .xlsx read/write with FormulaAST
+- `BusinessMath` (local path `../BusinessMath`) — financial/statistical computation
+- Both are Foundation-only; no external dependencies
 
 ## Quality Gate
 
-Run `swift build` and `swift test` before every commit. Zero warnings, zero failures.
+`swift build && swift test` — zero warnings, zero failures.
 
 ## References
 
 - Full guidelines: `development-guidelines/README.md`
 - Coding rules: `development-guidelines/00_CORE_RULES/01_CODING_RULES.md`
 - TDD contract: `development-guidelines/00_CORE_RULES/09_TEST_DRIVEN_DEVELOPMENT.md`
+- SwiftXLSX source: `../SwiftXLSX/`
 - BusinessMath source: `../BusinessMath/`
