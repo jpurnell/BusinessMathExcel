@@ -11,6 +11,10 @@ All notable changes to BusinessMathExcel will be documented in this file.
 - ResolutionError: typed errors for formula resolution failures
 - Convenience builders for SUM, PMT, IPMT, PPMT, NPV, IRR formulas
 - 43 new tests across 3 test files (NodeRefTests, NodeFormulaTests, ExcelModelTests)
+- LayoutStrategy protocol and CellAssignment result type for pluggable cell positioning
+- VerticalLayoutStrategy: default layout with 2-column gutter, labels in C, values in D
+- ModelExporter: converts ExcelModel DAG to SwiftXLSX Workbook with live formulas
+- 26 new tests across 2 test files (VerticalLayoutStrategyTests, ModelExporterTests)
 
 ## [0.2.0] - 2026-06-02
 
