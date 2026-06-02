@@ -138,7 +138,7 @@ public enum MonteCarloExtension {
         case .number(let value):
             return value
 
-        case .text, .bool:
+        case .text, .bool, .range:
             return 0
 
         case .add(let lhs, let rhs):

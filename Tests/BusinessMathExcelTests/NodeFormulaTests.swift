@@ -218,11 +218,75 @@ final class NodeFormulaTests: XCTestCase {
         }
     }
 
-    func testIrrBuilder() {
+    func testIrrBuilderWithLiterals() {
         let irr = NodeFormula.irr([.number(-1000), .number(300), .number(400), .number(500)])
         if case .function(let name, let args) = irr {
             XCTAssertEqual(name, "IRR")
             XCTAssertEqual(args.count, 4)
+        } else {
+            XCTFail("Expected function case")
+        }
+    }
+
+    // MARK: - Range Resolution
+
+    func testRangeResolvesToCellRange() throws {
+        let a = NodeRef(label: "A")
+        let b = NodeRef(label: "B")
+        let c = NodeRef(label: "C")
+        let cellA = CellRef(column: 4, row: 5)
+        let cellB = CellRef(column: 4, row: 6)
+        let cellC = CellRef(column: 4, row: 7)
+
+        let formula = NodeFormula.range([a, b, c])
+        let ast = try formula.resolve(using: [a: cellA, b: cellB, c: cellC])
+        XCTAssertEqual(
+            ast,
+            .cellRange(CellRange(from: cellA, to: cellC))
+        )
+    }
+
+    func testRangeDanglingReferenceThrows() {
+        let a = NodeRef(label: "A")
+        let b = NodeRef(label: "B")
+        let cellA = CellRef(column: 1, row: 1)
+
+        let formula = NodeFormula.range([a, b])
+        XCTAssertThrowsError(try formula.resolve(using: [a: cellA]))
+    }
+
+    func testIrrBuilderUsesRange() {
+        let a = NodeRef(label: "A")
+        let b = NodeRef(label: "B")
+        let irr = NodeFormula.irr([.ref(a), .ref(b)])
+
+        if case .function(let name, let args) = irr {
+            XCTAssertEqual(name, "IRR")
+            XCTAssertEqual(args.count, 1)
+            if case .range(let refs) = args[0] {
+                XCTAssertEqual(refs.count, 2)
+            } else {
+                XCTFail("Expected range argument")
+            }
+        } else {
+            XCTFail("Expected function case")
+        }
+    }
+
+    func testNpvBuilderUsesRange() {
+        let rate = NodeFormula.number(0.10)
+        let a = NodeRef(label: "A")
+        let b = NodeRef(label: "B")
+        let npv = NodeFormula.npv(rate: rate, values: [.ref(a), .ref(b)])
+
+        if case .function(let name, let args) = npv {
+            XCTAssertEqual(name, "NPV")
+            XCTAssertEqual(args.count, 2)
+            if case .range(let refs) = args[1] {
+                XCTAssertEqual(refs.count, 2)
+            } else {
+                XCTFail("Expected range as second argument")
+            }
         } else {
             XCTFail("Expected function case")
         }

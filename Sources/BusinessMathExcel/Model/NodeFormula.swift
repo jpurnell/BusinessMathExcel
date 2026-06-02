@@ -33,6 +33,9 @@ public indirect enum NodeFormula: Equatable, Hashable, Sendable {
     /// Negation of an expression.
     case negate(NodeFormula)
 
+    /// A contiguous range of node references, resolved to a `CellRange` at export.
+    case range([NodeRef])
+
     /// A named function call with arguments.
     case function(String, [NodeFormula])
 
@@ -73,6 +76,19 @@ public indirect enum NodeFormula: Equatable, Hashable, Sendable {
 
         case .negate(let expr):
             return try .negate(expr.resolve(using: mapping))
+
+        case .range(let refs):
+            var cells: [CellRef] = []
+            for nodeRef in refs {
+                guard let cellRef = mapping[nodeRef] else {
+                    throw ResolutionError.danglingReference(nodeRef)
+                }
+                cells.append(cellRef)
+            }
+            guard let first = cells.first, let last = cells.last else {
+                return .text("")
+            }
+            return .cellRange(CellRange(from: first, to: last))
 
         case .function(let name, let args):
             return try .function(name, args.map { try $0.resolve(using: mapping) })
@@ -137,21 +153,43 @@ extension NodeFormula {
         .function("PPMT", [rate, per, nper, pv])
     }
 
-    /// Creates an NPV function: `NPV(rate, value1, value2, ...)`.
+    /// Creates an NPV function: `NPV(rate, values_range)`.
+    ///
+    /// When all values are node references, they are grouped into a
+    /// ``NodeFormula/range(_:)`` that resolves to a single `CellRange` at export.
     ///
     /// - Parameters:
     ///   - rate: The discount rate per period.
     ///   - values: The series of cash flows.
     /// - Returns: A ``NodeFormula/function(_:_:)`` wrapping NPV.
     public static func npv(rate: NodeFormula, values: [NodeFormula]) -> NodeFormula {
-        .function("NPV", [rate] + values)
+        if let rangeArg = asRange(values) {
+            return .function("NPV", [rate, rangeArg])
+        }
+        return .function("NPV", [rate] + values)
     }
 
-    /// Creates an IRR function: `IRR(values)`.
+    /// Creates an IRR function: `IRR(values_range)`.
+    ///
+    /// When all values are node references, they are grouped into a
+    /// ``NodeFormula/range(_:)`` that resolves to a single `CellRange` at export.
     ///
     /// - Parameter values: The series of cash flows.
     /// - Returns: A ``NodeFormula/function(_:_:)`` wrapping IRR.
     public static func irr(_ values: [NodeFormula]) -> NodeFormula {
-        .function("IRR", values)
+        if let rangeArg = asRange(values) {
+            return .function("IRR", [rangeArg])
+        }
+        return .function("IRR", values)
+    }
+
+    private static func asRange(_ formulas: [NodeFormula]) -> NodeFormula? {
+        var refs: [NodeRef] = []
+        for f in formulas {
+            guard case .ref(let r) = f else { return nil }
+            refs.append(r)
+        }
+        guard refs.count >= 2 else { return nil }
+        return .range(refs)
     }
 }

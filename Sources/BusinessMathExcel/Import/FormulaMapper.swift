@@ -133,7 +133,7 @@ public enum FormulaMapper {
                 depth: depth + 1
             )
 
-        case .ref, .number, .text, .bool:
+        case .ref, .number, .text, .bool, .range:
             break
         }
     }

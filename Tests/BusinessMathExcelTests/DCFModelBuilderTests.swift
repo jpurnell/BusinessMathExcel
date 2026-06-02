@@ -91,7 +91,11 @@ final class DCFModelBuilderTests: XCTestCase {
         if case .output(let formula) = model.kind(of: irrRef) {
             if case .function(let name, let args) = formula {
                 XCTAssertEqual(name, "IRR")
-                XCTAssertEqual(args.count, 5)
+                if case .range(let refs) = args[0] {
+                    XCTAssertEqual(refs.count, 5)
+                } else {
+                    XCTFail("Expected range argument containing all cash flow refs")
+                }
             } else {
                 XCTFail("Expected IRR function")
             }
@@ -144,6 +148,52 @@ final class DCFModelBuilderTests: XCTestCase {
 
         try wb.save(to: url)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    // MARK: - Range-Based Formulas
+
+    func testIRRExportsAsCellRange() throws {
+        let model = makeModel()
+        let wb = try ModelExporter.export(model)
+        let sheet = wb.sheets[0]
+
+        let strategy = VerticalLayoutStrategy()
+        let assignment = strategy.assign(model)
+        let irrRef = model.node(named: "IRR")!
+        let irrCell = assignment.mapping[irrRef]!
+
+        let ast = sheet.formulaAST(at: irrCell.reference)
+        XCTAssertNotNil(ast)
+
+        let formula = FormulaSerializer.serialize(ast!)
+        XCTAssertTrue(
+            formula.contains(":"),
+            "IRR should use a cell range (A1:A5), got: \(formula)"
+        )
+        XCTAssertFalse(
+            formula.hasPrefix("IRR(D") && formula.contains(",D"),
+            "IRR should not list individual cells, got: \(formula)"
+        )
+    }
+
+    func testNPVExportsWithCellRange() throws {
+        let model = makeModel()
+        let wb = try ModelExporter.export(model)
+        let sheet = wb.sheets[0]
+
+        let strategy = VerticalLayoutStrategy()
+        let assignment = strategy.assign(model)
+        let npvRef = model.node(named: "NPV")!
+        let npvCell = assignment.mapping[npvRef]!
+
+        let ast = sheet.formulaAST(at: npvCell.reference)
+        XCTAssertNotNil(ast)
+
+        let formula = FormulaSerializer.serialize(ast!)
+        XCTAssertTrue(
+            formula.contains(":"),
+            "NPV values should use a cell range, got: \(formula)"
+        )
     }
 
     // MARK: - Edge Cases
