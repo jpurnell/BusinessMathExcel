@@ -21,6 +21,10 @@ All notable changes to BusinessMathExcel will be documented in this file.
 - Distribution enum: normal, uniform, triangular, lognormal sampling with deterministic seed support
 - MonteCarloExtension: runs N-iteration simulation, writes Data + Summary sheets with PERCENTILE/AVERAGE/STDEV formulas
 - 15 new tests across 2 test files (MonteCarloExtensionTests, DistributionTests)
+- ModelImporter: converts SwiftXLSX Workbook cells into ExcelModel graph with NodeFormula references
+- FormulaMapper: categorizes imported formulas into financial (PMT, NPV, IRR) and statistical (SUM, AVERAGE, STDEV) groups
+- Added `cellReferences` public property to SwiftXLSX Worksheet for import iteration
+- 25 new tests across 2 test files (ModelImporterTests, FormulaMapperTests)
 
 ## [0.2.0] - 2026-06-02
 
