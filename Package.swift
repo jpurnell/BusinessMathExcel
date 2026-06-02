@@ -11,6 +11,7 @@ let package = Package(
     dependencies: [
         .package(path: "../BusinessMath"),
         .package(path: "../SwiftXLSX"),
+        .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
     ],
     targets: [
         .target(

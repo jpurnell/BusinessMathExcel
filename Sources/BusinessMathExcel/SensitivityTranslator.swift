@@ -14,6 +14,26 @@ public enum SensitivityTranslator {
         from analyses: [ScenarioSensitivityAnalysis],
         sheetName: String = "Sensitivity Analysis"
     ) -> Workbook {
+        buildWorkbook(analyses: analyses, sheetName: sheetName)
+    }
+
+    /// Creates a workbook from a single sensitivity analysis.
+    ///
+    /// - Parameters:
+    ///   - analysis: The sensitivity analysis to include.
+    ///   - sheetName: Name for the worksheet. Defaults to "Sensitivity Analysis".
+    /// - Returns: A `Workbook` ready to save as .xlsx.
+    public static func workbook(
+        from analysis: ScenarioSensitivityAnalysis,
+        sheetName: String = "Sensitivity Analysis"
+    ) -> Workbook {
+        buildWorkbook(analyses: [analysis], sheetName: sheetName)
+    }
+
+    private static func buildWorkbook(
+        analyses: [ScenarioSensitivityAnalysis],
+        sheetName: String
+    ) -> Workbook {
         let wb = Workbook()
         let sheet = wb.addSheet(name: sheetName)
 
@@ -27,14 +47,6 @@ public enum SensitivityTranslator {
         sheet.setColumnWidth(column: "B", width: 18)
 
         return wb
-    }
-
-    /// Creates a workbook from a single sensitivity analysis.
-    public static func workbook(
-        from analysis: ScenarioSensitivityAnalysis,
-        sheetName: String = "Sensitivity Analysis"
-    ) -> Workbook {
-        workbook(from: [analysis], sheetName: sheetName)
     }
 
     private static func writeAnalysis(
