@@ -36,14 +36,6 @@ public enum Distribution: Sendable, Equatable {
         }
     }
 
-    /// Generates a random sample using the system random number generator.
-    ///
-    /// - Returns: A sampled value.
-    public func sample() -> Double {
-        var rng = SystemRandomNumberGenerator()
-        return sample(using: &rng)
-    }
-
     private func sampleNormal<G: RandomNumberGenerator>(
         mean: Double,
         stdDev: Double,

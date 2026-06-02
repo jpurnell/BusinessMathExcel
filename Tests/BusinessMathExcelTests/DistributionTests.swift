@@ -75,15 +75,6 @@ final class DistributionTests: XCTestCase {
         XCTAssertEqual(v1, v2, accuracy: 1e-10)
     }
 
-    // MARK: - System RNG
-
-    func testSystemRNGProducesValues() {
-        let dist = Distribution.uniform(min: 0, max: 1)
-        let value = dist.sample()
-        XCTAssertGreaterThanOrEqual(value, 0)
-        XCTAssertLessThanOrEqual(value, 1)
-    }
-
     // MARK: - Helpers
 
     private func makeRNG() -> some RandomNumberGenerator {

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftXLSX
 
 /// Runs Monte Carlo simulation on an ``ExcelModel`` and adds result sheets
@@ -48,8 +49,10 @@ public enum MonteCarloExtension {
         iterations: Int = 1000,
         seed: UInt64? = nil
     ) -> Workbook {
-        var rng: any RandomNumberGenerator = seed.map { SeededRNG(seed: $0) }
-            ?? SystemRandomNumberGenerator() as any RandomNumberGenerator
+        let effectiveSeed = seed ?? UInt64(
+            truncatingIfNeeded: Int(Date().timeIntervalSince1970 * 1_000_000)
+        )
+        var rng: any RandomNumberGenerator = SeededRNG(seed: effectiveSeed)
 
         let results = runSimulation(
             model: model,
