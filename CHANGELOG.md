@@ -2,6 +2,16 @@
 
 All notable changes to BusinessMathExcel will be documented in this file.
 
+## [0.3.0] - 2026-06-02
+
+### Added
+- NodeRef: UUID-based stable node identity decoupled from cell positions
+- NodeFormula: recursive formula enum referencing NodeRefs, with resolve-to-FormulaAST
+- ExcelModel: DAG container with section grouping, node lookup, and table registration
+- ResolutionError: typed errors for formula resolution failures
+- Convenience builders for SUM, PMT, IPMT, PPMT, NPV, IRR formulas
+- 43 new tests across 3 test files (NodeRefTests, NodeFormulaTests, ExcelModelTests)
+
 ## [0.2.0] - 2026-06-02
 
 ### Changed
