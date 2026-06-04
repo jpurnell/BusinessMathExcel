@@ -30,6 +30,7 @@ public enum ModelExporter {
         configureColumns(sheet: sheet, design: design)
         writeTitle(title, to: sheet, design: design)
         writeSectionHeaders(assignment.sectionRows, to: sheet, design: design)
+        writeTableHeaders(assignment: assignment, model: model, to: sheet, design: design)
         try writeNodes(model: model, assignment: assignment, to: sheet, design: design)
 
         return wb
@@ -80,6 +81,21 @@ public enum ModelExporter {
         }
     }
 
+    private static func writeTableHeaders(
+        assignment: CellAssignment,
+        model: ExcelModel,
+        to sheet: Worksheet,
+        design: DesignBundle
+    ) {
+        let headerStyle = CellStyle(font: design.labelFont)
+        for (tableLabel, headerCells) in assignment.tableColumnHeaders {
+            guard let table = model.table(named: tableLabel) else { continue }
+            for (i, cell) in headerCells.enumerated() where i < table.columns.count {
+                sheet.write(table.columns[i], to: cell.reference, style: headerStyle)
+            }
+        }
+    }
+
     private static func writeNodes(
         model: ExcelModel,
         assignment: CellAssignment,
@@ -91,10 +107,11 @@ public enum ModelExporter {
 
         for ref in model.allRefs {
             guard let kind = model.kind(of: ref),
-                  let labelCell = assignment.labelMapping[ref],
                   let valueCell = assignment.mapping[ref] else { continue }
 
-            sheet.write(ref.label, to: labelCell.reference, style: labelStyle)
+            if let labelCell = assignment.labelMapping[ref] {
+                sheet.write(ref.label, to: labelCell.reference, style: labelStyle)
+            }
 
             switch kind {
             case .input(let value):

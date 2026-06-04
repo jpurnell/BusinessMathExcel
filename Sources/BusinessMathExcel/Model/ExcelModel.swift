@@ -106,6 +106,11 @@ public final class ExcelModel: @unchecked Sendable {
         tableIndex[label]
     }
 
+    /// All registered tables, keyed by label.
+    public var allTables: [String: TableRef] {
+        tableIndex
+    }
+
     // MARK: - Adding Nodes
 
     /// Adds an input node with an editable numeric value.

@@ -39,6 +39,8 @@ Import: .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> Form
 
 - `ExcelModel` is a DAG of InputNode/FormulaNode/OutputNode, connected by `NodeRef` identities
 - Cell positions (A1, B2) are assigned at export time by `LayoutStrategy`, not hardcoded in the model
+- Three layout strategies: `VerticalLayoutStrategy` (default), `HorizontalLayoutStrategy` (side-by-side), `DashboardLayoutStrategy` (N-column grid)
+- Horizontal and Dashboard strategies are table-aware: they detect registered `TableRef` and render grids with column headers
 - `NodeFormula` references other nodes by `NodeRef`, resolved to `FormulaAST` at export
 - Builders (AmortizationModelBuilder, DCFModelBuilder) auto-construct models from BusinessMath types
 - Extensions (MonteCarloExtension) attach simulation to any model

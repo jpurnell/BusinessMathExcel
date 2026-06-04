@@ -2,6 +2,20 @@
 
 All notable changes to BusinessMathExcel will be documented in this file.
 
+## [0.4.0] - 2026-06-04
+
+### Added
+- HorizontalLayoutStrategy: sections arranged side-by-side with configurable start column, gap, and start row
+- DashboardLayoutStrategy: N-column grid of sections with band wrapping and configurable column count, gaps
+- Table-aware layout rendering: strategies detect registered TableRef and render as grids with column headers
+- CellAssignment.tableColumnHeaders: optional field for table column header positions (backward-compatible)
+- ExcelModel.allTables: public accessor for all registered tables
+- ModelExporter now writes table column headers when present in CellAssignment
+- 53 new tests across 4 test files (LayoutFoundationTests, HorizontalLayoutStrategyTests, DashboardLayoutStrategyTests, TableAwareLayoutTests)
+
+### Changed
+- ModelExporter.writeNodes now writes values for nodes without label mappings (supports table body nodes)
+
 ## [0.3.0] - 2026-06-02
 
 ### Deprecated

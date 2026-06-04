@@ -14,6 +14,35 @@ public struct CellAssignment: Sendable {
 
     /// The first unused row after all content.
     public let lastRow: Int
+
+    /// Column header positions for registered tables, keyed by table label.
+    ///
+    /// Layout strategies that support table-aware rendering populate this field
+    /// with one ``CellRef`` per column header. Strategies that do not support
+    /// tables leave it empty.
+    public let tableColumnHeaders: [String: [CellRef]]
+
+    /// Creates a cell assignment.
+    ///
+    /// - Parameters:
+    ///   - mapping: Node-to-value-cell positions.
+    ///   - labelMapping: Node-to-label-cell positions.
+    ///   - sectionRows: Section header row positions.
+    ///   - lastRow: First unused row after all content.
+    ///   - tableColumnHeaders: Column header positions for tables. Defaults to empty.
+    public init(
+        mapping: [NodeRef: CellRef],
+        labelMapping: [NodeRef: CellRef],
+        sectionRows: [String: Int],
+        lastRow: Int,
+        tableColumnHeaders: [String: [CellRef]] = [:]
+    ) {
+        self.mapping = mapping
+        self.labelMapping = labelMapping
+        self.sectionRows = sectionRows
+        self.lastRow = lastRow
+        self.tableColumnHeaders = tableColumnHeaders
+    }
 }
 
 /// Assigns cell positions to nodes in an ``ExcelModel``.
