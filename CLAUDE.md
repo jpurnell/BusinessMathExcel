@@ -45,7 +45,7 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
   - `CompactLayoutStrategy` — vertical, no separators, table-aware
   - `HorizontalLayoutStrategy` — sections side-by-side, table-aware
   - `DashboardLayoutStrategy` — N-column grid with band wrapping, table-aware
-- Multi-sheet: `MultiSheetLayoutStrategy` assigns each section to its own worksheet; `MultiSheetExporter` writes with automatic cross-sheet formula resolution
+- Multi-sheet: `MultiSheetLayoutStrategy` assigns each section to its own worksheet (or groups sections via `SheetGroup`); `MultiSheetExporter` writes with automatic cross-sheet formula resolution
 - Compact, Horizontal, and Dashboard strategies are table-aware: they detect registered `TableRef` and render grids with column headers
 - `NodeFormula` references other nodes by `NodeRef`, resolved to `FormulaAST` at export
 - Builders (AmortizationModelBuilder, DCFModelBuilder) auto-construct models from BusinessMath types

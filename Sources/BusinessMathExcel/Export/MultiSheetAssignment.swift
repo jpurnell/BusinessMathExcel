@@ -1,5 +1,28 @@
 import SwiftXLSX
 
+/// A named group of sections that share a single worksheet.
+///
+/// Use with ``MultiSheetLayoutStrategy`` to place multiple sections
+/// on the same sheet instead of the default one-section-per-sheet behavior.
+public struct SheetGroup: Sendable {
+
+    /// The worksheet name for this group.
+    public let name: String
+
+    /// The section names to include on this sheet, in order.
+    public let sections: [String]
+
+    /// Creates a sheet group.
+    ///
+    /// - Parameters:
+    ///   - name: The worksheet name.
+    ///   - sections: Section names to include on this sheet.
+    public init(name: String, sections: [String]) {
+        self.name = name
+        self.sections = sections
+    }
+}
+
 /// A cell position qualified by worksheet name, for cross-sheet formula resolution.
 public struct SheetCell: Sendable, Equatable, Hashable {
 
