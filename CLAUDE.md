@@ -41,7 +41,7 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
 - `ExcelModel` is a DAG of InputNode/FormulaNode/OutputNode, connected by `NodeRef` identities
 - Cell positions (A1, B2) are assigned at export time by `LayoutStrategy`, not hardcoded in the model
 - Single-sheet strategies (all conform to `LayoutStrategy` protocol):
-  - `VerticalLayoutStrategy` (default) — sections stacked with blank separator rows
+  - `VerticalLayoutStrategy` (default) — sections stacked with blank separator rows, opt-in table awareness
   - `CompactLayoutStrategy` — vertical, no separators, table-aware
   - `HorizontalLayoutStrategy` — sections side-by-side, table-aware
   - `DashboardLayoutStrategy` — N-column grid with band wrapping, table-aware

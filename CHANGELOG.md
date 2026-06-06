@@ -11,7 +11,8 @@ All notable changes to BusinessMathExcel will be documented in this file.
 - SheetCell: sheet-qualified cell reference type for cross-sheet mapping
 - MultiSheetAssignment: per-sheet CellAssignment collection with global node-to-sheet+cell mapping
 - Cross-sheet formula resolution: formulas referencing nodes on other sheets automatically produce `'SheetName'!A1` references
-- 37 new tests across 4 test files (CompactLayoutStrategyTests, MultiSheetAssignmentTests, MultiSheetLayoutStrategyTests, MultiSheetExporterTests)
+- VerticalLayoutStrategy: opt-in `tableAware` parameter for table-aware grid rendering (defaults to false)
+- 44 new tests across 4 new test files + 7 added to VerticalLayoutStrategyTests
 
 ## [0.4.0] - 2026-06-04
 

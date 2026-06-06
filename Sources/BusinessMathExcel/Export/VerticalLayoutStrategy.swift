@@ -13,14 +13,19 @@ public struct VerticalLayoutStrategy: LayoutStrategy, Sendable {
     /// The 1-based column index for node values and formulas.
     public let valueColumn: Int
 
+    /// Whether to detect registered tables and render them as grids with column headers.
+    public let tableAware: Bool
+
     /// Creates a vertical layout strategy.
     ///
     /// - Parameters:
     ///   - labelColumn: Column for labels. Defaults to 3 (column C).
     ///   - valueColumn: Column for values. Defaults to 4 (column D).
-    public init(labelColumn: Int = 3, valueColumn: Int = 4) {
+    ///   - tableAware: Detect registered tables and render as grids. Defaults to `false`.
+    public init(labelColumn: Int = 3, valueColumn: Int = 4, tableAware: Bool = false) {
         self.labelColumn = labelColumn
         self.valueColumn = valueColumn
+        self.tableAware = tableAware
     }
 
     /// Assigns cell positions to all nodes in the model.
@@ -30,12 +35,16 @@ public struct VerticalLayoutStrategy: LayoutStrategy, Sendable {
     /// - Row 2: blank separator
     /// - Then each section: header row, node rows, blank separator
     ///
+    /// When ``tableAware`` is `true`, sections with a registered table are
+    /// rendered as grids with column headers instead of label+value pairs.
+    ///
     /// - Parameter model: The model to lay out.
     /// - Returns: Cell positions for every node.
     public func assign(_ model: ExcelModel) -> CellAssignment {
         var mapping: [NodeRef: CellRef] = [:]
         var labelMapping: [NodeRef: CellRef] = [:]
         var sectionRows: [String: Int] = [:]
+        var tableColumnHeaders: [String: [CellRef]] = [:]
 
         var row = 3
 
@@ -43,10 +52,27 @@ public struct VerticalLayoutStrategy: LayoutStrategy, Sendable {
             sectionRows[section.name] = row
             row += 1
 
-            for ref in section.refs {
-                labelMapping[ref] = CellRef(column: labelColumn, row: row)
-                mapping[ref] = CellRef(column: valueColumn, row: row)
+            if tableAware, let table = model.table(named: section.name) {
+                let colCount = table.columns.count
+                var headerCells: [CellRef] = []
+                for colIndex in 0..<colCount {
+                    headerCells.append(CellRef(column: labelColumn + colIndex, row: row))
+                }
+                tableColumnHeaders[table.label] = headerCells
                 row += 1
+
+                for tableRow in table.rows {
+                    for (colIndex, ref) in tableRow.enumerated() {
+                        mapping[ref] = CellRef(column: labelColumn + colIndex, row: row)
+                    }
+                    row += 1
+                }
+            } else {
+                for ref in section.refs {
+                    labelMapping[ref] = CellRef(column: labelColumn, row: row)
+                    mapping[ref] = CellRef(column: valueColumn, row: row)
+                    row += 1
+                }
             }
 
             row += 1
@@ -56,7 +82,8 @@ public struct VerticalLayoutStrategy: LayoutStrategy, Sendable {
             mapping: mapping,
             labelMapping: labelMapping,
             sectionRows: sectionRows,
-            lastRow: row
+            lastRow: row,
+            tableColumnHeaders: tableColumnHeaders
         )
     }
 }
