@@ -33,14 +33,20 @@ Read documents in this order for full context recovery:
 ## Architecture
 
 ```
-Export: ExcelModel (DAG) -> LayoutStrategy -> ModelExporter -> SwiftXLSX Workbook -> .xlsx
-Import: .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> FormulaMapper -> BusinessMath
+Single-sheet: ExcelModel (DAG) -> LayoutStrategy -> ModelExporter -> SwiftXLSX Workbook -> .xlsx
+Multi-sheet:  ExcelModel (DAG) -> MultiSheetLayoutStrategy -> MultiSheetExporter -> SwiftXLSX Workbook -> .xlsx
+Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> FormulaMapper -> BusinessMath
 ```
 
 - `ExcelModel` is a DAG of InputNode/FormulaNode/OutputNode, connected by `NodeRef` identities
 - Cell positions (A1, B2) are assigned at export time by `LayoutStrategy`, not hardcoded in the model
-- Three layout strategies: `VerticalLayoutStrategy` (default), `HorizontalLayoutStrategy` (side-by-side), `DashboardLayoutStrategy` (N-column grid)
-- Horizontal and Dashboard strategies are table-aware: they detect registered `TableRef` and render grids with column headers
+- Single-sheet strategies (all conform to `LayoutStrategy` protocol):
+  - `VerticalLayoutStrategy` (default) — sections stacked with blank separator rows
+  - `CompactLayoutStrategy` — vertical, no separators, table-aware
+  - `HorizontalLayoutStrategy` — sections side-by-side, table-aware
+  - `DashboardLayoutStrategy` — N-column grid with band wrapping, table-aware
+- Multi-sheet: `MultiSheetLayoutStrategy` assigns each section to its own worksheet; `MultiSheetExporter` writes with automatic cross-sheet formula resolution
+- Compact, Horizontal, and Dashboard strategies are table-aware: they detect registered `TableRef` and render grids with column headers
 - `NodeFormula` references other nodes by `NodeRef`, resolved to `FormulaAST` at export
 - Builders (AmortizationModelBuilder, DCFModelBuilder) auto-construct models from BusinessMath types
 - Extensions (MonteCarloExtension) attach simulation to any model

@@ -2,6 +2,17 @@
 
 All notable changes to BusinessMathExcel will be documented in this file.
 
+## [0.5.0] - 2026-06-06
+
+### Added
+- CompactLayoutStrategy: vertical layout with no blank separator rows between sections, table-aware
+- MultiSheetLayoutStrategy: assigns each section to its own worksheet with configurable per-sheet layout
+- MultiSheetExporter: exports ExcelModel to multi-sheet Workbook with automatic cross-sheet formula resolution
+- SheetCell: sheet-qualified cell reference type for cross-sheet mapping
+- MultiSheetAssignment: per-sheet CellAssignment collection with global node-to-sheet+cell mapping
+- Cross-sheet formula resolution: formulas referencing nodes on other sheets automatically produce `'SheetName'!A1` references
+- 37 new tests across 4 test files (CompactLayoutStrategyTests, MultiSheetAssignmentTests, MultiSheetLayoutStrategyTests, MultiSheetExporterTests)
+
 ## [0.4.0] - 2026-06-04
 
 ### Added

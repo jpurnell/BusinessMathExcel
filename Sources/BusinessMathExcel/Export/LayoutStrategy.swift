@@ -18,7 +18,7 @@ public struct CellAssignment: Sendable {
     /// Column header positions for registered tables, keyed by table label.
     ///
     /// Layout strategies that support table-aware rendering populate this field
-    /// with one ``CellRef`` per column header. Strategies that do not support
+    /// with one `CellRef` per column header. Strategies that do not support
     /// tables leave it empty.
     public let tableColumnHeaders: [String: [CellRef]]
 
