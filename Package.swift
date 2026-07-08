@@ -1,4 +1,5 @@
 // swift-tools-version: 6.2
+// legibility:description: Bidirectional translation layer between BusinessMath computational models and Excel workbooks with live formulas.
 
 import PackageDescription
 
