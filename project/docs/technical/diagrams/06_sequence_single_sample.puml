@@ -1,0 +1,79 @@
+@startuml Single Sample Through Pipeline
+!theme plain
+skinparam defaultFontSize 10
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam sequenceMessageAlign center
+
+title Single Sample Through Pipeline\n[Cl. 1, 29 — one heartbeat → one lens update]
+
+participant "Watch\nSensor" as Sensor
+participant "HKAdapter" as HK
+participant "WCSession" as WCS
+participant "WCBridge" as WCB
+participant "WatchRelay\nDevice" as Relay
+participant "Coherence\nEngine" as Engine
+participant "TintMapper" as Tint
+participant "EdgeCtrl" as Ctrl
+participant "Glasses" as Glass
+
+Sensor -> HK : heartbeat
+activate HK
+HK -> WCS : RRSample\n(800 ms)
+deactivate HK
+
+WCS -> WCB : sendMessage\n{rr:800, ts:…}
+WCB -> Relay : route
+
+Relay -> Engine : BioSample\n(800ms, now)
+activate Engine
+
+note over Engine : **RRBuffer**\nrange: pass\nectopic: pass
+Engine -> Engine : append to\n60s buffer\ntrim old
+
+note over Engine #LightCoral : **HRVMetrics**\nrmssd = 42ms\nsdnn = 58ms
+
+note over Engine #LightCoral : **FreqDomain**\nresample 4Hz\nHann + FFT\nLF/HF bands
+
+note over Engine #Wheat
+  **CoherenceAlg**
+  **[Cl. 7, 33]**
+  peak @ 0.1Hz
+  ratio = 0.72
+  raw coh = 72
+end note
+
+note over Engine #Wheat
+  **EMA smooth**
+  **[Cl. 10, 36]**
+  α = 0.3
+  smoothed = 65
+end note
+
+Engine -> Tint : FeedbackUpdate\ncoh = 65
+deactivate Engine
+activate Tint
+
+note over Tint #LightGreen
+  **[Cl. 4, 6, 30, 32]**
+  map(65)
+  center = 117
+  → 46% brightness
+end note
+
+Tint -> Ctrl : TintOutput
+deactivate Tint
+activate Ctrl
+Ctrl -> Glass : 0xA2, 46
+deactivate Ctrl
+activate Glass
+
+note over Glass #LightGreen
+  **[Cl. 3, 30]**
+  Liquid crystal
+  lens clears
+end note
+
+deactivate Glass
+
+@enduml

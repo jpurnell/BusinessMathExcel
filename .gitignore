@@ -3,3 +3,5 @@
 .swiftpm/
 development-guidelines/
 latestReport.json
+/.claude/skills/
+/development-guidelines.pre-v2/

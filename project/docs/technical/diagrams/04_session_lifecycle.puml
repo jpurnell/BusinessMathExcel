@@ -1,0 +1,72 @@
+@startuml Session Lifecycle State Machine
+!theme plain
+skinparam defaultFontSize 12
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam state {
+    BackgroundColor #F0F0F0
+    BorderColor #555555
+}
+
+title Session Lifecycle State Machine\n[Cl. 1, 29 — closed-loop biofeedback training]
+
+[*] --> IDLE
+
+state IDLE #LightGray {
+}
+
+IDLE --> CONNECTING : user taps\n"Start Training"
+
+state CONNECTING #LightBlue {
+    CONNECTING : input.connect()
+    CONNECTING : (Watch relay or Polar BLE)
+    CONNECTING : ──
+    CONNECTING : output.connect()
+    CONNECTING : (Edge glasses BLE)
+    CONNECTING : ──
+    CONNECTING : output.configureSession()
+    CONNECTING : (0xA3 breathing + 0xA4 duration)
+}
+
+CONNECTING --> SETTLING : both connected
+
+state SETTLING #Wheat {
+    SETTLING : 30 seconds
+    SETTLING : ──
+    SETTLING : Pre-fill 60s buffer with RR samples
+    SETTLING : Detect resting heart rate
+    SETTLING : Coherence engine warms up (no score yet)
+}
+
+SETTLING --> TRAINING : buffer ≥ minWindowSeconds
+
+state TRAINING #LightGreen {
+    TRAINING : 15 minutes (default)
+    TRAINING : ──
+    TRAINING : For each BioSample:
+    TRAINING :   engine.addSample() → CoherenceResult
+    TRAINING :   → FeedbackUpdate → output.render()
+    TRAINING :   → AdaptivePacer.update()
+    TRAINING :   → AudioEngine.update()
+    TRAINING :   → UI (CoherenceRing, BreathingCircle)
+}
+note right of TRAINING
+  **[Cl. 1, 29]** The closed-loop
+  biofeedback system in operation:
+  acquire → process → control signal
+  → wearable device → user perceives
+end note
+
+TRAINING --> RESULTS : timer expires or\nuser taps Stop
+
+state RESULTS #LightCoral {
+    RESULTS : SessionSummary computed
+    RESULTS : output.disconnect()
+    RESULTS : (0x00 clear + 0xA7 sleep)
+    RESULTS : input.disconnect()
+    RESULTS : Persist to SwiftData
+}
+
+RESULTS --> IDLE
+
+@enduml

@@ -1,0 +1,69 @@
+@startuml Patent FIG.1 Alignment
+!theme plain
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam package {
+    BackgroundColor #FAFAFA
+    BorderColor #999999
+}
+
+title Patent FIG. 1 → Codebase Mapping\nUS 9,521,976 B2
+
+package "Patent Element" as patent #FFF8E1 {
+    component "Subject 101\nEEG/ECG/Pulse/GSR/Temp" as p_subject
+    component "Signal Acquisition\nDevice 102" as p_acq
+    component "Mobile Device 103\nor PC 104" as p_mobile
+    component "Training Protocol 202\nProtocol A (lens) 203\nProtocol B (vibration) 204" as p_proto
+    component "Reward/Penalty\n205, 206" as p_reward
+    component "WiPWM Interface 105" as p_pwm
+    component "LCD Glasses 106" as p_glasses
+    component "Vibrator Motor 107" as p_vibrator
+
+    p_subject --> p_acq
+    p_acq --> p_mobile : Bluetooth
+    p_mobile --> p_proto
+    p_proto --> p_reward
+    p_reward --> p_pwm
+    p_pwm --> p_glasses
+    p_pwm --> p_vibrator
+}
+
+package "Codebase Implementation" as code #E8F5E9 {
+    component "User wearing\nApple Watch +\nEdge glasses" as c_subject
+    component "HKHealthStoreAdapter\nPolarDevice\n«BiofeedbackDevice»" as c_acq
+    component "iPhone running\nNarbisKit +\nBioFeedbackKit" as c_mobile
+    component "StreamingCoherenceEngine\n+ CoherenceAlgorithm\n+ TintMapper" as c_proto
+    component "CoherenceResult\n→ FeedbackUpdate" as c_reward
+    component "CoreBluetooth\nGlassesConnector\n(BLE)" as c_ble
+    component "Edge Glasses\n0xA2 brightness\n«FeedbackDevice»" as c_glasses
+    component "Apple Watch\nTaptic Engine" as c_vibrator
+
+    c_subject --> c_acq
+    c_acq --> c_mobile : WCSession /\nBLE
+    c_mobile --> c_proto
+    c_proto --> c_reward
+    c_reward --> c_ble
+    c_ble --> c_glasses
+    c_reward --> c_vibrator
+}
+
+p_subject -[hidden]right-> c_subject
+p_acq -[hidden]right-> c_acq
+
+note bottom of patent
+  Patent covers EEG, ECG, EMG,
+  skin temp, GSR, heart rate, ERPs.
+  **[Cl. 5, 16]**
+end note
+
+note bottom of code
+  Current implementation uses
+  heart rate (HRV). EEG is
+  a future extension.
+  **45% of 51 claims implemented.**
+end note
+
+@enduml

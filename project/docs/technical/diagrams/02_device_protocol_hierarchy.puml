@@ -1,0 +1,69 @@
+@startuml Device Protocol Hierarchy
+!theme plain
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam classAttributeIconSize 0
+
+title Device Protocol Hierarchy
+
+interface "Device" as Device {
+    + name: String {async get}
+    + transport: ConnectionTransport
+    + isConnected: Bool {async get}
+    + connectionState: AsyncStream
+    + health: AsyncStream
+    + reconnectionPolicy
+    + connect() async throws
+    + disconnect() async throws
+}
+
+interface "BiofeedbackDevice" as Bio {
+    + sampleStream()
+    → AsyncThrowingStream<BioSample>
+}
+
+interface "FeedbackDevice" as Feed {
+    + capabilities
+    + configureSession()
+    + render(AsyncSequence<FeedbackUpdate>)
+}
+
+class "PolarDevice\n«actor»" as Polar #LightBlue
+class "WatchRelayDevice\n«actor»" as Relay #LightBlue
+class "MockBiofeedbackDevice\n«actor»" as MockBio #LightGray
+
+class "EdgeGlassesDevice\n«actor»" as Edge #LightGreen
+class "MockFeedbackDevice\n«actor»" as MockFeed #LightGray
+
+class "AppleWatchDevice\n«actor»\nDUAL conform\nInput + Output" as Watch #Wheat
+class "SimulationDevice\n«actor»\nDUAL conform\nInput + Output" as Sim #Wheat
+
+Device <|-- Bio
+Device <|-- Feed
+
+Bio <|.. Polar
+Bio <|.. Relay
+Bio <|.. MockBio
+
+Feed <|.. Edge
+Feed <|.. MockFeed
+
+Bio <|.. Watch
+Feed <|.. Watch
+
+Bio <|.. Sim
+Feed <|.. Sim
+
+note right of Watch
+  Apple Watch reads biofeedback
+  AND renders feedback (haptics + screen).
+  watchOS uses this single device for both roles.
+end note
+
+note right of Edge
+  Output-only: Edge glasses.
+  Pairs with Polar (input) on iOS.
+end note
+
+@enduml

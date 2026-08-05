@@ -82,7 +82,9 @@
       "Bash(git count-objects *)",
       "Bash(git stash *)",
       "Bash(git ls-tree *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git *)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
