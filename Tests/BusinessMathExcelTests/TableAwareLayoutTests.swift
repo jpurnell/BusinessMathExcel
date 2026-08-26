@@ -39,67 +39,62 @@ final class TableAwareLayoutTests: XCTestCase {
         XCTAssertEqual(assignment.tableColumnHeaders["Schedule"]?.count, 2)
     }
 
-    func testHorizontalTableBodyNodesOmittedFromLabelMapping() {
+    func testHorizontalTableBodyNodesOmittedFromLabelMapping() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNil(assignment.labelMapping[ref],
                 "Table body node '\(label)' should not be in labelMapping")
         }
     }
 
-    func testHorizontalTableBodyNodesInMapping() {
+    func testHorizontalTableBodyNodesInMapping() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNotNil(assignment.mapping[ref],
                 "Table body node '\(label)' should be in mapping")
         }
     }
 
-    func testHorizontalTableSpansCorrectColumns() {
+    func testHorizontalTableSpansCorrectColumns() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy(startColumn: 3)
         let assignment = strategy.assign(model)
 
-        let p1 = model.node(named: "P1")!
-        let amt1 = model.node(named: "Amt1")!
+        let p1 = try XCTUnwrap(model.node(named: "P1"))
+        let amt1 = try XCTUnwrap(model.node(named: "Amt1"))
 
-        let p1Col = assignment.mapping[p1]?.column
+        let p1Col = try XCTUnwrap(assignment.mapping[p1]?.column)
         let amt1Col = assignment.mapping[amt1]?.column
-
-        XCTAssertNotNil(p1Col)
         XCTAssertNotNil(amt1Col)
-        XCTAssertEqual(amt1Col, p1Col! + 1, "Table columns should be adjacent")
+        XCTAssertEqual(amt1Col, p1Col + 1, "Table columns should be adjacent")
     }
 
-    func testHorizontalTableRowsStackVertically() {
+    func testHorizontalTableRowsStackVertically() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let p1Row = assignment.mapping[model.node(named: "P1")!]?.row
-        let p2Row = assignment.mapping[model.node(named: "P2")!]?.row
-
-        XCTAssertNotNil(p1Row)
-        XCTAssertNotNil(p2Row)
-        XCTAssertEqual(p2Row, p1Row! + 1)
+        let p1Row = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "P1"))]).row
+        let p2Row = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "P2"))]).row
+        XCTAssertEqual(p2Row, p1Row + 1)
     }
 
-    func testHorizontalNonTableSectionsUnaffected() {
+    func testHorizontalNonTableSectionsUnaffected() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let rate = model.node(named: "Rate")!
+        let rate = try XCTUnwrap(model.node(named: "Rate"))
         XCTAssertNotNil(assignment.labelMapping[rate],
             "Non-table node should have label mapping")
         XCTAssertNotNil(assignment.mapping[rate],
@@ -117,27 +112,27 @@ final class TableAwareLayoutTests: XCTestCase {
         XCTAssertEqual(assignment.tableColumnHeaders["Schedule"]?.count, 2)
     }
 
-    func testDashboardTableBodyNodesOmittedFromLabelMapping() {
+    func testDashboardTableBodyNodesOmittedFromLabelMapping() throws {
         let model = makeTableModel()
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNil(assignment.labelMapping[ref],
                 "Table body node '\(label)' should not be in labelMapping")
         }
     }
 
-    func testDashboardTableBodyNodesInMapping() {
+    func testDashboardTableBodyNodesInMapping() throws {
         let model = makeTableModel()
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNotNil(assignment.mapping[ref],
                 "Table body node '\(label)' should be in mapping")
         }

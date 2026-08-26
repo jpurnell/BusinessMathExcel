@@ -82,6 +82,6 @@ final class SimulationTranslatorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try workbook.save(to: url)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertTrue(try url.checkResourceIsReachable())
     }
 }

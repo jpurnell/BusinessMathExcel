@@ -34,7 +34,7 @@ final class CompactLayoutStrategyTests: XCTestCase {
 
     // MARK: - Multi-Section: No Blank Separator Rows
 
-    func testMultiSectionNoBlankRows() {
+    func testMultiSectionNoBlankRows() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -42,16 +42,16 @@ final class CompactLayoutStrategyTests: XCTestCase {
         let strategy = CompactLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let inputHeader = assignment.sectionRows["Inputs"]!
-        let inputDataRow = assignment.mapping[model.node(named: "A")!]!.row
-        let calcHeader = assignment.sectionRows["Calculations"]!
+        let inputHeader = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let inputDataRow = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).row
+        let calcHeader = try XCTUnwrap(assignment.sectionRows["Calculations"])
 
         XCTAssertEqual(inputHeader, 3)
         XCTAssertEqual(inputDataRow, 4)
         XCTAssertEqual(calcHeader, 5, "Next section header should immediately follow without blank row")
     }
 
-    func testThreeSectionsFlowWithoutGaps() {
+    func testThreeSectionsFlowWithoutGaps() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addInput(label: "B", value: 2)
@@ -61,9 +61,9 @@ final class CompactLayoutStrategyTests: XCTestCase {
         let strategy = CompactLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let inputsRow = assignment.sectionRows["Inputs"]!
-        let calcsRow = assignment.sectionRows["Calculations"]!
-        let resultsRow = assignment.sectionRows["Results"]!
+        let inputsRow = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let calcsRow = try XCTUnwrap(assignment.sectionRows["Calculations"])
+        let resultsRow = try XCTUnwrap(assignment.sectionRows["Results"])
 
         // Inputs: header at 3, A at 4, B at 5
         // Calculations: header at 6, C at 7
@@ -157,27 +157,27 @@ final class CompactLayoutStrategyTests: XCTestCase {
 
     // MARK: - Table-Aware: Body Nodes
 
-    func testTableBodyNodesOmittedFromLabelMapping() {
+    func testTableBodyNodesOmittedFromLabelMapping() throws {
         let model = makeTableModel()
         let strategy = CompactLayoutStrategy()
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNil(assignment.labelMapping[ref],
                 "Table body node '\(label)' should not be in labelMapping")
         }
     }
 
-    func testTableBodyNodesInMapping() {
+    func testTableBodyNodesInMapping() throws {
         let model = makeTableModel()
         let strategy = CompactLayoutStrategy()
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNotNil(assignment.mapping[ref],
                 "Table body node '\(label)' should be in mapping")
         }
@@ -185,18 +185,18 @@ final class CompactLayoutStrategyTests: XCTestCase {
 
     // MARK: - Table-Aware: Mixed Content
 
-    func testMixedTableAndNonTableSections() {
+    func testMixedTableAndNonTableSections() throws {
         let model = makeTableModel()
         let strategy = CompactLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let rate = model.node(named: "Rate")!
+        let rate = try XCTUnwrap(model.node(named: "Rate"))
         XCTAssertNotNil(assignment.labelMapping[rate],
             "Non-table node should have label mapping")
         XCTAssertNotNil(assignment.mapping[rate],
             "Non-table node should have value mapping")
 
-        let total = model.node(named: "Total")!
+        let total = try XCTUnwrap(model.node(named: "Total"))
         XCTAssertNotNil(assignment.labelMapping[total],
             "Non-table output node should have label mapping")
         XCTAssertNotNil(assignment.mapping[total],
@@ -217,8 +217,8 @@ final class CompactLayoutStrategyTests: XCTestCase {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 100)
         model.addInput(label: "Qty", value: 5)
-        let price = model.node(named: "Price")!
-        let qty = model.node(named: "Qty")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
+        let qty = try XCTUnwrap(model.node(named: "Qty"))
         model.addOutput(label: "Total", formula: .multiply(.ref(price), .ref(qty)))
 
         let strategy = CompactLayoutStrategy()

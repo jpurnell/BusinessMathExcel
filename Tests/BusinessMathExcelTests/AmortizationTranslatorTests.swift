@@ -7,10 +7,10 @@ import Foundation
 @available(*, deprecated)
 final class AmortizationTranslatorTests: XCTestCase {
 
-    private func makeSampleSchedule() -> AmortizationSchedule {
+    private func makeSampleSchedule() throws -> AmortizationSchedule {
         let calendar = Calendar(identifier: .gregorian)
-        let start = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1))!
-        let maturity = calendar.date(from: DateComponents(year: 2025, month: 4, day: 1))!
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2025, month: 1, day: 1)))
+        let maturity = try XCTUnwrap(calendar.date(from: DateComponents(year: 2025, month: 4, day: 1)))
 
         let instrument = DebtInstrument(
             principal: 100_000,
@@ -24,7 +24,7 @@ final class AmortizationTranslatorTests: XCTestCase {
     }
 
     func testTranslatorCreatesWorkbook() throws {
-        let schedule = makeSampleSchedule()
+        let schedule = try makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(from: schedule)
 
         XCTAssertEqual(workbook.sheets.count, 1)
@@ -32,7 +32,7 @@ final class AmortizationTranslatorTests: XCTestCase {
     }
 
     func testTranslatorWritesHeaders() throws {
-        let schedule = makeSampleSchedule()
+        let schedule = try makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(from: schedule)
         let sheet = workbook.sheets[0]
 
@@ -45,7 +45,7 @@ final class AmortizationTranslatorTests: XCTestCase {
     }
 
     func testTranslatorWritesDataRows() throws {
-        let schedule = makeSampleSchedule()
+        let schedule = try makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(from: schedule)
         let sheet = workbook.sheets[0]
 
@@ -65,7 +65,7 @@ final class AmortizationTranslatorTests: XCTestCase {
     }
 
     func testTranslatorWritesTotalsRowWithFormulas() throws {
-        let schedule = makeSampleSchedule()
+        let schedule = try makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(from: schedule)
         let sheet = workbook.sheets[0]
 
@@ -92,7 +92,7 @@ final class AmortizationTranslatorTests: XCTestCase {
     }
 
     func testTranslatorSavesToFile() throws {
-        let schedule = makeSampleSchedule()
+        let schedule = try makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(from: schedule)
 
         let url = FileManager.default.temporaryDirectory
@@ -100,11 +100,11 @@ final class AmortizationTranslatorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try workbook.save(to: url)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertTrue(try url.checkResourceIsReachable())
     }
 
     func testTranslatorWithCustomSheetName() throws {
-        let schedule = makeSampleSchedule()
+        let schedule = try makeSampleSchedule()
         let workbook = AmortizationTranslator.workbook(
             from: schedule,
             sheetName: "Mortgage"

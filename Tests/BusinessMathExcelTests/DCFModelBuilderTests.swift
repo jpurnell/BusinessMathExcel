@@ -13,53 +13,49 @@ final class DCFModelBuilderTests: XCTestCase {
 
     // MARK: - Input Nodes
 
-    func testHasDiscountRateInput() {
+    func testHasDiscountRateInput() throws {
         let model = makeModel()
-        let ref = model.node(named: "Discount Rate")
-        XCTAssertNotNil(ref)
-        if case .input(let value) = model.kind(of: ref!) {
+        let ref = try XCTUnwrap(model.node(named: "Discount Rate"))
+        if case .input(let value) = model.kind(of: ref) {
             XCTAssertEqual(value, 0.10, accuracy: 0.0001)
         } else {
             XCTFail("Expected input node")
         }
     }
 
-    func testHasInitialInvestmentInput() {
+    func testHasInitialInvestmentInput() throws {
         let model = makeModel()
-        let ref = model.node(named: "Initial Investment")
-        XCTAssertNotNil(ref)
-        if case .input(let value) = model.kind(of: ref!) {
+        let ref = try XCTUnwrap(model.node(named: "Initial Investment"))
+        if case .input(let value) = model.kind(of: ref) {
             XCTAssertEqual(value, -1000, accuracy: 0.01)
         } else {
             XCTFail("Expected input node")
         }
     }
 
-    func testHasCashFlowInputs() {
+    func testHasCashFlowInputs() throws {
         let model = makeModel()
         for year in 1...4 {
-            let ref = model.node(named: "Year \(year) Cash Flow")
+            let ref = try XCTUnwrap(model.node(named: "Year \(year) Cash Flow"))
             XCTAssertNotNil(ref, "Missing input for year \(year)")
         }
     }
 
     // MARK: - Output Nodes
 
-    func testHasNPVOutput() {
+    func testHasNPVOutput() throws {
         let model = makeModel()
-        let ref = model.node(named: "NPV")
-        XCTAssertNotNil(ref)
-        if case .output = model.kind(of: ref!) {
+        let ref = try XCTUnwrap(model.node(named: "NPV"))
+        if case .output = model.kind(of: ref) {
         } else {
             XCTFail("Expected output node")
         }
     }
 
-    func testHasIRROutput() {
+    func testHasIRROutput() throws {
         let model = makeModel()
-        let ref = model.node(named: "IRR")
-        XCTAssertNotNil(ref)
-        if case .output = model.kind(of: ref!) {
+        let ref = try XCTUnwrap(model.node(named: "IRR"))
+        if case .output = model.kind(of: ref) {
         } else {
             XCTFail("Expected output node")
         }
@@ -67,9 +63,9 @@ final class DCFModelBuilderTests: XCTestCase {
 
     // MARK: - NPV Formula Structure
 
-    func testNPVFormulaIncludesInitialInvestment() {
+    func testNPVFormulaIncludesInitialInvestment() throws {
         let model = makeModel()
-        let npvRef = model.node(named: "NPV")!
+        let npvRef = try XCTUnwrap(model.node(named: "NPV"))
         if case .output(let formula) = model.kind(of: npvRef) {
             if case .add(_, let npvCall) = formula {
                 if case .function(let name, _) = npvCall {
@@ -85,9 +81,9 @@ final class DCFModelBuilderTests: XCTestCase {
         }
     }
 
-    func testIRRFormulaReferencesAllCashFlows() {
+    func testIRRFormulaReferencesAllCashFlows() throws {
         let model = makeModel()
-        let irrRef = model.node(named: "IRR")!
+        let irrRef = try XCTUnwrap(model.node(named: "IRR"))
         if case .output(let formula) = model.kind(of: irrRef) {
             if case .function(let name, let args) = formula {
                 XCTAssertEqual(name, "IRR")
@@ -130,12 +126,10 @@ final class DCFModelBuilderTests: XCTestCase {
 
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
-        let npvRef = model.node(named: "NPV")!
-        let npvCell = assignment.mapping[npvRef]!
+        let npvRef = try XCTUnwrap(model.node(named: "NPV"))
+        let npvCell = try XCTUnwrap(assignment.mapping[npvRef])
 
-        let ast = sheet.formulaAST(at: npvCell.reference)
-        XCTAssertNotNil(ast)
-        XCTAssertTrue(ast != nil)
+        XCTAssertNotNil(sheet.formulaAST(at: npvCell.reference))
     }
 
     func testSavesToFile() throws {
@@ -147,7 +141,7 @@ final class DCFModelBuilderTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try wb.save(to: url)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertTrue(try url.checkResourceIsReachable())
     }
 
     // MARK: - Range-Based Formulas
@@ -159,13 +153,12 @@ final class DCFModelBuilderTests: XCTestCase {
 
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
-        let irrRef = model.node(named: "IRR")!
-        let irrCell = assignment.mapping[irrRef]!
+        let irrRef = try XCTUnwrap(model.node(named: "IRR"))
+        let irrCell = try XCTUnwrap(assignment.mapping[irrRef])
 
-        let ast = sheet.formulaAST(at: irrCell.reference)
-        XCTAssertNotNil(ast)
+        let ast = try XCTUnwrap(sheet.formulaAST(at: irrCell.reference))
 
-        let formula = FormulaSerializer.serialize(ast!)
+        let formula = FormulaSerializer.serialize(ast)
         XCTAssertTrue(
             formula.contains(":"),
             "IRR should use a cell range (A1:A5), got: \(formula)"
@@ -183,13 +176,12 @@ final class DCFModelBuilderTests: XCTestCase {
 
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
-        let npvRef = model.node(named: "NPV")!
-        let npvCell = assignment.mapping[npvRef]!
+        let npvRef = try XCTUnwrap(model.node(named: "NPV"))
+        let npvCell = try XCTUnwrap(assignment.mapping[npvRef])
 
-        let ast = sheet.formulaAST(at: npvCell.reference)
-        XCTAssertNotNil(ast)
+        let ast = try XCTUnwrap(sheet.formulaAST(at: npvCell.reference))
 
-        let formula = FormulaSerializer.serialize(ast!)
+        let formula = FormulaSerializer.serialize(ast)
         XCTAssertTrue(
             formula.contains(":"),
             "NPV values should use a cell range, got: \(formula)"

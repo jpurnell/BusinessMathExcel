@@ -21,7 +21,12 @@ let package = Package(
                 .product(name: "SwiftXLSX", package: "SwiftXLSX"),
                 .product(name: "BusinessMath", package: "BusinessMath"),
             ],
-            path: "Sources/BusinessMathExcel"
+            path: "Sources/BusinessMathExcel",
+            // The catalogue stays part of the target so the DocC plugin still finds it via
+            // `sourceFiles`; declaring it keeps SwiftPM's native build system from calling it
+            // an unhandled file. `exclude:` would silence that warning by hiding the catalogue
+            // from DocC entirely, which lints nothing.
+            resources: [.copy("BusinessMathExcel.docc")]
         ),
         .testTarget(
             name: "BusinessMathExcelTests",

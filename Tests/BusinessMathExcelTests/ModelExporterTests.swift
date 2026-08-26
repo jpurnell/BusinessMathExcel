@@ -4,12 +4,12 @@ import SwiftXLSX
 
 final class ModelExporterTests: XCTestCase {
 
-    private func makeSimpleModel() -> ExcelModel {
+    private func makeSimpleModel() throws -> ExcelModel {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 100)
         model.addInput(label: "Quantity", value: 5)
-        let price = model.node(named: "Price")!
-        let qty = model.node(named: "Quantity")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
+        let qty = try XCTUnwrap(model.node(named: "Quantity"))
         model.addOutput(
             label: "Total",
             formula: .multiply(.ref(price), .ref(qty))
@@ -20,21 +20,21 @@ final class ModelExporterTests: XCTestCase {
     // MARK: - Basic Export
 
     func testCreatesWorkbookWithOneSheet() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
 
         XCTAssertEqual(wb.sheets.count, 1)
     }
 
     func testDefaultSheetName() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
 
         XCTAssertEqual(wb.sheets[0].name, "Model")
     }
 
     func testCustomSheetName() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, sheetName: "Revenue")
 
         XCTAssertEqual(wb.sheets[0].name, "Revenue")
@@ -43,7 +43,7 @@ final class ModelExporterTests: XCTestCase {
     // MARK: - Title
 
     func testWritesTitle() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, title: "Revenue Model")
         let sheet = wb.sheets[0]
 
@@ -51,7 +51,7 @@ final class ModelExporterTests: XCTestCase {
     }
 
     func testCustomTitle() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, title: "Cost Analysis")
         let sheet = wb.sheets[0]
 
@@ -61,7 +61,7 @@ final class ModelExporterTests: XCTestCase {
     // MARK: - Section Headers
 
     func testWritesSectionHeaders() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
@@ -71,7 +71,7 @@ final class ModelExporterTests: XCTestCase {
     // MARK: - Input Nodes
 
     func testWritesInputLabels() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
@@ -80,7 +80,7 @@ final class ModelExporterTests: XCTestCase {
     }
 
     func testWritesInputValues() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
@@ -118,7 +118,7 @@ final class ModelExporterTests: XCTestCase {
     // MARK: - Output Nodes
 
     func testWritesOutputAsFormula() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
@@ -197,7 +197,7 @@ final class ModelExporterTests: XCTestCase {
     // MARK: - Round-Trip
 
     func testSavesToFile() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
 
         let url = FileManager.default.temporaryDirectory
@@ -205,11 +205,11 @@ final class ModelExporterTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try wb.save(to: url)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertTrue(try url.checkResourceIsReachable())
     }
 
     func testRoundTripPreservesValues() throws {
-        let model = makeSimpleModel()
+        let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, title: "Test")
 
         let data = try wb.save()

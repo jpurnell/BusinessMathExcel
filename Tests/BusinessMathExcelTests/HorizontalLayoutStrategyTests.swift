@@ -59,12 +59,12 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
 
     // MARK: - Multi-Section Side-by-Side
 
-    func testTwoSectionsPlacedSideBySide() {
+    func testTwoSectionsPlacedSideBySide() throws {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
-        let rate = model.node(named: "Rate")!
+        let rate = try XCTUnwrap(model.node(named: "Rate"))
         model.addOutput(label: "Result", formula: .ref(rate))
-        let result = model.node(named: "Result")!
+        let result = try XCTUnwrap(model.node(named: "Result"))
 
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
@@ -90,7 +90,7 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         XCTAssertEqual(inputsRow, resultsRow)
     }
 
-    func testThreeSectionsWithCorrectGaps() {
+    func testThreeSectionsWithCorrectGaps() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -99,9 +99,9 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy(startColumn: 3, sectionGap: 1)
         let assignment = strategy.assign(model)
 
-        let aCol = assignment.mapping[model.node(named: "A")!]?.column
-        let bCol = assignment.mapping[model.node(named: "B")!]?.column
-        let cCol = assignment.mapping[model.node(named: "C")!]?.column
+        let aCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).column
+        let bCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B"))]).column
+        let cCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "C"))]).column
 
         XCTAssertEqual(aCol, 4)
         XCTAssertEqual(bCol, 7)
@@ -135,7 +135,7 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         XCTAssertEqual(assignment.mapping[ref]?.column, 6)
     }
 
-    func testCustomSectionGap() {
+    func testCustomSectionGap() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -143,8 +143,8 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy(startColumn: 3, sectionGap: 3)
         let assignment = strategy.assign(model)
 
-        let aCol = assignment.mapping[model.node(named: "A")!]?.column
-        let bCol = assignment.mapping[model.node(named: "B")!]?.column
+        let aCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).column
+        let bCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B"))]).column
 
         XCTAssertEqual(aCol, 4)
         XCTAssertEqual(bCol, 9)
@@ -201,7 +201,7 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
 
     // MARK: - Nodes Stack Vertically Within Section
 
-    func testNodesStackVerticallyWithinSection() {
+    func testNodesStackVerticallyWithinSection() throws {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 1)
         let b = model.addInput(label: "B", value: 2)
@@ -210,15 +210,12 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let rowA = assignment.mapping[a]?.row
-        let rowB = assignment.mapping[b]?.row
+        let rowA = try XCTUnwrap(assignment.mapping[a]?.row)
+        let rowB = try XCTUnwrap(assignment.mapping[b]?.row)
         let rowC = assignment.mapping[c]?.row
-
-        XCTAssertNotNil(rowA)
-        XCTAssertNotNil(rowB)
         XCTAssertNotNil(rowC)
-        XCTAssertEqual(rowB, rowA! + 1)
-        XCTAssertEqual(rowC, rowB! + 1)
+        XCTAssertEqual(rowB, rowA + 1)
+        XCTAssertEqual(rowC, rowB + 1)
     }
 
     // MARK: - Integration with ModelExporter
@@ -227,8 +224,8 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 100)
         model.addInput(label: "Qty", value: 5)
-        let price = model.node(named: "Price")!
-        let qty = model.node(named: "Qty")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
+        let qty = try XCTUnwrap(model.node(named: "Qty"))
         model.addOutput(label: "Total", formula: .multiply(.ref(price), .ref(qty)))
 
         let strategy = HorizontalLayoutStrategy()

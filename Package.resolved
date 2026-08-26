@@ -1,12 +1,12 @@
 {
-  "originHash" : "6294f704c679a8bbb876ac8a367db2fb7d2bf5cd9f7f8ac3dd6efdc12aaaea72",
+  "originHash" : "851f3c34efb4ce5625369b0fe633ca65ae0b74fa0c11d03ada654ea260bd37e7",
   "pins" : [
     {
       "identity" : "businessmath",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpurnell/BusinessMath",
       "state" : {
-        "revision" : "3af9184600d57a6fc21607da468307860e90beb5",
+        "revision" : "be8d9fd67454d6b936f61785b998d57ab724c5f4",
         "version" : "2.2.1"
       }
     },
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections.git",
       "state" : {
-        "revision" : "fea17c02d767f46b23070fdfdacc28a03a39232a",
-        "version" : "1.5.1"
+        "revision" : "a0cb0954ecb21e4e31b0070e6ed5674e8556685a",
+        "version" : "1.6.0"
       }
     },
     {
@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpurnell/SwiftZIP.git",
       "state" : {
-        "revision" : "7fa8643b5c492c7a4d9ec53a0edd19166b61bb18",
-        "version" : "0.5.0"
+        "revision" : "a5013c96745a5f298f8e9d7f955c3f78fc74f113",
+        "version" : "0.6.0"
       }
     }
   ],

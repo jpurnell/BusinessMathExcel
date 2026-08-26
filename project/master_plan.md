@@ -86,12 +86,12 @@ Import: .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> Form
 |-----------|-----------|
 | Language | Swift 6.2 (strict concurrency) |
 | Platform | macOS 14+, iOS 17+ |
-| Dependencies | SwiftXLSX (local `../SwiftXLSX`), BusinessMath (local `../BusinessMath`) |
-| Testing | XCTest, 274 tests |
+| Dependencies | SwiftXLSX 0.2.0, BusinessMath 2.2.1 — both pinned `exact:` to their GitHub URLs |
+| Testing | XCTest, 271 tests across 24 files |
 
 ### Module Status
 
-- [x] BusinessMathExcel — ~120 public APIs, 257 tests
+- [x] BusinessMathExcel — 136 public APIs, 100% documented, 271 tests
 
 ### Project Structure
 
@@ -126,12 +126,14 @@ BusinessMathExcel/
 │   ├── Extensions/
 │   │   ├── Distribution.swift
 │   │   └── MonteCarloExtension.swift
+│   ├── BusinessMathExcel.docc/
+│   │   └── BusinessMathExcel.md          (landing page)
 │   ├── AmortizationTranslator.swift      (deprecated)
 │   ├── SensitivityTranslator.swift       (deprecated)
 │   ├── SimulationTranslator.swift        (deprecated)
 │   └── TornadoTranslator.swift           (deprecated)
 ├── Tests/BusinessMathExcelTests/
-│   └── (24 test files, 257 tests)
+│   └── (24 test files, 271 tests)
 └── development-guidelines/               (gitignored)
 ```
 
@@ -160,11 +162,21 @@ BusinessMathExcel/
 - [x] Table-aware rendering: CellAssignment.tableColumnHeaders, ExcelModel.allTables
 - [x] ModelExporter table header writing
 
-### v0.5.0 — Compact and Multi-Sheet Layout (current)
+### v0.5.0 — Compact and Multi-Sheet Layout
 - [x] CompactLayoutStrategy: vertical, no separators, table-aware
 - [x] MultiSheetLayoutStrategy: each section on its own worksheet
 - [x] MultiSheetExporter: multi-sheet export with cross-sheet formula resolution
 - [x] SheetCell + MultiSheetAssignment: cross-sheet data types
+
+
+### Unreleased — Dependency Pin and a Zero-Warning Gate
+- [x] BusinessMath 2.2.1 pin repaired after the upstream tag moved; SwiftPM's fingerprint
+      record was the actual blocker, not `Package.resolved`
+- [x] `.quality-gate.yml` reduced to keys the schema defines — `checkers:`/`exclude:` were
+      fiction the decoder discarded, so the file never described what ran
+- [x] DocC catalogue added; `doc-lint` and `doc-code` now have something to examine
+- [x] 121 test force unwraps replaced with `try XCTUnwrap`; zero force unwraps in the repo
+- [x] Full gate green: 40 of 45 checkers, 0 errors, 0 warnings, no overrides
 
 ---
 
@@ -182,6 +194,10 @@ BusinessMathExcel/
 
 | Resource | Location |
 |----------|----------|
-| SwiftXLSX source | `../SwiftXLSX/` |
-| BusinessMath source | `../BusinessMath/` |
+| SwiftXLSX source | `../SwiftXLSX/` (local working copy; the build resolves the pinned tag) |
+| BusinessMath source | `../BusinessMath/` (local working copy; the build resolves the pinned tag) |
 | CHANGELOG | `./CHANGELOG.md` |
+
+---
+
+**Last Updated:** 2026-08-26 — reconciled dependency form (remote pinned, not local paths), test counts (271, not 274/257), the source tree (DocC catalogue), and recorded the unreleased gate work.

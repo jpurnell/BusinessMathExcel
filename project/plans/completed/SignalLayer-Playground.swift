@@ -14,6 +14,18 @@
 
 import Foundation
 
+// MARK: - Division safety
+
+/// Divides `numerator` by `divisor`, returning `0` when the divisor is zero.
+///
+/// Every quotient in this script goes through here so the zero check lives in exactly
+/// one place: an empty or single-sample RR series must not produce a NaN that then
+/// reads as ground truth for the test fixtures.
+func divide(_ numerator: Double, by divisor: Double) -> Double {
+    guard divisor != 0 else { return 0 }
+    return numerator / divisor
+}
+
 // MARK: - Primary fixture
 
 let rr: [Double] = [800, 820, 790, 810, 830, 805]
@@ -33,7 +45,7 @@ print()
 // MARK: - RMSSD
 
 let squared = diffs.map { $0 * $0 }
-let meanOfSquared = squared.reduce(0, +) / Double(squared.count)
+let meanOfSquared = divide(squared.reduce(0, +), by: Double(squared.count))
 let rmssd = meanOfSquared.squareRoot()
 print("Squared diffs:", squared)
 print("Mean of squared diffs:", meanOfSquared)
@@ -43,7 +55,7 @@ print()
 
 // MARK: - Mean NN
 
-let meanRR = rr.reduce(0, +) / Double(rr.count)
+let meanRR = divide(rr.reduce(0, +), by: Double(rr.count))
 print("Mean NN (ms):", meanRR)
 // Expected: 809.1666666666666
 print()
@@ -51,7 +63,7 @@ print()
 // MARK: - SDNN (sample stdev, n-1 denominator)
 
 let squaredDeviations = rr.map { ($0 - meanRR) * ($0 - meanRR) }
-let sampleVariance = squaredDeviations.reduce(0, +) / Double(rr.count - 1)
+let sampleVariance = divide(squaredDeviations.reduce(0, +), by: Double(rr.count - 1))
 let sdnn = sampleVariance.squareRoot()
 print("Squared deviations:", squaredDeviations)
 print("Sample variance:", sampleVariance)
@@ -62,7 +74,7 @@ print()
 // MARK: - pNN50 (n-1 denominator, strict greater than 50)
 
 let exceeding50 = diffs.filter { abs($0) > 50 }.count
-let pnn50 = Double(exceeding50) / Double(diffs.count)
+let pnn50 = divide(Double(exceeding50), by: Double(diffs.count))
 print("Diffs exceeding 50 ms (strict):", exceeding50)
 print("pNN50:", pnn50)
 // Expected: 0.0
@@ -75,11 +87,11 @@ func summarize(_ label: String, _ values: [Double], threshold: Double = 50.0) {
     print("RR:", values)
     let d = zip(values.dropFirst(), values).map { $0 - $1 }
     let sq = d.map { $0 * $0 }
-    let r = (sq.reduce(0, +) / Double(max(sq.count, 1))).squareRoot()
-    let m = values.reduce(0, +) / Double(values.count)
+    let r = divide(sq.reduce(0, +), by: Double(sq.count)).squareRoot()
+    let m = divide(values.reduce(0, +), by: Double(values.count))
     let sdv = values.map { ($0 - m) * ($0 - m) }
-    let s = (sdv.reduce(0, +) / Double(max(values.count - 1, 1))).squareRoot()
-    let p = Double(d.filter { abs($0) > threshold }.count) / Double(max(d.count, 1))
+    let s = divide(sdv.reduce(0, +), by: Double(values.count - 1)).squareRoot()
+    let p = divide(Double(d.filter { abs($0) > threshold }.count), by: Double(d.count))
     print("  RMSSD:", r)
     print("  Mean NN:", m)
     print("  SDNN:", s)

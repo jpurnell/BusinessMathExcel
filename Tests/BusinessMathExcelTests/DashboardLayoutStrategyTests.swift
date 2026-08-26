@@ -33,7 +33,7 @@ final class DashboardLayoutStrategyTests: XCTestCase {
 
     // MARK: - Grid Layout: Left-to-Right Fill
 
-    func testTwoSectionsFillLeftToRight() {
+    func testTwoSectionsFillLeftToRight() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -45,14 +45,12 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let resultsRow = assignment.sectionRows["Results"]
         XCTAssertEqual(inputsRow, resultsRow, "Both sections should be in the same band")
 
-        let aCol = assignment.mapping[model.node(named: "A")!]?.column
-        let bCol = assignment.mapping[model.node(named: "B")!]?.column
-        XCTAssertNotNil(aCol)
-        XCTAssertNotNil(bCol)
-        XCTAssertLessThan(aCol!, bCol!, "Section 2 should be to the right of section 1")
+        let aCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).column
+        let bCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B"))]).column
+        XCTAssertLessThan(aCol, bCol, "Section 2 should be to the right of section 1")
     }
 
-    func testThreeSectionsWrapToSecondBand() {
+    func testThreeSectionsWrapToSecondBand() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -61,9 +59,9 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let strategy = DashboardLayoutStrategy(columnCount: 2)
         let assignment = strategy.assign(model)
 
-        let inputsRow = assignment.sectionRows["Inputs"]!
-        let calcsRow = assignment.sectionRows["Calculations"]!
-        let resultsRow = assignment.sectionRows["Results"]!
+        let inputsRow = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let calcsRow = try XCTUnwrap(assignment.sectionRows["Calculations"])
+        let resultsRow = try XCTUnwrap(assignment.sectionRows["Results"])
 
         XCTAssertEqual(inputsRow, calcsRow, "First two sections share a band")
         XCTAssertGreaterThan(resultsRow, calcsRow, "Third section wraps to next band")
@@ -71,7 +69,7 @@ final class DashboardLayoutStrategyTests: XCTestCase {
 
     // MARK: - Band Height Adapts to Tallest Section
 
-    func testBandHeightAdaptsToTallestSection() {
+    func testBandHeightAdaptsToTallestSection() throws {
         let model = ExcelModel()
         model.addInput(label: "A1", value: 1)
         model.addInput(label: "A2", value: 2)
@@ -81,18 +79,18 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let strategy = DashboardLayoutStrategy(columnCount: 2)
         let assignment = strategy.assign(model)
 
-        let inputsRow = assignment.sectionRows["Inputs"]!
-        let resultsRow = assignment.sectionRows["Results"]!
+        let inputsRow = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let resultsRow = try XCTUnwrap(assignment.sectionRows["Results"])
 
         XCTAssertEqual(inputsRow, resultsRow, "Same band")
 
-        let lastInputRow = assignment.mapping[model.node(named: "A3")!]!.row
-        let resultRow = assignment.mapping[model.node(named: "B1")!]!.row
+        let lastInputRow = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A3"))]).row
+        let resultRow = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B1"))]).row
         XCTAssertLessThanOrEqual(resultRow, lastInputRow,
             "Results section ends at or before the last input row")
     }
 
-    func testNextBandStartsAfterTallestSection() {
+    func testNextBandStartsAfterTallestSection() throws {
         let model = ExcelModel()
         model.addInput(label: "A1", value: 1)
         model.addInput(label: "A2", value: 2)
@@ -103,17 +101,16 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let strategy = DashboardLayoutStrategy(columnCount: 2, bandGap: 2)
         let assignment = strategy.assign(model)
 
-        let inputsHeaderRow = assignment.sectionRows["Inputs"]!
-        let lastInputRow = assignment.mapping[model.node(named: "A3")!]!.row
+        let lastInputRow = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A3"))]).row
 
-        let resultsRow = assignment.sectionRows["Results"]!
+        let resultsRow = try XCTUnwrap(assignment.sectionRows["Results"])
         XCTAssertEqual(resultsRow, lastInputRow + 1 + 2,
             "Next band starts after tallest section + bandGap")
     }
 
     // MARK: - Custom Parameters
 
-    func testCustomColumnCount() {
+    func testCustomColumnCount() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -122,9 +119,9 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
 
-        let inputsRow = assignment.sectionRows["Inputs"]!
-        let calcsRow = assignment.sectionRows["Calculations"]!
-        let resultsRow = assignment.sectionRows["Results"]!
+        let inputsRow = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let calcsRow = try XCTUnwrap(assignment.sectionRows["Calculations"])
+        let resultsRow = try XCTUnwrap(assignment.sectionRows["Results"])
 
         XCTAssertEqual(inputsRow, calcsRow, "All three fit in one band")
         XCTAssertEqual(calcsRow, resultsRow)
@@ -141,7 +138,7 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         XCTAssertEqual(assignment.mapping[ref]?.column, 6)
     }
 
-    func testCustomSectionGap() {
+    func testCustomSectionGap() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -149,8 +146,8 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let strategy = DashboardLayoutStrategy(columnCount: 2, startColumn: 3, sectionGap: 3)
         let assignment = strategy.assign(model)
 
-        let aCol = assignment.mapping[model.node(named: "A")!]?.column
-        let bCol = assignment.mapping[model.node(named: "B")!]?.column
+        let aCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).column
+        let bCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B"))]).column
 
         XCTAssertEqual(aCol, 4)
         XCTAssertEqual(bCol, 9)
@@ -218,8 +215,8 @@ final class DashboardLayoutStrategyTests: XCTestCase {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 100)
         model.addInput(label: "Qty", value: 5)
-        let price = model.node(named: "Price")!
-        let qty = model.node(named: "Qty")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
+        let qty = try XCTUnwrap(model.node(named: "Qty"))
         model.addOutput(label: "Total", formula: .multiply(.ref(price), .ref(qty)))
 
         let strategy = DashboardLayoutStrategy(columnCount: 2)

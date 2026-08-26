@@ -19,7 +19,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testAddsDataSheet() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -39,7 +39,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testAddsSummarySheet() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -61,7 +61,7 @@ final class MonteCarloExtensionTests: XCTestCase {
     func testDataSheetHasCorrectRowCount() throws {
         let iterations = 50
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -87,8 +87,8 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testDataSheetHasHeaders() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
-        let qty = model.node(named: "Quantity")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
+        let qty = try XCTUnwrap(model.node(named: "Quantity"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -113,7 +113,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testSummarySheetHasStatFormulas() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -141,7 +141,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testSummarySheetHasPercentileFormulas() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -165,7 +165,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testSeedProducesDeterministicResults() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
 
         let wb1 = try ModelExporter.export(model)
         MonteCarloExtension.apply(
@@ -199,7 +199,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     func testSavesToFile() throws {
         let (model, output) = makeModel()
-        let price = model.node(named: "Price")!
+        let price = try XCTUnwrap(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -213,6 +213,6 @@ final class MonteCarloExtensionTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try wb.save(to: url)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertTrue(try url.checkResourceIsReachable())
     }
 }

@@ -153,11 +153,11 @@ final class ExcelModelTests: XCTestCase {
         XCTAssertEqual(model.nodeCount, 0)
     }
 
-    func testNodeCountReflectsAllTypes() {
+    func testNodeCountReflectsAllTypes() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addTextInput(label: "B", value: "text")
-        let a = model.node(named: "A")!
+        let a = try XCTUnwrap(model.node(named: "A"))
         model.addFormula(label: "C", formula: .ref(a))
         model.addOutput(label: "D", formula: .number(1))
         model.addLabel("E")

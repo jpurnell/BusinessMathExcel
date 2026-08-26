@@ -8,8 +8,8 @@ Read documents in this order for full context recovery:
 1. `project/master_plan.md` — Vision and priorities
 2. `development-guidelines/rules/coding_rules.md` — Forbidden patterns, safety rules
 3. `development-guidelines/rules/test_driven_development.md` — Testing contract
-4. `development-guidelines/project/checklists/CURRENT_*.md` — Active tasks (if any)
-5. Latest file in `development-guidelines/project/summaries/` — Where we left off (if any)
+4. `project/checklists/CURRENT_*.md` — Active tasks (if any)
+5. Latest file in `project/summaries/` — Where we left off (if any)
 
 ## Development Workflow
 
@@ -53,13 +53,24 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
 
 ## Dependencies
 
-- `SwiftXLSX` (local path `../SwiftXLSX`) — bidirectional .xlsx read/write with FormulaAST
-- `BusinessMath` (local path `../BusinessMath`) — financial/statistical computation
-- Both are Foundation-only; no external dependencies
+- `SwiftXLSX` — bidirectional .xlsx read/write with FormulaAST. Pinned `exact: "0.2.0"` to
+  `github.com/jpurnell/SwiftXLSX`.
+- `BusinessMath` — financial/statistical computation. Pinned `exact: "2.2.1"` to
+  `github.com/jpurnell/BusinessMath`.
+- Both are Foundation-only; no external dependencies.
+- Local working copies live at `../SwiftXLSX` and `../BusinessMath`, but the build resolves
+  the pinned tags from GitHub — editing a sibling checkout does **not** affect this build.
+- If resolution fails with "does not match previously recorded value", an upstream tag has
+  been moved. `Package.resolved` is not the only record: SwiftPM also keeps a trust-on-first-use
+  fingerprint per version at `~/.swiftpm/security/fingerprints/<package>-<hash>.json`, and it
+  must be corrected too or every resolve keeps failing.
 
 ## Quality Gate
 
-`swift build && swift test` — zero warnings, zero failures.
+`quality-gate` — zero errors, zero warnings, no overrides. `swift build && swift test` is the
+subset the gate runs first; passing it is necessary, not sufficient. A build failure stops the
+run, so a green-looking report with `1 of 45 checkers` means 44 checkers never ran and found
+nothing because they were never asked. Use `--continue-on-failure` to see the whole picture.
 
 ## References
 

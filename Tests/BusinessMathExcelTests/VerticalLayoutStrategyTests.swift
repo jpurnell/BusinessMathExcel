@@ -62,7 +62,7 @@ final class VerticalLayoutStrategyTests: XCTestCase {
         XCTAssertEqual(headerRow, 3)
     }
 
-    func testMultipleSectionsMaintainOrder() {
+    func testMultipleSectionsMaintainOrder() throws {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
         model.addFormula(label: "Monthly", formula: .number(0.004167))
@@ -71,19 +71,15 @@ final class VerticalLayoutStrategyTests: XCTestCase {
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let inputsRow = assignment.sectionRows["Inputs"]
-        let calcsRow = assignment.sectionRows["Calculations"]
-        let resultsRow = assignment.sectionRows["Results"]
+        let inputsRow = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let calcsRow = try XCTUnwrap(assignment.sectionRows["Calculations"])
+        let resultsRow = try XCTUnwrap(assignment.sectionRows["Results"])
 
-        XCTAssertNotNil(inputsRow)
-        XCTAssertNotNil(calcsRow)
-        XCTAssertNotNil(resultsRow)
-
-        XCTAssertLessThan(inputsRow!, calcsRow!)
-        XCTAssertLessThan(calcsRow!, resultsRow!)
+        XCTAssertLessThan(inputsRow, calcsRow)
+        XCTAssertLessThan(calcsRow, resultsRow)
     }
 
-    func testBlankRowBetweenSections() {
+    func testBlankRowBetweenSections() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -91,9 +87,9 @@ final class VerticalLayoutStrategyTests: XCTestCase {
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let inputHeader = assignment.sectionRows["Inputs"]!
-        let inputDataRow = assignment.mapping[model.node(named: "A")!]!.row
-        let calcHeader = assignment.sectionRows["Calculations"]!
+        let inputHeader = try XCTUnwrap(assignment.sectionRows["Inputs"])
+        let inputDataRow = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).row
+        let calcHeader = try XCTUnwrap(assignment.sectionRows["Calculations"])
 
         XCTAssertEqual(inputDataRow, inputHeader + 1)
         XCTAssertEqual(calcHeader, inputDataRow + 2)
@@ -110,14 +106,14 @@ final class VerticalLayoutStrategyTests: XCTestCase {
         XCTAssertEqual(assignment.mapping[ref]?.column, 2)
     }
 
-    func testTitleRowReserved() {
+    func testTitleRowReserved() throws {
         let model = ExcelModel()
         model.addInput(label: "X", value: 1)
 
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let firstSectionRow = assignment.sectionRows.values.min()!
+        let firstSectionRow = try XCTUnwrap(assignment.sectionRows.values.min())
         XCTAssertGreaterThanOrEqual(firstSectionRow, 3)
     }
 
@@ -138,7 +134,7 @@ final class VerticalLayoutStrategyTests: XCTestCase {
 
     // MARK: - Table Awareness (opt-in)
 
-    func testTableAwareDefaultsToFalse() {
+    func testTableAwareDefaultsToFalse() throws {
         let strategy = VerticalLayoutStrategy()
         let model = makeTableModel()
         let assignment = strategy.assign(model)
@@ -148,7 +144,7 @@ final class VerticalLayoutStrategyTests: XCTestCase {
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNotNil(assignment.labelMapping[ref],
                 "Non-table-aware should give every node a label mapping")
         }
@@ -164,42 +160,42 @@ final class VerticalLayoutStrategyTests: XCTestCase {
         XCTAssertEqual(assignment.tableColumnHeaders["Schedule"]?.count, 2)
     }
 
-    func testTableAwareBodyNodesOmittedFromLabelMapping() {
+    func testTableAwareBodyNodesOmittedFromLabelMapping() throws {
         let model = makeTableModel()
         let strategy = VerticalLayoutStrategy(tableAware: true)
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNil(assignment.labelMapping[ref],
                 "Table body node '\(label)' should not be in labelMapping")
         }
     }
 
-    func testTableAwareBodyNodesInMapping() {
+    func testTableAwareBodyNodesInMapping() throws {
         let model = makeTableModel()
         let strategy = VerticalLayoutStrategy(tableAware: true)
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = model.node(named: label)!
+            let ref = try XCTUnwrap(model.node(named: label))
             XCTAssertNotNil(assignment.mapping[ref],
                 "Table body node '\(label)' should be in mapping")
         }
     }
 
-    func testTableAwareNonTableSectionsUnaffected() {
+    func testTableAwareNonTableSectionsUnaffected() throws {
         let model = makeTableModel()
         let strategy = VerticalLayoutStrategy(tableAware: true)
         let assignment = strategy.assign(model)
 
-        let rate = model.node(named: "Rate")!
+        let rate = try XCTUnwrap(model.node(named: "Rate"))
         XCTAssertNotNil(assignment.labelMapping[rate])
         XCTAssertNotNil(assignment.mapping[rate])
 
-        let total = model.node(named: "Total")!
+        let total = try XCTUnwrap(model.node(named: "Total"))
         XCTAssertNotNil(assignment.labelMapping[total])
         XCTAssertNotNil(assignment.mapping[total])
     }

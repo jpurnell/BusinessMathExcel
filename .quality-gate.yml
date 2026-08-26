@@ -1,9 +1,10 @@
-exclude:
-  - disk-clean
-
-checkers:
-  - all
-  - logging
+# Checker selection is deliberately left to the gate's default set.
+#
+# This file previously carried `checkers:` and `exclude:` keys. Neither is in the
+# schema — the decoder discarded them, so the gate never ran what the file claimed.
+# The schema's allowlist is `enabledCheckers`, and it has no negative form; omitting
+# it means "run the default selection", which is what was happening anyway. Excluding
+# a single checker is a `--exclude` flag on the command line, not a file setting.
 
 consistency:
   corpusPath: /Users/jpurnell/Dropbox/Computer/Development/Swift/Tools/org-judgement-corpus

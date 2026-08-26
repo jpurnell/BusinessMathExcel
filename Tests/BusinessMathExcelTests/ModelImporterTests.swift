@@ -15,7 +15,7 @@ final class ModelImporterTests: XCTestCase {
 
     // MARK: - Value Cells
 
-    func testImportsNumberCellAsInput() {
+    func testImportsNumberCellAsInput() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(42.0, to: "A1")
@@ -23,24 +23,22 @@ final class ModelImporterTests: XCTestCase {
         let result = ModelImporter.importWorkbook(wb)
         XCTAssertEqual(result.model.nodeCount, 1)
 
-        let ref = result.model.node(named: "A1")
-        XCTAssertNotNil(ref)
-        if case .input(let value) = result.model.kind(of: ref!) {
+        let ref = try XCTUnwrap(result.model.node(named: "A1"))
+        if case .input(let value) = result.model.kind(of: ref) {
             XCTAssertEqual(value, 42, accuracy: 0.01)
         } else {
             XCTFail("Expected input node")
         }
     }
 
-    func testImportsTextCellAsTextInput() {
+    func testImportsTextCellAsTextInput() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write("Revenue", to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        let ref = result.model.node(named: "A1")
-        XCTAssertNotNil(ref)
-        XCTAssertEqual(result.model.kind(of: ref!), .textInput("Revenue"))
+        let ref = try XCTUnwrap(result.model.node(named: "A1"))
+        XCTAssertEqual(result.model.kind(of: ref), .textInput("Revenue"))
     }
 
     func testSkipsBlankCells() {
@@ -55,7 +53,7 @@ final class ModelImporterTests: XCTestCase {
 
     // MARK: - Formula Cells
 
-    func testImportsFormulaCellAsFormula() {
+    func testImportsFormulaCellAsFormula() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(10.0, to: "A1")
@@ -68,15 +66,14 @@ final class ModelImporterTests: XCTestCase {
         let result = ModelImporter.importWorkbook(wb)
         XCTAssertEqual(result.model.nodeCount, 3)
 
-        let formulaRef = result.model.node(named: "A3")
-        XCTAssertNotNil(formulaRef)
-        if case .formula = result.model.kind(of: formulaRef!) {
+        let formulaRef = try XCTUnwrap(result.model.node(named: "A3"))
+        if case .formula = result.model.kind(of: formulaRef) {
         } else {
             XCTFail("Expected formula node")
         }
     }
 
-    func testFormulaReferencesResolveToNodes() {
+    func testFormulaReferencesResolveToNodes() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(100.0, to: "A1")
@@ -86,8 +83,8 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let a1 = result.model.node(named: "A1")!
-        let a2 = result.model.node(named: "A2")!
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        let a2 = try XCTUnwrap(result.model.node(named: "A2"))
 
         if case .formula(let formula) = result.model.kind(of: a2) {
             if case .multiply(let lhs, let rhs) = formula {
@@ -101,7 +98,7 @@ final class ModelImporterTests: XCTestCase {
         }
     }
 
-    func testImportsFunctionFormula() {
+    func testImportsFunctionFormula() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -112,7 +109,7 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let a3 = result.model.node(named: "A3")!
+        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
 
         if case .formula(let formula) = result.model.kind(of: a3) {
             if case .function(let name, let args) = formula {

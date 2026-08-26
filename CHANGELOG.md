@@ -2,6 +2,35 @@
 
 All notable changes to BusinessMathExcel will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Dependency resolution: SwiftPM's trust-on-first-use fingerprint record for BusinessMath
+  2.2.1 still named revision `3af9184`, but the upstream `v2.2.1` tag had been moved forward
+  one docs-only commit to `be8d9fd`. Every `swift build` failed at resolution with a revision
+  mismatch that `Package.resolved` alone could not explain or fix. Pin and fingerprint both
+  corrected; `3af9184` is an ancestor of `be8d9fd`, so no compiled code changed.
+- `.quality-gate.yml` declared `checkers:` and `exclude:`. Neither key is in the gate's schema,
+  so the decoder discarded both and the file was never evidence of what the gate ran. Removed;
+  checker selection now honestly falls to the gate's default set.
+- Force unwraps eliminated across the test suite (121 sites) in favour of `try XCTUnwrap`,
+  which reports the unwrap site instead of trapping the whole run.
+- File-existence assertions moved from `FileManager.fileExists(atPath:)` to
+  `URL.checkResourceIsReachable()`, dropping string-path handling entirely.
+- Unguarded floating-point division in `project/plans/completed/SignalLayer-Playground.swift`
+  routed through a guarded `divide(_:by:)`. Script output is byte-identical.
+
+### Added
+- ReadmeExampleTests: compiles and runs the code samples printed in `README.md`, which nothing
+  else compiles, and pins the exact formula the README claims the example produces.
+- DocC catalogue at `Sources/BusinessMathExcel/BusinessMathExcel.docc` with a landing page
+  covering the DAG model, layout-at-export-time, and the import path. Declared as a target
+  resource rather than excluded, so the plugin still builds it.
+
+### Changed
+- Transitive dependencies floated with the re-resolve: swift-collections 1.5.1 -> 1.6.0,
+  SwiftZIP 0.5.0 -> 0.6.0.
+
 ## [0.5.0] - 2026-06-06
 
 ### Added
