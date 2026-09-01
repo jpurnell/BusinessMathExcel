@@ -32,6 +32,18 @@ public enum ModelImporter {
         /// which every multi-sheet workbook does.
         public let sheetCellToNode: [String: [CellRef: NodeRef]]
 
+        /// What Excel last computed for each formula cell, as the file recorded it.
+        ///
+        /// Preserved because the file said it and discarding it would be a fidelity
+        /// loss — recognition needs it to read a computed header row, and a
+        /// sensitivity check needs it to compare against a recomputed grid.
+        ///
+        /// **A cached value is evidence about the sheet, never a substitute for a
+        /// formula.** Putting one into a model in place of a formula that could not
+        /// be translated is the failure this package exists to prevent; keeping the
+        /// file's own record of it is not.
+        public let cachedValues: [CellRef: CellValue]
+
         /// Warnings generated during import.
         ///
         /// Non-empty whenever the import dropped or degraded something: an
@@ -50,6 +62,7 @@ public enum ModelImporter {
                 model: ExcelModel(),
                 cellToNode: [:],
                 sheetCellToNode: [:],
+                cachedValues: [:],
                 warnings: []
             )
         }
@@ -63,17 +76,14 @@ public enum ModelImporter {
     public static func importSheet(_ sheet: Worksheet) -> ImportResult {
         let model = ExcelModel()
         var warnings: [String] = []
+        let cells = orderedCells(of: sheet)
         let cellToNode = addCells(
-            orderedCells(of: sheet),
-            to: model,
-            labelPrefix: "",
-            section: "Imported",
-            warnings: &warnings
-        )
+            cells, to: model, labelPrefix: "", section: "Imported", warnings: &warnings)
         return ImportResult(
             model: model,
             cellToNode: cellToNode,
             sheetCellToNode: [sheet.name: cellToNode],
+            cachedValues: cachedValues(cells),
             warnings: warnings
         )
     }
@@ -93,15 +103,20 @@ public enum ModelImporter {
         let model = ExcelModel()
         var warnings: [String] = []
         var perSheet: [String: [CellRef: NodeRef]] = [:]
+        var cached: [CellRef: CellValue] = [:]
 
         for sheet in workbook.sheets {
+            let cells = orderedCells(of: sheet)
             perSheet[sheet.name] = addCells(
-                orderedCells(of: sheet),
+                cells,
                 to: model,
                 labelPrefix: "\(sheet.name)!",
                 section: sheet.name,
                 warnings: &warnings
             )
+            // Cell references carry no sheet, so the first sheet's entries win, in
+            // step with `cellToNode` below.
+            cached.merge(cachedValues(cells)) { existing, _ in existing }
         }
 
         let firstMapping = workbook.sheets.first.flatMap { perSheet[$0.name] } ?? [:]
@@ -109,6 +124,7 @@ public enum ModelImporter {
             model: model,
             cellToNode: firstMapping,
             sheetCellToNode: perSheet,
+            cachedValues: cached,
             warnings: warnings
         )
     }
@@ -157,6 +173,7 @@ public enum ModelImporter {
             model: model,
             cellToNode: cellToNode,
             sheetCellToNode: ["": cellToNode],
+            cachedValues: cachedValues(cells),
             warnings: warnings
         )
     }
@@ -258,6 +275,21 @@ public enum ModelImporter {
     private static func identity(_ cellRef: CellRef) -> CellRef {
         guard cellRef.absoluteColumn || cellRef.absoluteRow else { return cellRef }
         return CellRef(column: cellRef.column, row: cellRef.row)
+    }
+
+    /// The cached results the file recorded for its formula cells.
+    ///
+    /// - Parameter cells: Cells in import order.
+    /// - Returns: Cached values, keyed by cell identity with `$` markers discarded.
+    private static func cachedValues(
+        _ cells: [(reference: String, value: CellValue)]
+    ) -> [CellRef: CellValue] {
+        var cached: [CellRef: CellValue] = [:]
+        for (reference, value) in cells {
+            guard case .formula(_, let result) = value, let result else { continue }
+            cached[identity(CellRef(reference))] = result
+        }
+        return cached
     }
 
     /// Whether a cell contributes a node to the model.

@@ -65,16 +65,21 @@ The vocabulary everything else reports through. Small, and blocking for Tasks 3�
 Cell topology and orientation. Consumes an `ImportResult`; knows cell positions, which the
 `ExcelModel` deliberately does not.
 
-- [ ] **RED** — test: a sheet with years across the top resolves `.periodsAcrossColumns`; one with
+- [x] **RED** — test: a sheet with years across the top resolves `.periodsAcrossColumns`; one with
       years down the side resolves `.periodsDownRows`.
-- [ ] **RED** — test: a sheet where both could be read as an axis emits `.ambiguousOrientation`
+- [x] **RED** — test: a sheet where both could be read as an axis emits `.ambiguousOrientation`
       and picks neither. **Not guessing is the feature.**
-- [ ] **RED** — test: a sheet with no axis at all emits `.noPeriodAxis`.
-- [ ] **GREEN** — implement.
-- [ ] **Decide:** what counts as evidence of an axis. Write the rule down in the type's DocC; a
-      heuristic nobody can read is a heuristic nobody can fix.
-- [ ] Edge: empty sheet, single column, a sheet at `maximumCells`  (`.scanLimitReached`).
-- [ ] Commit.
+- [x] **RED** — test: a sheet with no axis at all emits `.noPeriodAxis`.
+- [x] **GREEN** — implement.
+- [x] **Decided:** a run of two or more period headings in *consecutive* cells along one line
+      whose years *strictly increase*. Each clause excludes something real — one heading is a
+      label, a gap means two series, repeated years are columns sharing a year. Written out in
+      `SheetGrid`'s DocC with the exclusions, not just the rule.
+- [x] **Also decided, forced by the real workbook:** a header cell may be a *formula*. Wharton's
+      axis is `2023` then `=E27+1` across, so refusing computed headers finds an axis on almost
+      no real model. This required `ImportResult` to stop discarding cached values.
+- [x] Edge: empty sheet, single column, a sheet at `maximumCells`  (`.scanLimitReached`).
+- [x] Commit.
 
 ## Task 4 — `PeriodAxis` (Stage 1)
 

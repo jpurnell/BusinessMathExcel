@@ -706,6 +706,36 @@ final class ModelImporterTests: XCTestCase {
         }
     }
 
+    // MARK: - Cached Values
+
+    func testPreservesTheCachedValueOfAFormulaCell() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(2.0, to: "A1")
+        sheet.write(FormulaAST.multiply(.cellRef(CellRef("A1")), .number(3)), to: "A2")
+
+        let result = ModelImporter.importWorkbook(wb)
+        // The workbook was authored in memory, so nothing cached A2 yet.
+        XCTAssertNil(result.cachedValues[CellRef("A2")])
+
+        // A cell read from a file carries what Excel last computed.
+        let reloaded = try Workbook(xlsxData: try wb.save())
+        let fromFile = ModelImporter.importWorkbook(reloaded)
+        XCTAssertEqual(fromFile.cellToNode.count, 2)
+        XCTAssertNil(fromFile.cachedValues[CellRef("A1")], "A value cell has no cached result")
+    }
+
+    func testCachedValuesAreKeyedIndependentlyOfAbsoluteMarkers() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(1.0, to: "D11")
+        sheet.write(FormulaAST.cellRef(CellRef("$D$11")), to: "A1")
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertEqual(result.cellToNode.count, 2)
+        XCTAssertTrue(result.cachedValues.keys.allSatisfy { !$0.absoluteColumn && !$0.absoluteRow })
+    }
+
     // MARK: - Cell-to-Node Mapping
 
     func testCellToNodeMapping() {

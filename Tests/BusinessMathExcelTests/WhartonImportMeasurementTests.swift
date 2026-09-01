@@ -49,6 +49,45 @@ final class WhartonImportMeasurementTests: XCTestCase {
         XCTAssertEqual(irr, 0.2467, accuracy: 0.0001)
     }
 
+    // MARK: - Recognition
+
+    func testRecognizesThePeriodAxisOnTheModelSheets() throws {
+        let workbook = try fixture()
+        for name in ["ANSWER KEY", "BLANK MODEL"] {
+            let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
+            let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+
+            XCTAssertEqual(grid.orientation, .periodsAcrossColumns, name)
+            XCTAssertEqual(grid.axisLine, 27, "\(name): the axis is row 27")
+            XCTAssertEqual(
+                grid.axisCells.map(\.reference), ["E27", "F27", "G27", "H27", "I27", "J27"],
+                "\(name): 2023 through 2028"
+            )
+            XCTAssertTrue(grid.diagnostics.isEmpty, "\(name): \(grid.diagnostics)")
+        }
+    }
+
+    func testTheNotesSheetHasNoPeriodAxis() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "KEY NOTES" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+
+        XCTAssertNil(grid.orientation, "A page of prose is not a model")
+        XCTAssertEqual(grid.diagnostics.map(\.code), [.noPeriodAxis])
+    }
+
+    func testTheAxisIsReadFromAComputedHeaderRow() throws {
+        // Only E27 is a typed year; F27 onward are `=E27+1`. An axis detector that
+        // ignored what the file recorded Excel computing would find nothing here,
+        // which is the common case rather than the exotic one.
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let result = ModelImporter.importSheet(sheet)
+
+        XCTAssertNil(result.cachedValues[CellRef("E27")], "E27 is typed, not computed")
+        XCTAssertEqual(result.cachedValues[CellRef("F27")], .number(2024))
+    }
+
     // MARK: - Import Fidelity
 
     func testEveryPopulatedCellBecomesANode() throws {
