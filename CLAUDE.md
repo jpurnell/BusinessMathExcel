@@ -58,7 +58,8 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
 - `BusinessMath` — financial/statistical computation. Pinned `exact: "2.2.1"` to
   `github.com/jpurnell/BusinessMath`.
 - Both are Foundation-only; no external dependencies.
-- Local working copies live at `../SwiftXLSX` and `../BusinessMath`, but the build resolves
+- Local working copies live at `../../../SwiftXLSX` (i.e. `Development/Swift/SwiftXLSX`, not a
+  sibling of this repo) and `../BusinessMath`, but the build resolves
   the pinned tags from GitHub — editing a sibling checkout does **not** affect this build.
 - If resolution fails with "does not match previously recorded value", an upstream tag has
   been moved. `Package.resolved` is not the only record: SwiftPM also keeps a trust-on-first-use
@@ -77,5 +78,5 @@ nothing because they were never asked. Use `--continue-on-failure` to see the wh
 - Full guidelines: `development-guidelines/README.md`
 - Coding rules: `development-guidelines/rules/coding_rules.md`
 - TDD contract: `development-guidelines/rules/test_driven_development.md`
-- SwiftXLSX source: `../SwiftXLSX/`
+- SwiftXLSX source: `../../../SwiftXLSX/`
 - BusinessMath source: `../BusinessMath/`

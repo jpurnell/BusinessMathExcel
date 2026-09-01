@@ -53,7 +53,7 @@ Import: .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> Form
 | `MultiSheetAssignment` | Per-sheet CellAssignment collection with global node mapping |
 | `ModelExporter` | Converts ExcelModel to single-sheet SwiftXLSX Workbook with resolved formulas |
 | `MultiSheetExporter` | Converts ExcelModel to multi-sheet Workbook with cross-sheet formula resolution |
-| `ModelImporter` | Converts SwiftXLSX Workbook cells into ExcelModel graph |
+| `ModelImporter` | Converts SwiftXLSX Workbook cells into ExcelModel graph, single-sheet or all sheets; reports every construct it cannot translate |
 | `FormulaMapper` | Categorizes imported formulas into financial/statistical groups |
 
 ### Builders (auto-construct models from BusinessMath types)
@@ -87,11 +87,11 @@ Import: .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -> Form
 | Language | Swift 6.2 (strict concurrency) |
 | Platform | macOS 14+, iOS 17+ |
 | Dependencies | SwiftXLSX 0.2.0, BusinessMath 2.2.1 — both pinned `exact:` to their GitHub URLs |
-| Testing | XCTest, 271 tests across 24 files |
+| Testing | XCTest, 293 tests across 24 files |
 
 ### Module Status
 
-- [x] BusinessMathExcel — 136 public APIs, 100% documented, 271 tests
+- [x] BusinessMathExcel — 138 public APIs, 100% documented, 293 tests
 
 ### Project Structure
 
@@ -133,7 +133,7 @@ BusinessMathExcel/
 │   ├── SimulationTranslator.swift        (deprecated)
 │   └── TornadoTranslator.swift           (deprecated)
 ├── Tests/BusinessMathExcelTests/
-│   └── (24 test files, 271 tests)
+│   └── (24 test files, 293 tests)
 └── development-guidelines/               (gitignored)
 ```
 
@@ -178,6 +178,18 @@ BusinessMathExcel/
 - [x] 121 test force unwraps replaced with `try XCTUnwrap`; zero force unwraps in the repo
 - [x] Full gate green: 40 of 45 checkers, 0 errors, 0 warnings, no overrides
 
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 1
+- [x] `ModelImporter.convertAST` reports every formula node it drops; it previously took no
+      warnings parameter at all, so a workbook could import substantially lossy in silence
+- [x] `.cellRange` translates to `NodeFormula.range` — `SUM(D5:D16)`, `NPV(rate, D5:D16)`,
+      `IRR(D4:D16)` are what real financial workbooks are made of
+- [x] `NodeFormula.power` added; `(1+r)^n` round-trips as `^` and is evaluated directly rather
+      than through `MonteCarloExtension`'s `case .function: return 0`
+- [x] Array-formula cells named as such rather than lumped in with `.date`/`.error` — they are
+      the detection signal for sensitivity-table recognition in Phase 6
+- [x] `ModelImporter.importAllSheets(_:)` imports every worksheet; labels are sheet-qualified
+      and `ImportResult.sheetCellToNode` keeps colliding cell references apart
+
 ---
 
 ## Future Work
@@ -194,10 +206,10 @@ BusinessMathExcel/
 
 | Resource | Location |
 |----------|----------|
-| SwiftXLSX source | `../SwiftXLSX/` (local working copy; the build resolves the pinned tag) |
+| SwiftXLSX source | `../../../SwiftXLSX/` — i.e. `Development/Swift/SwiftXLSX`, not a sibling of this repo (local working copy; the build resolves the pinned tag) |
 | BusinessMath source | `../BusinessMath/` (local working copy; the build resolves the pinned tag) |
 | CHANGELOG | `./CHANGELOG.md` |
 
 ---
 
-**Last Updated:** 2026-08-26 — reconciled dependency form (remote pinned, not local paths), test counts (271, not 274/257), the source tree (DocC catalogue), and recorded the unreleased gate work.
+**Last Updated:** 2026-09-01 — recorded recognizer Phase 1 (import warnings, cell ranges, `NodeFormula.power`, array-cell naming, multi-sheet import); refreshed counts to 293 tests / 138 public APIs; corrected the SwiftXLSX working-copy path, which is not a sibling of this repo.

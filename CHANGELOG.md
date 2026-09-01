@@ -4,6 +4,53 @@ All notable changes to BusinessMathExcel will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `ModelImporter.importAllSheets(_:)`: imports every worksheet of a workbook into one
+  `ExcelModel`. Node labels are qualified with the sheet name (`Inputs!A1`) and each sheet
+  becomes its own section, so sheets sharing a cell reference stay distinct.
+  `importWorkbook` and `importSheet` keep their single-sheet behaviour.
+- `ImportResult.sheetCellToNode`: one cell-to-node mapping per sheet name. `cellToNode` is
+  unchanged for single-sheet callers; for a multi-sheet import it holds the first sheet's
+  mapping, since a `CellRef` carries no sheet and cannot honestly hold more.
+- `NodeFormula.power(_:_:)`: exponentiation as a first-class case rather than
+  `POWER(base, exponent)` function dispatch, so `(1+r)^n` survives a round trip as `^` and
+  is evaluated directly by `MonteCarloExtension` instead of falling into its
+  `case .function: return 0`.
+
+### Fixed
+- **The import path reported success while dropping formulas.** `ModelImporter.convertAST`
+  never received the warnings array — it was not a parameter — so unsupported AST nodes were
+  rewritten to `.text("UNSUPPORTED")` in silence. Warnings fired only for `.date`/`.error`/
+  `.array` *cell types*. A workbook could import substantially lossy and report nothing.
+  Every degrade now warns, naming the cell and the construct: the unsupported-node
+  fallthrough, a reference to a cell not yet imported (which becomes the literal text
+  `REF:A5`), and exceeding the 500-deep nesting guard.
+- `.cellRange` imported as `UNSUPPORTED`. Real financial workbooks are `SUM(D5:D16)`,
+  `NPV(rate, D5:D16)`, `IRR(D4:D16)`; nothing meaningful imported without it. Ranges now
+  become `NodeFormula.range`. Both endpoints must resolve, because the exported `CellRange`
+  is re-derived from them and an unresolvable endpoint would silently export a narrower
+  range than the source had; that case warns and degrades. Interior cells that do not
+  resolve are skipped silently — a blank separator row inside a summed range is ordinary
+  Excel, and only the endpoints determine the exported range.
+- `.power` imported as `UNSUPPORTED`. `(1+r)^n` appears in every discounting formula.
+- Array-formula cells shared the generic "Unsupported cell type" message with `.date` and
+  `.error`. Array formulas are how Excel stores data tables (`{=TABLE(r,c)}`) and are the
+  detection signal for sensitivity-table recognition; each of the three now says what it
+  actually found. Recognition itself is not attempted — an array cell still produces no node.
+
+### Changed
+- **`ImportResult.warnings` is now non-empty for workbooks that previously reported none.**
+  This is the fix, not a regression: those workbooks were always importing lossy, and the
+  silence was the defect. Tests asserting `warnings.isEmpty` on a workbook using ranges,
+  exponentiation, or cross-sheet references need updating.
+- **`ModelImporter` no longer emits the `"UNSUPPORTED"` sentinel for cell ranges or
+  exponentiation**, which now translate. It remains for `sheetRef`, `namedRange`, `error`,
+  `concatenate`, and the comparison operators.
+- **`NodeFormula` gained a case, so exhaustive switches over it must add `.power`.** All
+  five in-tree switches are updated: `resolve(using:)`, `ModelImporter.convertAST`,
+  `MonteCarloExtension.evaluateFormula`, `MultiSheetExporter`'s cross-sheet resolution, and
+  `FormulaMapper.collectFunctions`.
+
 ### Fixed
 - Dependency resolution: SwiftPM's trust-on-first-use fingerprint record for BusinessMath
   2.2.1 still named revision `3af9184`, but the upstream `v2.2.1` tag had been moved forward
