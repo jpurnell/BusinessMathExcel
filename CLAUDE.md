@@ -68,6 +68,15 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
   fingerprint per version at `~/.swiftpm/security/fingerprints/<package>-<hash>.json`, and it
   must be corrected too or every resolve keeps failing.
 
+## Releases
+
+- Tags are **`vX.Y.Z`**, matching BusinessMath and `development-guidelines/rules/release_checklist.md`.
+  This repo's own `0.5.0` tag predates the convention and has not been retagged.
+- Dependency pins in `Package.swift` stay unprefixed (`exact: "0.7.0"`) — SwiftPM strips a leading
+  `v` when matching a tag to a version, so the pin is unaffected by the tag's form.
+- SwiftXLSX was retagged to `vX.Y.Z` on 2026-09-01 with revisions unchanged, so no pin, lockfile,
+  or fingerprint record needed correcting.
+
 ## Quality Gate
 
 `quality-gate` — zero errors, zero warnings, no overrides. `swift build && swift test` is the
