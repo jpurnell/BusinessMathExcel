@@ -178,6 +178,13 @@ BusinessMathExcel/
 - [x] 121 test force unwraps replaced with `try XCTUnwrap`; zero force unwraps in the repo
 - [x] Full gate green: 40 of 45 checkers, 0 errors, 0 warnings, no overrides
 
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 0
+- [x] BusinessMath pin bumped 2.2.1 → 2.7.0, which is where `ModelDefinition`, `Period`,
+      `PeriodType`, and the cycle solvers live — 2.2.1 had no `Model Definition/` at all
+- [x] No `BusinessMathDSL` reference existed in this repo, so that half of the phase was
+      already satisfied
+- [x] No source changes were needed; 293 tests pass unchanged across the bump
+
 ### Unreleased — Excel→ModelDefinition Recognizer, Phase 1
 - [x] `ModelImporter.convertAST` reports every formula node it drops; it previously took no
       warnings parameter at all, so a workbook could import substantially lossy in silence

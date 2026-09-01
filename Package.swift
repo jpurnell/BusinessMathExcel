@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "BusinessMathExcel", targets: ["BusinessMathExcel"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/jpurnell/BusinessMath", exact: "2.2.1"),
+        .package(url: "https://github.com/jpurnell/BusinessMath", exact: "2.7.0"),
         .package(url: "https://github.com/jpurnell/SwiftXLSX", exact: "0.2.0"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
     ],

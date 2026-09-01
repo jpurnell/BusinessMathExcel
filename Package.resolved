@@ -1,13 +1,22 @@
 {
-  "originHash" : "851f3c34efb4ce5625369b0fe633ca65ae0b74fa0c11d03ada654ea260bd37e7",
+  "originHash" : "b6df78fe91dd19556679b11f9037b23c172c6a34cc0712dcb5ba83f662ef368e",
   "pins" : [
     {
       "identity" : "businessmath",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpurnell/BusinessMath",
       "state" : {
-        "revision" : "be8d9fd67454d6b936f61785b998d57ab724c5f4",
-        "version" : "2.2.1"
+        "revision" : "a2635a19ff3c2d3803291c067d9f942946464991",
+        "version" : "2.7.0"
+      }
+    },
+    {
+      "identity" : "swift-asn1",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-asn1.git",
+      "state" : {
+        "revision" : "d9a5b37470adc940d22c3bcd5ca6953a516b727f",
+        "version" : "1.7.2"
       }
     },
     {
@@ -17,6 +26,15 @@
       "state" : {
         "revision" : "a0cb0954ecb21e4e31b0070e6ed5674e8556685a",
         "version" : "1.6.0"
+      }
+    },
+    {
+      "identity" : "swift-crypto",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-crypto.git",
+      "state" : {
+        "revision" : "95ba0316a9b733e92bb6b071255ff46263bbe7dc",
+        "version" : "3.15.1"
       }
     },
     {
@@ -53,6 +71,15 @@
       "state" : {
         "revision" : "0687f71944021d616d34d922343dcef086855920",
         "version" : "600.0.1"
+      }
+    },
+    {
+      "identity" : "swiftdeterminism",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpurnell/SwiftDeterminism.git",
+      "state" : {
+        "revision" : "6c48c1029adf5df1b739f520cdf4e23a2d1ba8c1",
+        "version" : "1.1.0"
       }
     },
     {

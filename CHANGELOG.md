@@ -75,6 +75,11 @@ All notable changes to BusinessMathExcel will be documented in this file.
   resource rather than excluded, so the plugin still builds it.
 
 ### Changed
+- **BusinessMath pinned to 2.7.0**, up from 2.2.1. 2.7.0 is where `ModelDefinition`, `Period`,
+  `PeriodType`, and the cycle solvers live; 2.2.1 shipped no `Model Definition/` at all, so the
+  recognizer work has no target without this. No source changes were needed and the suite passes
+  unchanged across the bump. New transitive dependencies come with it — SwiftDeterminism 1.1.0,
+  swift-crypto 3.15.1, swift-asn1 1.7.2 — so BusinessMath is no longer Foundation-only.
 - Transitive dependencies floated with the re-resolve: swift-collections 1.5.1 -> 1.6.0,
   SwiftZIP 0.5.0 -> 0.6.0.
 
