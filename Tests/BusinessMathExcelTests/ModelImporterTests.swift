@@ -251,15 +251,17 @@ final class ModelImporterTests: XCTestCase {
     func testUnanchoredCellRangeWarnsAndDegrades() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
-        // The formula sits above the cells it sums, so neither endpoint has been
-        // imported when the range is converted.
+        // D5 and D16 are both blank, so the range has no endpoints to anchor to.
+        // Resolution order is no longer the issue — two-pass resolution handles a
+        // range that points below its formula — but a range whose corners hold
+        // nothing still cannot be reconstructed without narrowing it.
+        for row in 6...15 {
+            sheet.write(Double(row), to: "D\(row)")
+        }
         sheet.write(
             FormulaAST.function("SUM", [.cellRange(CellRange(from: "D5", to: "D16"))]),
             to: "A1"
         )
-        for row in 5...16 {
-            sheet.write(Double(row), to: "D\(row)")
-        }
 
         let result = ModelImporter.importWorkbook(wb)
         let warning = try XCTUnwrap(result.warnings.first)
@@ -461,6 +463,164 @@ final class ModelImporterTests: XCTestCase {
         XCTAssertEqual(result.model.nodeCount, 0)
         XCTAssertTrue(result.warnings.isEmpty)
         XCTAssertTrue(result.sheetCellToNode.isEmpty)
+    }
+
+    // MARK: - Forward References
+
+    func testFormulaResolvesAReferenceToALaterCell() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        // The total sits *above* the figures it sums, which is ordinary in a
+        // financial model with a summary block at the top.
+        sheet.write(FormulaAST.add(.cellRef(CellRef("A5")), .cellRef(CellRef("A6"))), to: "A1")
+        sheet.write(10.0, to: "A5")
+        sheet.write(20.0, to: "A6")
+
+        let result = ModelImporter.importWorkbook(wb)
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        let a5 = try XCTUnwrap(result.model.node(named: "A5"))
+        let a6 = try XCTUnwrap(result.model.node(named: "A6"))
+
+        guard case .formula(.add(let lhs, let rhs)) =
+            try XCTUnwrap(result.model.kind(of: a1)) else {
+            return XCTFail("Expected an add formula")
+        }
+        XCTAssertEqual(lhs, .ref(a5))
+        XCTAssertEqual(rhs, .ref(a6))
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testRangeResolvesWhenItPointsBelowTheFormula() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(
+            FormulaAST.function("SUM", [.cellRange(CellRange(from: "D5", to: "D16"))]),
+            to: "A1"
+        )
+        for row in 5...16 {
+            sheet.write(Double(row), to: "D\(row)")
+        }
+
+        let result = ModelImporter.importWorkbook(wb)
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        guard case .formula(.function(_, let args)) = try XCTUnwrap(result.model.kind(of: a1)),
+              case .range(let refs) = args.first else {
+            return XCTFail("Expected a range argument")
+        }
+        XCTAssertEqual(refs.count, 12)
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testForwardReferenceChainResolves() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(FormulaAST.multiply(.cellRef(CellRef("A2")), .number(2)), to: "A1")
+        sheet.write(FormulaAST.add(.cellRef(CellRef("A3")), .number(1)), to: "A2")
+        sheet.write(5.0, to: "A3")
+
+        let result = ModelImporter.importWorkbook(wb)
+        let a2 = try XCTUnwrap(result.model.node(named: "A2"))
+        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+
+        guard case .formula(.multiply(let lhs, _)) =
+            try XCTUnwrap(result.model.kind(of: try XCTUnwrap(result.model.node(named: "A1")))) else {
+            return XCTFail("Expected a multiply formula")
+        }
+        XCTAssertEqual(lhs, .ref(a2), "A1 should bind to A2's node, which itself binds forward")
+
+        guard case .formula(.add(let innerLHS, _)) = try XCTUnwrap(result.model.kind(of: a2)) else {
+            return XCTFail("Expected an add formula")
+        }
+        XCTAssertEqual(innerLHS, .ref(a3))
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testSectionOrderAndNodeCountAreUnchangedByTwoPassResolution() {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(1.0, to: "A1")
+        sheet.write("Label", to: "B1")
+        sheet.write(FormulaAST.add(.cellRef(CellRef("A1")), .number(2)), to: "C1")
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertEqual(result.model.nodeCount, 3)
+        XCTAssertEqual(result.model.sections.map(\.name), ["Imported"])
+        XCTAssertEqual(result.model.allRefs.map(\.label), ["A1", "B1", "C1"])
+    }
+
+    // MARK: - Absolute References
+
+    func testAbsoluteReferenceResolvesToTheSameNode() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(0.1, to: "D11")
+        // `$D$11` and `D11` name the same cell — the markers control what happens
+        // when the formula is filled, not which cell it points at.
+        sheet.write(
+            FormulaAST.multiply(.cellRef(CellRef("$D$11")), .number(2)),
+            to: "A1"
+        )
+
+        let result = ModelImporter.importWorkbook(wb)
+        let d11 = try XCTUnwrap(result.model.node(named: "D11"))
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+
+        guard case .formula(.multiply(let lhs, _)) = try XCTUnwrap(result.model.kind(of: a1)) else {
+            return XCTFail("Expected a multiply formula")
+        }
+        XCTAssertEqual(lhs, .ref(d11))
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testMixedAbsoluteReferencesResolve() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(5.0, to: "B2")
+        sheet.write(FormulaAST.add(.cellRef(CellRef("$B2")), .cellRef(CellRef("B$2"))), to: "A1")
+
+        let result = ModelImporter.importWorkbook(wb)
+        let b2 = try XCTUnwrap(result.model.node(named: "B2"))
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+
+        guard case .formula(.add(let lhs, let rhs)) = try XCTUnwrap(result.model.kind(of: a1)) else {
+            return XCTFail("Expected an add formula")
+        }
+        XCTAssertEqual(lhs, .ref(b2), "A column-absolute reference names the same cell")
+        XCTAssertEqual(rhs, .ref(b2), "A row-absolute reference names the same cell")
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testAbsoluteRangeResolves() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        for row in 5...16 {
+            sheet.write(Double(row), to: "D\(row)")
+        }
+        sheet.write(
+            FormulaAST.function("SUM", [.cellRange(CellRange(from: "$D$5", to: "$D$16"))]),
+            to: "A1"
+        )
+
+        let result = ModelImporter.importWorkbook(wb)
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        guard case .formula(.function(_, let args)) = try XCTUnwrap(result.model.kind(of: a1)),
+              case .range(let refs) = args.first else {
+            return XCTFail("Expected a range argument")
+        }
+        XCTAssertEqual(refs.count, 12)
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testCellToNodeIsKeyedByRelativeReferences() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(1.0, to: "D11")
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertNotNil(
+            result.cellToNode[CellRef("D11")],
+            "Keys are normalized so lookups do not depend on absolute markers"
+        )
     }
 
     // MARK: - Cell-to-Node Mapping

@@ -83,11 +83,27 @@ All notable changes to BusinessMathExcel will be documented in this file.
   suite passes unchanged.
 
 ### Added
+- `ExcelModel.add(_:kind:section:)`: adds a node under a caller-supplied `NodeRef`. The
+  other `add` methods mint an identity and store the node in one step, which cannot express
+  a graph whose formulas reference nodes that do not exist yet. Minting identities first and
+  adding fully-resolved nodes second keeps the model built once rather than mutated, which is
+  what makes it safe to treat as immutable after construction.
 - `WhartonImportMeasurementTests`: measures import fidelity against the Wharton LBO
   Practice Model, a workbook Excel actually wrote, rather than one `ModelExporter` produced.
   The fixture is not checked in — see `Tests/Fixtures/README.md` — and the tests skip when
-  it is absent. First measurement on `ANSWER KEY`: 279 populated cells all became nodes;
-  of 74 formulas, 40 translated and 34 degraded, with 39 warnings.
+  it is absent.
+
+### Fixed
+- **Forward references were lost.** `ModelImporter` resolved formulas in a single pass, so a
+  reference to a cell it had not reached yet degraded to the literal text `REF:A5`. A total
+  placed above the figures it sums — ordinary in any model with a summary block at the top —
+  did not import. Resolution is now two-pass: every cell's identity is minted first, then
+  formulas are converted against the complete map, so references resolve in either direction.
+- **Absolute references never resolved.** `CellRef` is `Hashable` over its `$` marker flags,
+  so `$D$11`, `$D11`, `D$11`, and `D11` were four distinct dictionary keys for one cell. The
+  markers control what happens when a formula is filled, not which cell it points at, and
+  absolute references are how every financial model pins a rate — so keying on the raw
+  reference lost precisely the references that matter most. Cell identity now discards them.
 
 ### Changed
 - **BusinessMath pinned to 2.7.0**, up from 2.2.1. 2.7.0 is where `ModelDefinition`, `Period`,

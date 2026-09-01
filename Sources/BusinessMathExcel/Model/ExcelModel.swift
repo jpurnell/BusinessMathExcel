@@ -211,6 +211,35 @@ public final class ExcelModel: @unchecked Sendable {
         return ref
     }
 
+    /// Adds a node under a caller-supplied identity.
+    ///
+    /// The other `add` methods mint a ``NodeRef`` and store the node in a single
+    /// step, which cannot express a graph whose formulas reference nodes that do
+    /// not exist yet. An importer reading a sheet top to bottom meets exactly
+    /// that: a total placed above the figures it sums refers forward.
+    ///
+    /// Minting every identity first and then adding nodes whose formulas are
+    /// already resolved keeps the model built once rather than mutated after the
+    /// fact, which is what makes it safe to treat as immutable once construction
+    /// finishes.
+    ///
+    /// - Parameters:
+    ///   - ref: The identity to store this node under. Adding the same reference
+    ///     twice replaces the node and leaves its position in the section intact.
+    ///   - kind: The node's kind.
+    ///   - section: The section to place this node in.
+    /// - Returns: `ref`, so call sites can chain.
+    @discardableResult
+    public func add(_ ref: NodeRef, kind: NodeKind, section: String) -> NodeRef {
+        let isNewNode = nodes[ref] == nil
+        nodes[ref] = kind
+        nameIndex[ref.label] = ref
+        if isNewNode {
+            appendToSection(name: section, ref: ref)
+        }
+        return ref
+    }
+
     /// Registers a table of already-added nodes.
     ///
     /// The nodes in `rows` must already exist in the model.

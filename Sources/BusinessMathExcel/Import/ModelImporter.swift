@@ -180,77 +180,100 @@ public enum ModelImporter {
         section: String,
         warnings: inout [String]
     ) -> [CellRef: NodeRef] {
+        // Pass 1 mints an identity for every cell that becomes a node, without
+        // reading any formula. Pass 2 can then resolve a reference in either
+        // direction, so a total placed above the figures it sums binds to them
+        // rather than degrading to literal text.
         var cellToNode: [CellRef: NodeRef] = [:]
+        for (reference, value) in cells where becomesNode(value) {
+            cellToNode[identity(CellRef(reference))] = NodeRef(label: labelPrefix + reference)
+        }
 
+        // Pass 2 walks the same cells in the same order, so node order, section
+        // membership, and warning order are all unchanged by the split.
         for (reference, value) in cells {
-            let cellRef = CellRef(reference)
-            let refString = labelPrefix + reference
+            let label = labelPrefix + reference
+            let kind: NodeKind
 
             switch value {
-            case .number(let num):
-                let ref = model.addInput(
-                    label: refString,
-                    value: num,
-                    section: section
-                )
-                cellToNode[cellRef] = ref
+            case .number(let number):
+                kind = .input(number)
 
-            case .text(let str):
-                let ref = model.addTextInput(
-                    label: refString,
-                    value: str,
-                    section: section
-                )
-                cellToNode[cellRef] = ref
+            case .text(let text):
+                kind = .textInput(text)
+
+            case .bool(let flag):
+                kind = .formula(.bool(flag))
 
             case .formula(let ast, _):
-                let nodeFormula = convertAST(
-                    ast,
-                    cellToNode: cellToNode,
-                    cell: refString,
-                    warnings: &warnings
+                kind = .formula(
+                    convertAST(ast, cellToNode: cellToNode, cell: label, warnings: &warnings)
                 )
-                let ref = model.addFormula(
-                    label: refString,
-                    formula: nodeFormula,
-                    section: section
-                )
-                cellToNode[cellRef] = ref
-
-            case .bool(let b):
-                let ref = model.addFormula(
-                    label: refString,
-                    formula: .bool(b),
-                    section: section
-                )
-                cellToNode[cellRef] = ref
 
             case .blank:
-                break
+                continue
 
             case .array:
                 // Array formulas are how Excel stores data tables ({=TABLE(r,c)}),
                 // which are the detection signal for sensitivity-table recognition.
-                // Recognition is Phase 6; naming them here is what stops the signal
-                // from being lost silently before it can be built on.
+                // Recognition is a later phase; naming them here is what stops the
+                // signal from being lost silently before it can be built on.
                 warnings.append(
-                    "Array formula at \(refString) was not imported. Array formulas are "
+                    "Array formula at \(label) was not imported. Array formulas are "
                         + "how Excel stores data tables ({=TABLE(r,c)}); recognizing them "
                         + "is not yet supported"
                 )
+                continue
 
             case .date:
-                warnings.append("Unsupported cell type 'date' at \(refString)")
+                warnings.append("Unsupported cell type 'date' at \(label)")
+                continue
 
             case .error(let excelError):
                 warnings.append(
-                    "Unsupported cell type 'error' at \(refString): the cell holds "
+                    "Unsupported cell type 'error' at \(label): the cell holds "
                         + "\(excelError.rawValue)"
                 )
+                continue
             }
+
+            guard let ref = cellToNode[identity(CellRef(reference))] else { continue }
+            model.add(ref, kind: kind, section: section)
         }
 
         return cellToNode
+    }
+
+    /// The identity of a cell, with absolute markers discarded.
+    ///
+    /// `$D$11`, `$D11`, `D$11`, and `D11` all name the same cell. The `$` controls
+    /// what happens when a formula is filled across a range, not which cell it
+    /// points at — but `CellRef` is `Hashable` over its marker flags, so the four
+    /// forms are four different dictionary keys. Absolute references are how every
+    /// financial model pins a rate or an assumption, so keying the cell map on the
+    /// raw reference loses exactly the references that matter most.
+    ///
+    /// - Parameter cellRef: A cell reference in any of the four forms.
+    /// - Returns: The equivalent fully-relative reference.
+    private static func identity(_ cellRef: CellRef) -> CellRef {
+        guard cellRef.absoluteColumn || cellRef.absoluteRow else { return cellRef }
+        return CellRef(column: cellRef.column, row: cellRef.row)
+    }
+
+    /// Whether a cell contributes a node to the model.
+    ///
+    /// Blank cells carry nothing, and the unsupported types are reported rather
+    /// than represented, so neither earns an identity in pass 1.
+    ///
+    /// - Parameter value: The cell's value.
+    /// - Returns: `true` if the cell becomes a node.
+    private static func becomesNode(_ value: CellValue) -> Bool {
+        switch value {
+        case .number, .text, .bool, .formula:
+            return true
+        case .blank, .array, .date, .error:
+            return false
+        }
     }
 
     // MARK: - Private
@@ -272,12 +295,12 @@ public enum ModelImporter {
 
         switch ast {
         case .cellRef(let cellRef):
-            if let nodeRef = cellToNode[cellRef] {
+            if let nodeRef = cellToNode[identity(cellRef)] {
                 return .ref(nodeRef)
             }
             warnings.append(
-                "Formula at \(cell) references \(cellRef.reference), which the importer "
-                    + "has not seen; the reference was replaced with the literal "
+                "Formula at \(cell) references \(cellRef.reference), which holds no "
+                    + "value on this sheet; the reference was replaced with the literal "
                     + "text REF:\(cellRef.reference)"
             )
             return .text("REF:\(cellRef.reference)")
@@ -369,7 +392,8 @@ public enum ModelImporter {
         cell: String,
         warnings: inout [String]
     ) -> NodeFormula {
-        guard cellToNode[range.start] != nil, cellToNode[range.end] != nil else {
+        guard cellToNode[identity(range.start)] != nil,
+              cellToNode[identity(range.end)] != nil else {
             warnings.append(
                 "Range \(range.reference) at \(cell) could not be anchored: its first or "
                     + "last cell is blank, or had not been imported when the formula was "
@@ -380,7 +404,7 @@ public enum ModelImporter {
 
         // `range.cells` runs from `start` to `end` in order, so the surviving
         // references keep both endpoints in their original positions.
-        let refs = range.cells.compactMap { cellToNode[$0] }
+        let refs = range.cells.compactMap { cellToNode[identity($0)] }
         return .range(refs)
     }
 
