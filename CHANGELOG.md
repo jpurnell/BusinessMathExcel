@@ -4,6 +4,12 @@ All notable changes to BusinessMathExcel will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-01
+
+Reading a real Excel workbook works, and the first two stages of recognition can say what one
+means. Both halves of that sentence were untrue at 0.5.0: the reader returned an empty workbook
+for any file Excel wrote, and nothing above the importer existed.
+
 ### Added
 - `ModelImporter.importAllSheets(_:)`: imports every worksheet of a workbook into one
   `ExcelModel`. Node labels are qualified with the sheet name (`Inputs!A1`) and each sheet

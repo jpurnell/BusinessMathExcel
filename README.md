@@ -1,6 +1,10 @@
 # BusinessMathExcel
 
-Bidirectional translation layer between [BusinessMath](https://github.com/jpurnell/BusinessMath) computational models and Excel workbooks with live formulas. Built on [SwiftXLSX](https://github.com/jpurnell/SwiftXLSX). Pure Swift, Foundation only.
+Bidirectional translation layer between [BusinessMath](https://github.com/jpurnell/BusinessMath) computational models and Excel workbooks with live formulas. Built on [SwiftXLSX](https://github.com/jpurnell/SwiftXLSX). Pure Swift.
+
+Import is a faithful structural transcription: anything it cannot represent is reported with the
+cell and the construct, and a formula's cached value is never substituted for a formula that could
+not be translated.
 
 ## Requirements
 
@@ -125,7 +129,7 @@ Import runs the same path backwards.
 swift package generate-documentation --target BusinessMathExcel
 ```
 
-136 public APIs, 100% documented.
+194 public APIs, 100% documented. 365 tests.
 
 ## License
 

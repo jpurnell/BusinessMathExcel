@@ -2,7 +2,7 @@
 
 **Purpose:** Scannable inventory of what this project can do — feature areas, key types, external interfaces, and application domains.
 
-**Last reviewed:** 2026-09-01
+**Last reviewed:** 2026-09-01 (reviewed for v0.6.0)
 
 > **Format reference:** See `development-guidelines/rules/capability_map.md` for field definitions,
 > naming conventions, and maintenance rules.
@@ -48,6 +48,18 @@ the formulas that reference them.
 Structural transcription only — it never interprets. Anything it cannot represent is reported in
 `ImportResult.warnings` naming the cell and the construct; nothing is dropped silently, and a
 formula's cached value is never substituted for a formula that could not be translated.
+
+## Workbook Recognition
+
+**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `FormulaUniformity`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
+**Interfaces:** `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`
+**Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, and whether a row computes the same way in every period
+**Dependencies:** BusinessMath (`Period`, `PeriodType`)
+
+Stages 1–2 of the Excel→`ModelDefinition` recognizer. Interpretive, and deliberately separate from
+`Import/`, which never interprets. Reports ambiguity rather than resolving it: a sheet readable
+both ways yields no orientation, and a row that disagrees with itself yields no shape. Coverage is
+reported as a progress metric and never gates a build.
 
 ## Model Builders
 
