@@ -716,6 +716,58 @@ recognized *and named* versus cells recognized at all — so the metric cannot b
 things badly. **Change two:** unit inference is opt-out via `RecognizerOptions.inferUnits`, and
 `TypedSourceWriter` emits an untyped `Account` when `unit == nil` rather than picking one.
 
+### Adversarial review of the 2026-09-01 amendments
+
+`session_workflow.md` requires a pass arguing *against* the design before a proposal is
+presented. The two amendments made on 2026-09-01 — the dynamic-reference tiers (§3) and the D8
+change (§15 Q0) — were written and committed without one. This is that pass, run late. It found
+one blocking defect and three corrections.
+
+**BLOCKING — shared formulas are silently imported as constants.** The attack was "`ROW()` is a
+constant for the cell being defined — is it?" Checking rather than assuming: OOXML stores a
+repeated formula once on a master cell as `<f t="shared" ref="D5:D16" si="0">D4*1.1</f>`, and
+every dependent cell carries only `<f t="shared" si="0"/>` with **no formula text**, the formula
+being derived by offsetting the master's relative references.
+
+`SwiftXLSX.WorksheetParser` has no `t="shared"` handling. Measured on the Wharton `ANSWER KEY`:
+**155 formula elements, 74 carrying text, 81 with empty bodies.** Our importer reports exactly 74
+formulas. The other **81 computed cells arrive as `.number` inputs** — they carry cached values,
+so they look like clean data — and produce **no warning**.
+
+That is the precise thing the "Lossy import must be loud" ADR prohibits: a cached result standing
+in for a formula. It is a worse failure than the `INDIRECT` case this amendment was written about,
+because it is silent and it makes a model *look* correct.
+
+Two consequences beyond the defect itself. Every import-fidelity figure recorded before
+2026-09-01 undercounts the denominator and must be restated. And Phase 2 Task 6 cannot proceed
+on top of it: uniformity asks whether a row's cells share a formula shape, and `t="shared"` is
+**Excel's own declaration that they do** — the `ref` attribute names the exact span. Reading it
+does not merely stop the loss, it hands Task 6 its answer directly.
+
+**Correction 1 — the Tier 1 fold criterion is too weak.** §3 folds when the sheet-name argument
+resolves to a `.textInput`. That proves the cell is *not computed*; it does not prove it is not
+*meant to vary*. In the measured model `C1 = "A"` is exactly the knob a user retypes to point the
+comparison somewhere else. Folding it converts dispatch into a fixed reference — a semantic
+downgrade the current write-up does not distinguish from folding a literal. `.foldedDynamicReference`
+should be **warning** severity when the driver is an input cell, and info only when every argument
+is a literal.
+
+**Correction 2 — "`OFFSET` is the same construct" overstates it.** `OFFSET(ref, rows, cols,
+[height], [width])` returns a *range* when the size arguments are present, where `ADDRESS` always
+yields a single cell. The tiers still apply, but the fold target differs and the write-up should
+not imply one substitution rule covers both.
+
+**Correction 3 — the D8 evidence is not reproducible from this repo.** The 2982-of-5011 `IF`
+measurement comes from a private workbook that cannot be checked in. The decision may still be
+right — the reasoning about operators not being registry entries stands on its own — but a reader
+cannot verify the number, and the only *reproducible* evidence, Wharton, shows one occurrence.
+Recorded so the decision is not later mistaken for having had public backing.
+
+**Not upheld.** The objection that adding six enum cases in Phase 2 costs consumers a second
+source-breaking change was considered and rejected: `NodeFormula` is pre-1.0, Phase 1 already
+broke it once for `.power`, and deferring to batch with unknown Stage 3 additions trades a certain
+small cost for a speculative one.
+
 ## 13. Alternatives Considered
 
 **Alternative 1: Mechanical transcription — accounts named by cell address.**
