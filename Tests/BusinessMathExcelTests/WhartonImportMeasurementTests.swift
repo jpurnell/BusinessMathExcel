@@ -103,6 +103,25 @@ final class WhartonImportMeasurementTests: XCTestCase {
         XCTAssertTrue(diagnostics.isEmpty, "Got: \(diagnostics)")
     }
 
+    func testBindsTheProfitAndLossRowsToTheirLabels() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let (series, _) = LabeledSeries.bind(in: grid, axis: axis)
+
+        let names = Set(series.map(\.name))
+        for expected in ["Revenue", "EBITDA", "EBIT", "Less: D&A", "Less: Interest"] {
+            XCTAssertTrue(names.contains(expected), "Expected a series named \"\(expected)\"")
+        }
+
+        let revenue = try XCTUnwrap(series.first { $0.name == "Revenue" })
+        XCTAssertEqual(
+            revenue.populatedCells.count, axis.count,
+            "Revenue runs the full timeline"
+        )
+    }
+
     // MARK: - Import Fidelity
 
     func testEveryPopulatedCellBecomesANode() throws {

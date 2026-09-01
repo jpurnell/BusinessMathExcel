@@ -104,14 +104,18 @@ bumped the pin.
 
 ## Task 5 — `LabeledSeries` (Stage 2) with address-fallback naming
 
-- [ ] **RED** — test: a text cell binds to the run of value cells on its row.
-- [ ] **RED** — test: values with no label get an address-derived name and an `.labelUnbound`
+- [x] **RED** — test: a text cell binds to the run of value cells on its row.
+- [x] **RED** — test: values with no label get an address-derived name and an `.labelUnbound`
       info diagnostic — they are recognized, not dropped.
-- [ ] **RED** — test: duplicate labels emit `.duplicateAccountName` and both survive distinctly.
-- [ ] **GREEN** — implement for both orientations.
-- [ ] **Decide:** whether a blank cell breaks a run. A blank inside a row of figures is ordinary;
-      a blank separating two blocks is meaningful. Choose, document, and test the boundary.
-- [ ] Commit.
+- [x] **RED** — test: duplicate labels emit `.duplicateAccountName` and both survive distinctly.
+- [x] **GREEN** — implement for both orientations.
+- [x] **Decided by dissolving the question.** Anchoring on the axis rather than on adjacency
+      makes it moot: once `PeriodAxis` says which columns hold periods, a series is that row's
+      cells in those columns. A blank is a missing value for that period, recorded as `nil`,
+      and the boundary came from the axis rather than from spacing. This also handles the
+      layout every real model uses, where a label in column B is separated from values in
+      column E by empty formatting columns — which run-scanning would have severed.
+- [x] Commit.
 
 ## Task 6 — Formula uniformity
 
