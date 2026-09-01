@@ -6,6 +6,11 @@ import SwiftXLSX
 /// each non-blank cell, and builds ``NodeFormula`` expressions from formula ASTs.
 /// Value cells become inputs; formula cells become formula nodes; cells with
 /// no dependents become outputs.
+///
+/// Import is lossy where the source workbook uses constructs ``NodeFormula``
+/// cannot express. Every such loss is reported in ``ImportResult/warnings``
+/// naming the cell and the construct, so a partially-translated workbook is
+/// never mistaken for a complete one.
 public enum ModelImporter {
 
     /// The result of importing a workbook.
@@ -17,7 +22,11 @@ public enum ModelImporter {
         /// Maps cell references to their corresponding node references.
         public let cellToNode: [CellRef: NodeRef]
 
-        /// Warnings generated during import (e.g., unsupported cell types).
+        /// Warnings generated during import.
+        ///
+        /// Non-empty whenever the import dropped or degraded something: an
+        /// unsupported cell type, an unsupported formula node, or a reference
+        /// to a cell the importer had not yet seen.
         public let warnings: [String]
     }
 
@@ -70,7 +79,12 @@ public enum ModelImporter {
                 cellToNode[cellRef] = ref
 
             case .formula(let ast, _):
-                let nodeFormula = convertAST(ast, cellToNode: cellToNode)
+                let nodeFormula = convertAST(
+                    ast,
+                    cellToNode: cellToNode,
+                    cell: refString,
+                    warnings: &warnings
+                )
                 let ref = model.addFormula(
                     label: refString,
                     formula: nodeFormula,
@@ -106,15 +120,28 @@ public enum ModelImporter {
     private static func convertAST(
         _ ast: FormulaAST,
         cellToNode: [CellRef: NodeRef],
+        cell: String,
+        warnings: inout [String],
         depth: Int = 0
     ) -> NodeFormula {
-        guard depth < 500 else { return .text("DEPTH_EXCEEDED") }
+        guard depth < 500 else {
+            warnings.append(
+                "Formula at \(cell) exceeds the maximum nesting depth of 500; "
+                    + "the remainder was replaced with DEPTH_EXCEEDED"
+            )
+            return .text("DEPTH_EXCEEDED")
+        }
 
         switch ast {
         case .cellRef(let cellRef):
             if let nodeRef = cellToNode[cellRef] {
                 return .ref(nodeRef)
             }
+            warnings.append(
+                "Formula at \(cell) references \(cellRef.reference), which the importer "
+                    + "has not seen; the reference was replaced with the literal "
+                    + "text REF:\(cellRef.reference)"
+            )
             return .text("REF:\(cellRef.reference)")
 
         case .number(let value):
@@ -128,41 +155,78 @@ public enum ModelImporter {
 
         case .add(let lhs, let rhs):
             return .add(
-                convertAST(lhs, cellToNode: cellToNode, depth: depth + 1),
-                convertAST(rhs, cellToNode: cellToNode, depth: depth + 1)
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             )
 
         case .subtract(let lhs, let rhs):
             return .subtract(
-                convertAST(lhs, cellToNode: cellToNode, depth: depth + 1),
-                convertAST(rhs, cellToNode: cellToNode, depth: depth + 1)
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             )
 
         case .multiply(let lhs, let rhs):
             return .multiply(
-                convertAST(lhs, cellToNode: cellToNode, depth: depth + 1),
-                convertAST(rhs, cellToNode: cellToNode, depth: depth + 1)
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             )
 
         case .divide(let lhs, let rhs):
             return .divide(
-                convertAST(lhs, cellToNode: cellToNode, depth: depth + 1),
-                convertAST(rhs, cellToNode: cellToNode, depth: depth + 1)
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             )
 
         case .negate(let expr):
-            return .negate(convertAST(expr, cellToNode: cellToNode, depth: depth + 1))
+            return .negate(
+                convertAST(expr, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
 
         case .function(let name, let args):
             return .function(name, args.map {
-                convertAST($0, cellToNode: cellToNode, depth: depth + 1)
+                convertAST($0, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             })
 
         case .cellRange, .sheetRef, .namedRange, .error,
              .power, .concatenate,
              .equal, .notEqual, .greaterThan, .lessThan,
              .greaterOrEqual, .lessOrEqual:
+            warnings.append(
+                "Unsupported formula node '\(nodeKindName(ast))' at \(cell); "
+                    + "it was replaced with UNSUPPORTED"
+            )
             return .text("UNSUPPORTED")
+        }
+    }
+
+    /// The `FormulaAST` case name for a node, used to make warnings specific.
+    ///
+    /// - Parameter ast: The node to name.
+    /// - Returns: The case name, matching the `FormulaAST` declaration.
+    private static func nodeKindName(_ ast: FormulaAST) -> String {
+        switch ast {
+        case .cellRef: return "cellRef"
+        case .cellRange: return "cellRange"
+        case .sheetRef: return "sheetRef"
+        case .namedRange: return "namedRange"
+        case .number: return "number"
+        case .text: return "text"
+        case .bool: return "bool"
+        case .error: return "error"
+        case .add: return "add"
+        case .subtract: return "subtract"
+        case .multiply: return "multiply"
+        case .divide: return "divide"
+        case .power: return "power"
+        case .negate: return "negate"
+        case .concatenate: return "concatenate"
+        case .equal: return "equal"
+        case .notEqual: return "notEqual"
+        case .greaterThan: return "greaterThan"
+        case .lessThan: return "lessThan"
+        case .greaterOrEqual: return "greaterOrEqual"
+        case .lessOrEqual: return "lessOrEqual"
+        case .function: return "function"
         }
     }
 }

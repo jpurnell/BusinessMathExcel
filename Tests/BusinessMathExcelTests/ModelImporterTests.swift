@@ -123,6 +123,64 @@ final class ModelImporterTests: XCTestCase {
         }
     }
 
+    // MARK: - Warnings for Unsupported Formula Nodes
+
+    func testUnsupportedFormulaNodeProducesWarning() {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(FormulaAST.namedRange("TaxRate"), to: "A1")
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertFalse(
+            result.warnings.isEmpty,
+            "An unsupported AST node must be reported, not silently dropped"
+        )
+    }
+
+    func testUnsupportedFormulaWarningNamesCellAndNodeKind() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(FormulaAST.concatenate(.text("a"), .text("b")), to: "B7")
+
+        let result = ModelImporter.importWorkbook(wb)
+        let warning = try XCTUnwrap(result.warnings.first)
+        XCTAssertTrue(warning.contains("B7"), "Warning should name the cell: \(warning)")
+        XCTAssertTrue(
+            warning.contains("concatenate"),
+            "Warning should name the node kind: \(warning)"
+        )
+    }
+
+    func testNestedUnsupportedNodeProducesWarning() {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(1.0, to: "A1")
+        sheet.write(
+            FormulaAST.add(.cellRef(CellRef("A1")), .namedRange("Adjustment")),
+            to: "A2"
+        )
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertFalse(
+            result.warnings.isEmpty,
+            "Unsupported nodes nested inside a supported operator must still warn"
+        )
+    }
+
+    func testFullySupportedFormulaProducesNoWarnings() {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(1.0, to: "A1")
+        sheet.write(2.0, to: "A2")
+        sheet.write(
+            FormulaAST.add(.cellRef(CellRef("A1")), .cellRef(CellRef("A2"))),
+            to: "A3"
+        )
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
     // MARK: - Cell-to-Node Mapping
 
     func testCellToNodeMapping() {
