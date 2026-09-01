@@ -1,5 +1,6 @@
 import XCTest
 @testable import BusinessMathExcel
+import BusinessMath
 import SwiftXLSX
 
 /// Measures import fidelity against a workbook Excel actually wrote.
@@ -86,6 +87,20 @@ final class WhartonImportMeasurementTests: XCTestCase {
 
         XCTAssertNil(result.cachedValues[CellRef("E27")], "E27 is typed, not computed")
         XCTAssertEqual(result.cachedValues[CellRef("F27")], .number(2024))
+    }
+
+    func testRecoversTheModelsSixYearTimeline() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let (axis, diagnostics) = PeriodAxis.build(from: grid)
+
+        let recovered = try XCTUnwrap(axis)
+        XCTAssertEqual(recovered.count, 6, "2023 plus five projection years")
+        XCTAssertEqual(recovered.granularity, .annual)
+        XCTAssertEqual(recovered.periods, (2023...2028).map(Period.year))
+        XCTAssertEqual(recovered.sources.map(\.reference), grid.axisCells.map(\.reference))
+        XCTAssertTrue(diagnostics.isEmpty, "Got: \(diagnostics)")
     }
 
     // MARK: - Import Fidelity

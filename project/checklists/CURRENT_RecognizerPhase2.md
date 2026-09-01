@@ -86,14 +86,21 @@ Cell topology and orientation. Consumes an `ImportResult`; knows cell positions,
 Recovered headers to `[Period]`, using BusinessMath's `Period`/`PeriodType` — the reason Phase 0
 bumped the pin.
 
-- [ ] **RED** — test: `2024 2025 2026` recovers three annual periods via `Period.year(_:)`.
-- [ ] **RED** — test: header forms real models use — `FY24`, `2024E`, `Q1 2024`. Pick the set
+- [x] **RED** — test: `2024 2025 2026` recovers three annual periods via `Period.year(_:)`.
+- [x] **RED** — test: header forms real models use — `FY24`, `2024E`, `Q1 2024`. Pick the set
       deliberately and record what is *not* recognized rather than letting it be implicit.
-- [ ] **RED** — test: a header that parses to a non-monotonic or duplicated sequence is reported,
+- [x] **RED** — test: a header that parses to a non-monotonic or duplicated sequence is reported,
       not silently accepted.
-- [ ] **GREEN** — implement, honouring `RecognizerOptions.granularity` when supplied and inferring
-      when it is `nil`.
-- [ ] Commit.
+- [x] **GREEN** — implement. **`RecognizerOptions.granularity` deliberately not added.** With
+      annual the only recognized granularity, an option with one valid value is noise that
+      reads as a capability. It goes in when a second granularity does.
+- [x] **Decided, from the files rather than from imagination:** annual only. Neither reference
+      workbook contains a single quarterly, monthly, or date heading — verified by scanning both
+      string tables. Supporting quarters would mean guessing a spelling (`Q1 2024`? `1Q24`?) and
+      generalizing the increasing rule to (year, quarter) pairs, with no file to check against.
+      `FY2024`/`FY24`/`2024E` are accepted and tested but appear in neither file, so they are
+      supported rather than evidenced, and the DocC says so.
+- [x] Commit.
 
 ## Task 5 — `LabeledSeries` (Stage 2) with address-fallback naming
 
