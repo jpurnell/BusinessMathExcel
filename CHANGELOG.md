@@ -75,6 +75,21 @@ All notable changes to BusinessMathExcel will be documented in this file.
   resource rather than excluded, so the plugin still builds it.
 
 ### Changed
+- **SwiftXLSX pinned to 0.6.0**, up from 0.2.0, for the reader fix released there: every
+  version before it selected the workbook part by substring match, which also matched the
+  extended-properties relationship Excel writes first, so *any* Excel-authored file parsed
+  to zero sheets and returned no error. This package's import half had therefore never been
+  exercised against a real spreadsheet. No API drift across the four minor versions; the
+  suite passes unchanged.
+
+### Added
+- `WhartonImportMeasurementTests`: measures import fidelity against the Wharton LBO
+  Practice Model, a workbook Excel actually wrote, rather than one `ModelExporter` produced.
+  The fixture is not checked in — see `Tests/Fixtures/README.md` — and the tests skip when
+  it is absent. First measurement on `ANSWER KEY`: 279 populated cells all became nodes;
+  of 74 formulas, 40 translated and 34 degraded, with 39 warnings.
+
+### Changed
 - **BusinessMath pinned to 2.7.0**, up from 2.2.1. 2.7.0 is where `ModelDefinition`, `Period`,
   `PeriodType`, and the cycle solvers live; 2.2.1 shipped no `Model Definition/` at all, so the
   recognizer work has no target without this. No source changes were needed and the suite passes

@@ -1,0 +1,110 @@
+import XCTest
+@testable import BusinessMathExcel
+import SwiftXLSX
+
+/// Measures import fidelity against a workbook Excel actually wrote.
+///
+/// The rest of the suite builds workbooks with ``ModelExporter`` and reads them
+/// back, which only ever exercises the shapes this package emits. This one reads
+/// the Wharton LBO Practice Model — see `Tests/Fixtures/README.md` for how to
+/// fetch it, and why it is not checked in.
+///
+/// These tests report a measurement rather than enforce a threshold. Coverage is
+/// tracked as a progress metric toward 100%, not as a gate that fails a build.
+final class WhartonImportMeasurementTests: XCTestCase {
+
+    private static let fixtureName = "Wharton-LBO-Practice-Model.xlsx"
+
+    private func fixture() throws -> Workbook {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/\(Self.fixtureName)")
+
+        guard (try? url.checkResourceIsReachable()) == true else {
+            throw XCTSkip(
+                "\(Self.fixtureName) is not present. See Tests/Fixtures/README.md to fetch it."
+            )
+        }
+        return try Workbook(contentsOf: url)
+    }
+
+    // MARK: - The Fixture Identifies Itself
+
+    func testWorkbookHasTheExpectedSheets() throws {
+        let workbook = try fixture()
+        XCTAssertEqual(workbook.sheets.map(\.name), ["KEY NOTES", "BLANK MODEL", "ANSWER KEY"])
+    }
+
+    func testAnswerKeyCarriesThePublishedIRR() throws {
+        let workbook = try fixture()
+        let answerKey = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+
+        // C64 = IRR(D61:I61). Excel's cached result is the published 24.67%, which
+        // is what makes this the right file rather than merely a similar one.
+        guard case .formula(_, let cached) = answerKey.cell(at: "C64"),
+              case .number(let irr)? = cached else {
+            return XCTFail("ANSWER KEY!C64 should be a formula with a cached value")
+        }
+        XCTAssertEqual(irr, 0.2467, accuracy: 0.0001)
+    }
+
+    // MARK: - Import Fidelity
+
+    func testEveryPopulatedCellBecomesANode() throws {
+        let workbook = try fixture()
+        let answerKey = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let result = ModelImporter.importSheet(answerKey)
+
+        let populated = answerKey.cellReferences.filter { reference in
+            guard let value = answerKey.cell(at: reference) else { return false }
+            if case .blank = value { return false }
+            return true
+        }.count
+
+        XCTAssertEqual(
+            result.model.nodeCount, populated,
+            "Structural transcription must not drop cells; interpretation happens above this layer"
+        )
+    }
+
+    func testReportsImportFidelity() throws {
+        let workbook = try fixture()
+        let answerKey = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let result = ModelImporter.importSheet(answerKey)
+
+        var clean = 0
+        var degraded = 0
+        for ref in result.model.allRefs {
+            guard case .formula(let formula) = result.model.kind(of: ref) else { continue }
+            if Self.isDegraded(formula) { degraded += 1 } else { clean += 1 }
+        }
+
+        print("""
+            WHARTON import fidelity (ANSWER KEY):
+              nodes            \(result.model.nodeCount)
+              formula nodes    \(clean + degraded)  (\(clean) translated, \(degraded) degraded)
+              warnings         \(result.warnings.count)
+            """)
+
+        XCTAssertGreaterThan(clean, 0, "Some formulas must survive translation")
+    }
+
+    /// Whether a formula contains any of the importer's degrade sentinels.
+    private static func isDegraded(_ formula: NodeFormula) -> Bool {
+        switch formula {
+        case .text(let value):
+            return value == "UNSUPPORTED" || value == "DEPTH_EXCEEDED" || value.hasPrefix("REF:")
+        case .add(let lhs, let rhs), .subtract(let lhs, let rhs),
+             .multiply(let lhs, let rhs), .divide(let lhs, let rhs),
+             .power(let lhs, let rhs):
+            return isDegraded(lhs) || isDegraded(rhs)
+        case .negate(let expr):
+            return isDegraded(expr)
+        case .function(_, let args):
+            return args.contains(where: isDegraded)
+        case .ref, .number, .bool, .range:
+            return false
+        }
+    }
+}
