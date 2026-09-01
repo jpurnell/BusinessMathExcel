@@ -138,8 +138,14 @@ public enum MonteCarloExtension {
         case .number(let value):
             return value
 
-        case .text, .bool, .range:
+        case .text, .range:
             return 0
+
+        // Excel treats TRUE and FALSE as 1 and 0 in arithmetic, and this evaluator
+        // has no boolean channel. Returning 0 for both, as it used to, made a true
+        // condition indistinguishable from a value it could not evaluate.
+        case .bool(let flag):
+            return flag ? 1 : 0
 
         case .add(let lhs, let rhs):
             return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
@@ -170,6 +176,36 @@ public enum MonteCarloExtension {
 
         case .negate(let expr):
             return -evaluateFormula(expr, model: model, inputOverrides: inputOverrides)
+
+        case .equal(let lhs, let rhs):
+            return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
+                == evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                ? 1 : 0
+
+        case .notEqual(let lhs, let rhs):
+            return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
+                != evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                ? 1 : 0
+
+        case .greaterThan(let lhs, let rhs):
+            return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
+                > evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                ? 1 : 0
+
+        case .lessThan(let lhs, let rhs):
+            return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
+                < evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                ? 1 : 0
+
+        case .greaterOrEqual(let lhs, let rhs):
+            return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
+                >= evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                ? 1 : 0
+
+        case .lessOrEqual(let lhs, let rhs):
+            return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
+                <= evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                ? 1 : 0
 
         case .function:
             return 0

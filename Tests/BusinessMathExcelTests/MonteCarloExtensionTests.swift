@@ -42,6 +42,53 @@ final class MonteCarloExtensionTests: XCTestCase {
         )
     }
 
+    func testEvaluatesComparisonAsOneOrZero() throws {
+        // Excel treats TRUE and FALSE as 1 and 0 in arithmetic. This evaluator has
+        // no boolean channel, so that is the only representation available to it.
+        for (label, formula, expected) in [
+            ("true", NodeFormula.greaterThan(.number(2), .number(1)), 1.0),
+            ("false", NodeFormula.greaterThan(.number(1), .number(2)), 0.0),
+        ] {
+            let model = ExcelModel()
+            let base = model.addInput(label: "Base", value: 1)
+            let output = model.addOutput(label: "Flag", formula: formula)
+            let wb = try ModelExporter.export(model)
+
+            MonteCarloExtension.apply(
+                to: wb, model: model, outputRef: output,
+                variations: [.init(ref: base, distribution: .uniform(min: 1, max: 1))],
+                iterations: 2, seed: 7
+            )
+
+            let data = try XCTUnwrap(wb.sheets.first { $0.name == "Simulation Data" })
+            guard case .number(let value) = try XCTUnwrap(data.cell(at: "B2")) else {
+                return XCTFail("\(label): expected a numeric output")
+            }
+            XCTAssertEqual(value, expected, accuracy: 1e-9, "comparison evaluating \(label)")
+        }
+    }
+
+    func testEvaluatesBooleanAsOneOrZero() throws {
+        // TRUE previously evaluated to 0, the same value used for "cannot evaluate",
+        // which made a true condition indistinguishable from an unsupported one.
+        let model = ExcelModel()
+        let base = model.addInput(label: "Base", value: 1)
+        let output = model.addOutput(label: "Flag", formula: .bool(true))
+        let wb = try ModelExporter.export(model)
+
+        MonteCarloExtension.apply(
+            to: wb, model: model, outputRef: output,
+            variations: [.init(ref: base, distribution: .uniform(min: 1, max: 1))],
+            iterations: 2, seed: 7
+        )
+
+        let data = try XCTUnwrap(wb.sheets.first { $0.name == "Simulation Data" })
+        guard case .number(let value) = try XCTUnwrap(data.cell(at: "B2")) else {
+            return XCTFail("Expected a numeric output")
+        }
+        XCTAssertEqual(value, 1, accuracy: 1e-9)
+    }
+
     // MARK: - Sheet Creation
 
     func testAddsDataSheet() throws {

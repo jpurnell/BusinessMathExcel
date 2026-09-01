@@ -92,6 +92,13 @@ All notable changes to BusinessMathExcel will be documented in this file.
   suite passes unchanged.
 
 ### Added
+- **Comparison operators in `NodeFormula`** — `.equal`, `.notEqual`, `.greaterThan`, `.lessThan`,
+  `.greaterOrEqual`, `.lessOrEqual`. All six previously degraded to `UNSUPPORTED`, which took the
+  condition out of every `IF` in a workbook. `IF` itself needed nothing: Excel's `IF` is a
+  function, not an AST node, so it already round-tripped.
+
+  **Source-breaking for exhaustive switches over `NodeFormula`.** The five in this package are
+  updated. Pulled forward from decision D8 — see the recognizer proposal §15 Q0.
 - `ExcelModel.add(_:kind:section:)`: adds a node under a caller-supplied `NodeRef`. The
   other `add` methods mint an identity and store the node in one step, which cannot express
   a graph whose formulas reference nodes that do not exist yet. Minting identities first and
@@ -103,6 +110,9 @@ All notable changes to BusinessMathExcel will be documented in this file.
   it is absent.
 
 ### Fixed
+- `MonteCarloExtension` evaluated `TRUE` as `0` — the same value it returns for "cannot
+  evaluate" — so a true condition could not be told apart from an unsupported one. Booleans and
+  comparisons now evaluate to 1 and 0, matching how Excel treats them in arithmetic.
 - **Forward references were lost.** `ModelImporter` resolved formulas in a single pass, so a
   reference to a cell it had not reached yet degraded to the literal text `REF:A5`. A total
   placed above the figures it sums — ordinary in any model with a summary block at the top —

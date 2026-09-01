@@ -623,6 +623,89 @@ final class ModelImporterTests: XCTestCase {
         )
     }
 
+    // MARK: - Comparison Operators
+
+    func testImportsEveryComparisonOperator() throws {
+        // Each row: the Excel AST written to A3, and the NodeFormula it must become
+        // once A1 and A2 have resolved to nodes.
+        let cases: [(name: String,
+                     ast: (FormulaAST, FormulaAST) -> FormulaAST,
+                     expected: (NodeFormula, NodeFormula) -> NodeFormula)] = [
+            ("equal", FormulaAST.equal, NodeFormula.equal),
+            ("notEqual", FormulaAST.notEqual, NodeFormula.notEqual),
+            ("greaterThan", FormulaAST.greaterThan, NodeFormula.greaterThan),
+            ("lessThan", FormulaAST.lessThan, NodeFormula.lessThan),
+            ("greaterOrEqual", FormulaAST.greaterOrEqual, NodeFormula.greaterOrEqual),
+            ("lessOrEqual", FormulaAST.lessOrEqual, NodeFormula.lessOrEqual),
+        ]
+
+        for testCase in cases {
+            let wb = Workbook()
+            let sheet = wb.addSheet(name: "Test")
+            sheet.write(1.0, to: "A1")
+            sheet.write(2.0, to: "A2")
+            sheet.write(testCase.ast(.cellRef(CellRef("A1")), .cellRef(CellRef("A2"))), to: "A3")
+
+            let result = ModelImporter.importWorkbook(wb)
+            let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+            let a2 = try XCTUnwrap(result.model.node(named: "A2"))
+            let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+
+            XCTAssertEqual(
+                result.model.kind(of: a3),
+                .formula(testCase.expected(.ref(a1), .ref(a2))),
+                "\(testCase.name) did not import as a comparison"
+            )
+            XCTAssertTrue(result.warnings.isEmpty, "\(testCase.name): \(result.warnings)")
+        }
+    }
+
+    func testImportsComparisonInsideAnIfCondition() throws {
+        // `IF` is an Excel function, not an AST node, so it already round-trips.
+        // What was missing is the operator in its condition.
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(1.0, to: "A1")
+        sheet.write(2.0, to: "A2")
+        sheet.write(
+            FormulaAST.function("IF", [
+                .greaterThan(.cellRef(CellRef("A1")), .cellRef(CellRef("A2"))),
+                .cellRef(CellRef("A1")),
+                .cellRef(CellRef("A2")),
+            ]),
+            to: "A3"
+        )
+
+        let result = ModelImporter.importWorkbook(wb)
+        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        let a2 = try XCTUnwrap(result.model.node(named: "A2"))
+        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+
+        guard case .formula(.function(let name, let args)) =
+            try XCTUnwrap(result.model.kind(of: a3)) else {
+            return XCTFail("Expected an IF function")
+        }
+        XCTAssertEqual(name, "IF")
+        XCTAssertEqual(args.first, .greaterThan(.ref(a1), .ref(a2)))
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testComparisonSurvivesExportAndReimport() throws {
+        let model = ExcelModel()
+        let left = model.addInput(label: "Left", value: 1)
+        let right = model.addInput(label: "Right", value: 2)
+        model.addOutput(label: "Test", formula: .greaterThan(.ref(left), .ref(right)))
+
+        let workbook = try ModelExporter.export(model, title: "Comparison")
+        let sheet = try XCTUnwrap(workbook.sheets.first)
+        let ast = try XCTUnwrap(
+            sheet.cellReferences.compactMap { sheet.cell(at: $0)?.formulaAST }.first
+        )
+        guard case .greaterThan = ast else {
+            return XCTFail("Expected a greaterThan AST, got \(ast)")
+        }
+    }
+
     // MARK: - Cell-to-Node Mapping
 
     func testCellToNodeMapping() {

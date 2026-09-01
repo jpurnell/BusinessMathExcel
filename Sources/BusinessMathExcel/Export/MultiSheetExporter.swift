@@ -251,6 +251,42 @@ public enum MultiSheetExporter {
                 resolveWithCrossSheet(formula: exponent, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
             )
 
+        case .equal(let lhs, let rhs):
+            return try .equal(
+                resolveWithCrossSheet(formula: lhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
+        case .notEqual(let lhs, let rhs):
+            return try .notEqual(
+                resolveWithCrossSheet(formula: lhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
+        case .greaterThan(let lhs, let rhs):
+            return try .greaterThan(
+                resolveWithCrossSheet(formula: lhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
+        case .lessThan(let lhs, let rhs):
+            return try .lessThan(
+                resolveWithCrossSheet(formula: lhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
+        case .greaterOrEqual(let lhs, let rhs):
+            return try .greaterOrEqual(
+                resolveWithCrossSheet(formula: lhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
+        case .lessOrEqual(let lhs, let rhs):
+            return try .lessOrEqual(
+                resolveWithCrossSheet(formula: lhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
         case .negate(let expr):
             return try .negate(
                 resolveWithCrossSheet(formula: expr, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)

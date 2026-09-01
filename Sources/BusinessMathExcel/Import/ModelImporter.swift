@@ -352,14 +352,48 @@ public enum ModelImporter {
                 convertAST(expr, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             )
 
+        case .equal(let lhs, let rhs):
+            return .equal(
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
+        case .notEqual(let lhs, let rhs):
+            return .notEqual(
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
+        case .greaterThan(let lhs, let rhs):
+            return .greaterThan(
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
+        case .lessThan(let lhs, let rhs):
+            return .lessThan(
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
+        case .greaterOrEqual(let lhs, let rhs):
+            return .greaterOrEqual(
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
+        case .lessOrEqual(let lhs, let rhs):
+            return .lessOrEqual(
+                convertAST(lhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
         case .function(let name, let args):
             return .function(name, args.map {
                 convertAST($0, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             })
 
-        case .sheetRef, .namedRange, .error, .concatenate,
-             .equal, .notEqual, .greaterThan, .lessThan,
-             .greaterOrEqual, .lessOrEqual:
+        case .sheetRef, .namedRange, .error, .concatenate:
             warnings.append(
                 "Unsupported formula node '\(nodeKindName(ast))' at \(cell); "
                     + "it was replaced with UNSUPPORTED"

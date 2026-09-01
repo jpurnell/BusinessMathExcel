@@ -97,7 +97,10 @@ final class WhartonImportMeasurementTests: XCTestCase {
             return value == "UNSUPPORTED" || value == "DEPTH_EXCEEDED" || value.hasPrefix("REF:")
         case .add(let lhs, let rhs), .subtract(let lhs, let rhs),
              .multiply(let lhs, let rhs), .divide(let lhs, let rhs),
-             .power(let lhs, let rhs):
+             .power(let lhs, let rhs),
+             .equal(let lhs, let rhs), .notEqual(let lhs, let rhs),
+             .greaterThan(let lhs, let rhs), .lessThan(let lhs, let rhs),
+             .greaterOrEqual(let lhs, let rhs), .lessOrEqual(let lhs, let rhs):
             return isDegraded(lhs) || isDegraded(rhs)
         case .negate(let expr):
             return isDegraded(expr)

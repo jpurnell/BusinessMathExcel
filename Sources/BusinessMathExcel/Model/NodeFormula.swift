@@ -44,6 +44,29 @@ public indirect enum NodeFormula: Equatable, Hashable, Sendable {
     /// A contiguous range of node references, resolved to a `CellRange` at export.
     case range([NodeRef])
 
+    // MARK: - Comparisons
+    //
+    // Excel's `IF` is a function and already round-trips as one; these are the
+    // operators that appear inside its condition.
+
+    /// Whether the left expression is equal to the right.
+    case equal(NodeFormula, NodeFormula)
+
+    /// Whether the left expression is not equal to the right.
+    case notEqual(NodeFormula, NodeFormula)
+
+    /// Whether the left expression is greater than the right.
+    case greaterThan(NodeFormula, NodeFormula)
+
+    /// Whether the left expression is less than the right.
+    case lessThan(NodeFormula, NodeFormula)
+
+    /// Whether the left expression is greater than or equal to the right.
+    case greaterOrEqual(NodeFormula, NodeFormula)
+
+    /// Whether the left expression is less than or equal to the right.
+    case lessOrEqual(NodeFormula, NodeFormula)
+
     /// A named function call with arguments.
     case function(String, [NodeFormula])
 
@@ -100,6 +123,24 @@ public indirect enum NodeFormula: Equatable, Hashable, Sendable {
                 return .text("")
             }
             return .cellRange(CellRange(from: first, to: last))
+
+        case .equal(let lhs, let rhs):
+            return try .equal(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
+
+        case .notEqual(let lhs, let rhs):
+            return try .notEqual(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
+
+        case .greaterThan(let lhs, let rhs):
+            return try .greaterThan(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
+
+        case .lessThan(let lhs, let rhs):
+            return try .lessThan(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
+
+        case .greaterOrEqual(let lhs, let rhs):
+            return try .greaterOrEqual(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
+
+        case .lessOrEqual(let lhs, let rhs):
+            return try .lessOrEqual(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
 
         case .function(let name, let args):
             return try .function(name, args.map { try $0.resolve(using: mapping) })

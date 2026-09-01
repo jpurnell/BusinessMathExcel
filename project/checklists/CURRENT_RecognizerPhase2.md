@@ -26,18 +26,22 @@ means the Coverage numbers Tasks 5–7 report are not depressed by a gap already
 as `.function("IF", args)` and round-trips today. Verified on both reference workbooks. Only the
 *operators inside its condition* are missing. Do not add an `IF` case.
 
-- [ ] **RED** — test: `=A1>B1` imports as a comparison, not `UNSUPPORTED`; one test per operator.
-- [ ] **RED** — test: `=IF(A1>B1, A1, B1)` imports with a real comparison in the condition.
-- [ ] **GREEN** — add `.equal`, `.notEqual`, `.greaterThan`, `.lessThan`, `.greaterOrEqual`,
+- [x] **RED** — test: `=A1>B1` imports as a comparison, not `UNSUPPORTED`; one test per operator.
+- [x] **RED** — test: `=IF(A1>B1, A1, B1)` imports with a real comparison in the condition.
+- [x] **GREEN** — add `.equal`, `.notEqual`, `.greaterThan`, `.lessThan`, `.greaterOrEqual`,
       `.lessOrEqual` to `NodeFormula` and handle each in all five exhaustive switches:
       `resolve(using:)`, `ModelImporter.convertAST`, `MonteCarloExtension.evaluateFormula`,
       `MultiSheetExporter`, `FormulaMapper.collectFunctions`.
-- [ ] **Decide:** what `MonteCarloExtension` returns for a comparison. It is a `Double` evaluator
+- [x] **Decided:** 1 and 0, Excel's arithmetic convention. Checking `.bool` first was the
+      right instruction — it returned 0 for *both* TRUE and FALSE, the same value it uses
+      for "cannot evaluate", so a true condition was indistinguishable from an unsupported
+      one. Fixed alongside; leaving it would have made `A1>B1` yield 1 while `TRUE` yielded 0.
+- [x] ~~**Decide:** what `MonteCarloExtension` returns for a comparison.~~ It is a `Double` evaluator
       with no boolean channel. Excel treats TRUE/FALSE as 1/0 in arithmetic, so 1/0 is defensible
       and matches the existing `.bool` handling — but check what `.bool` actually does first
       rather than assuming, and write down whichever you choose.
-- [ ] Round-trip test: comparison survives export and re-import.
-- [ ] Commit.
+- [x] Round-trip test: comparison survives export and re-import.
+- [x] Commit.
 
 **Scope guard.** This adds *representation only*. D9 still governs what an `IF` means — a
 timeline-answerable `IF` becomes an indicator series, and that is Stage 3's decision, not this
