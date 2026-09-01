@@ -51,14 +51,14 @@ task's. Adding the cases does not decide the semantics.
 
 The vocabulary everything else reports through. Small, and blocking for Tasks 3–6.
 
-- [ ] **RED** — test: `Coverage.fraction` is `recognized / populated`, and `0` for an empty sheet
+- [x] **RED** — test: `Coverage.fraction` is `recognized / populated`, and `0` for an empty sheet
       rather than a division by zero.
-- [ ] **GREEN** — `Diagnostic` (severity, code, cell, message), `DiagnosticCode` per proposal §4,
+- [x] **GREEN** — `Diagnostic` (severity, code, cell, message), `DiagnosticCode` per proposal §4,
       `Coverage`. All `Sendable`, all DocC'd.
-- [ ] Include `.dynamicReference` and `.foldedDynamicReference` in the enum even though Stage 3
+- [x] Include `.dynamicReference` and `.foldedDynamicReference` in the enum even though Stage 3
       owns them — the enum should be complete, and a `CaseIterable` with holes invites a second
       one later.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 3 — `SheetGrid` (Stage 1)
 
