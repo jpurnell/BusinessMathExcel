@@ -122,6 +122,51 @@ final class WhartonImportMeasurementTests: XCTestCase {
         )
     }
 
+    func testReportsRecognitionCoverageAndUniformity() throws {
+        let workbook = try fixture()
+
+        for name in ["ANSWER KEY", "BLANK MODEL"] {
+            let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
+            let imported = ModelImporter.importSheet(sheet)
+            let grid = SheetGrid.build(from: imported)
+            guard let axis = PeriodAxis.build(from: grid).axis else {
+                return XCTFail("\(name) should have a period axis")
+            }
+            let (series, bindingDiagnostics) = LabeledSeries.bind(in: grid, axis: axis)
+            let (uniformity, uniformityDiagnostics) = FormulaUniformity.assess(series, in: grid)
+
+            // A cell is accounted for if the recognizer can say what it is: a value
+            // in a series, the label naming that series, or a heading on the axis.
+            var explained = Set(series.flatMap(\.populatedCells))
+            explained.formUnion(series.compactMap(\.labelCell))
+            explained.formUnion(axis.sources)
+            let recognized = explained.count
+            let coverage = Coverage(
+                populatedCells: grid.populatedCells, recognizedCells: recognized)
+
+            let uniform = uniformity.filter { $0.kind == .uniform }.count
+            let seeded = uniformity.filter { $0.kind == .seededRollforward }.count
+            let broken = uniformity.filter { $0.kind == .nonUniform }.count
+
+            print("""
+                WHARTON recognition — \(name)
+                  periods            \(axis.count) (\(axis.granularity))
+                  populated cells    \(grid.populatedCells)
+                  recognized cells   \(recognized)  (\(Int(coverage.fraction * 100))%)
+                  series bound       \(series.count)
+                    uniform          \(uniform)
+                    seeded forward   \(seeded)
+                    non-uniform      \(broken)
+                  diagnostics        \(bindingDiagnostics.count + uniformityDiagnostics.count)
+                """)
+
+            // Reported, never gated. Coverage is a progress metric toward 100%,
+            // and a build that fails on it invites recognizing things badly to
+            // move the number.
+            XCTAssertGreaterThan(series.count, 0, "\(name): something should bind")
+        }
+    }
+
     // MARK: - Import Fidelity
 
     func testEveryPopulatedCellBecomesANode() throws {

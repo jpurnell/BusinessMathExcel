@@ -92,6 +92,20 @@ All notable changes to BusinessMathExcel will be documented in this file.
   suite passes unchanged.
 
 ### Added
+- **`Recognition/` — Stages 1–2 of the Excel→ModelDefinition recognizer.** `SheetGrid` (topology
+  and period-axis detection), `PeriodAxis` (headings to BusinessMath `Period` values, annual
+  only), `LabeledSeries` (labels bound by the axis rather than by adjacency), `FormulaUniformity`
+  (R1C1 shape comparison honouring `$`), plus `Coverage` and `Diagnostic`.
+
+  Measured on the Wharton LBO Practice Model `ANSWER KEY`: 6 annual periods, 279 populated cells,
+  196 recognized (70%), 36 series bound — 26 uniform, 3 seeded rollforward, 7 non-uniform.
+  Coverage is reported, never asserted: it is a progress metric toward 100%, and a build that
+  failed on it would invite recognizing things badly to move the number.
+- `ImportResult.cachedValues` and `ImportResult.formulaASTs` preserve what the file recorded —
+  Excel's last computed result for each formula cell, and each formula's AST with its `$` markers
+  intact. Recognition needs the first to read a computed header row and the second to tell a
+  filled formula from a hand-edited one. Neither is ever substituted for a formula that could not
+  be translated; they are evidence about the sheet, not values in a model.
 - **Comparison operators in `NodeFormula`** — `.equal`, `.notEqual`, `.greaterThan`, `.lessThan`,
   `.greaterOrEqual`, `.lessOrEqual`. All six previously degraded to `UNSUPPORTED`, which took the
   condition out of every `IF` in a workbook. `IF` itself needed nothing: Excel's `IF` is a

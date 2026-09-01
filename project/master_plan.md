@@ -206,7 +206,21 @@ BusinessMathExcel/
       elements naming their span and drivers, not `.array` cells. Neither reference workbook has
       a single `.array` cell
 
-### Next — Excel→ModelDefinition Recognizer, Phase 2
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 2 (complete)
+- [x] Comparison operators in `NodeFormula`, pulled forward from D8; `IF` needed nothing,
+      being a function rather than an AST node
+- [x] `Coverage` and `Diagnostic` — the vocabulary the stages report through
+- [x] `SheetGrid`: topology and axis detection, with the rule and its exclusions documented
+- [x] `PeriodAxis`: headings to BusinessMath `Period` values; annual only, chosen from the files
+- [x] `LabeledSeries`: binding anchored on the axis rather than on adjacency
+- [x] `FormulaUniformity`: R1C1 shape comparison honouring `$`, plus a `seededRollforward`
+      classification so the commonest expressible structure is not counted as a hand edit
+- [x] **Measured on the Wharton `ANSWER KEY`: 6 annual periods, 279 populated cells, 196
+      recognized (70%), 36 series bound — 26 uniform, 3 seeded rollforward, 7 non-uniform.**
+      Six of the seven are the assumptions-block artifact, leaving one genuine irregularity.
+      Coverage is reported, never asserted
+
+### Superseded — Excel→ModelDefinition Recognizer, Phase 2 (scope, as planned)
 - [ ] Stages 1–2: `SheetGrid`, `PeriodAxis`, `LabeledSeries`, with address-fallback naming
 - [ ] `Coverage` instrumented, plus per-row formula-uniformity reporting
 - [ ] `IF` and the comparison operators in `NodeFormula` — **pulled forward** from decision D8,
@@ -238,4 +252,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-01 — recorded the D8 amendment pulling `IF`/comparisons into Phase 2, and Phase 2's scope; recorded recognizer Phase 1 (import warnings, cell ranges, `NodeFormula.power`, array-cell naming, multi-sheet import); refreshed counts to 293 tests / 138 public APIs; corrected the SwiftXLSX working-copy path, which is not a sibling of this repo.
+**Last Updated:** 2026-09-01 — recorded Phase 2 complete with its measured coverage; recorded the D8 amendment pulling `IF`/comparisons into Phase 2, and Phase 2's scope; recorded recognizer Phase 1 (import warnings, cell ranges, `NodeFormula.power`, array-cell naming, multi-sheet import); refreshed counts to 293 tests / 138 public APIs; corrected the SwiftXLSX working-copy path, which is not a sibling of this repo.

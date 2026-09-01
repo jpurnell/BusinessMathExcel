@@ -1,6 +1,7 @@
-# CURRENT: Recognizer Phase 2 — Stages 1–2, Coverage, and comparison operators
+# COMPLETED: Recognizer Phase 2 — Stages 1–2, Coverage, and comparison operators
 
 **Started:** 2026-09-01
+**Completed:** 2026-09-01 — commits `3c62b0c`, `a79fbb9`, `6b140e0`, `7d9389d`, `97b8caf`, `104a65e`, `ffac1c0`
 **Proposal:** `project/plans/proposals/PROPOSAL_excel_to_model_recognizer.md` (§3, §4, §10, phasing)
 **Depends on:** Phase 0 (BusinessMath 2.7.0) and Phase 1 (`ModelImporter`), both complete
 **Unblocks:** Stage 3 `FormulaTranslator` — and the coverage number that shapes everything after
@@ -140,23 +141,23 @@ a sheet is hand-edited, and how far `IF`-free encoding can reach.
 
 ## Task 7 — Measure
 
-- [ ] Extend `WhartonImportMeasurementTests` (or add a recognition peer) to report coverage and
+- [x] Extend `WhartonImportMeasurementTests` (or add a recognition peer) to report coverage and
       the non-uniform row count for the Wharton `ANSWER KEY`.
-- [ ] Report the number. **It is a progress metric toward 100%, not a kill gate** — do not add an
+- [x] Report the number. **It is a progress metric toward 100%, not a kill gate** — do not add an
       assertion that fails the build on a coverage threshold.
-- [ ] Record the figure in the proposal's phasing table and `master_plan.md`.
-- [ ] Commit.
+- [x] Record the figure in the proposal's phasing table and `master_plan.md`.
+- [x] Commit.
 
 ---
 
 ## Done when
 
-- [ ] All seven tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings, no overrides**, run with `--continue-on-failure`.
-- [ ] CHANGELOG entry, including the `NodeFormula` source-breaking note from Task 1.
-- [ ] Wharton coverage and non-uniform row count recorded.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] All seven tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings, no overrides**, run with `--continue-on-failure`.
+- [x] CHANGELOG entry, including the `NodeFormula` source-breaking note from Task 1.
+- [x] Wharton coverage and non-uniform row count recorded.
+- [x] Move this file to `project/checklists/completed/`.
 
 ## Do NOT do in this phase
 
@@ -168,3 +169,46 @@ a sheet is hand-edited, and how far `IF`-free encoding can reach.
 - `MonteCarloExtension`'s `case .function: return 0`. Still scheduled behind the upstream registry.
 - Any interpretation inside `Import/`. If a task tempts you to put recognition there, the layer
   split is the thing being tested.
+
+---
+
+## Measured result
+
+Wharton LBO Practice Model, `ANSWER KEY`:
+
+| | |
+|---|---|
+| Periods | 6, annual (2023–2028, row 27) |
+| Populated cells | 279 |
+| Recognized | 196 (**70%**) |
+| Series bound | 36 |
+| — uniform | 26 |
+| — seeded rollforward | 3 |
+| — non-uniform | 7 |
+
+`BLANK MODEL`: 157 cells, 88 recognized (56%), 19 series — 14 / 1 / 4.
+
+**What the missing 30% is.** The scalar regions: the assumptions block, and the Sources & Uses
+block laid out to the right of it. Those are key/value layouts rather than time series, and
+Stages 1–2 describe only the time-series grid. Nothing is lost — those cells simply have no
+series to belong to yet.
+
+**What the 7 non-uniform rows are.** Six are the same artifact: assumptions-block rows whose
+cells happen to fall in columns that hold periods lower down the sheet, so they bind as series
+and then disagree with themselves. One — `Debt (B58)` — is a genuine irregularity in the model
+proper. So the hand-edit count for this workbook is **one**, not seven, and the six are a
+consequence of a sheet having two layout regions where only one is described.
+
+## What was learned that the plan did not anticipate
+
+1. **A header row is usually computed.** Wharton's axis is `2023` typed, then `=E27+1` across.
+   Requiring literal headings found an axis on no sheet of the reference model.
+2. **`$` is decisive for geometry and invisible to evaluation.** Comparing shapes without it
+   reported five untouched periods as five hand edits, and inflated the headline count from 7
+   to 16.
+3. **Anchoring on the axis dissolves the blank-run question** the checklist expected to have to
+   answer, and handles the label-then-gap-then-values layout every real model uses.
+4. **Seeded rollforward needed its own classification.** Without it, the commonest expressible
+   structure in a financial model counts as a defect.
+
+Each was found by running against the real workbook before committing, not by reasoning about it.
