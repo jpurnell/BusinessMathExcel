@@ -46,20 +46,46 @@ public enum ModelImporter {
     /// - Parameter sheet: The worksheet to import.
     /// - Returns: An ``ImportResult`` containing the model, cell-to-node mapping, and warnings.
     public static func importSheet(_ sheet: Worksheet) -> ImportResult {
+        importCells(orderedCells(of: sheet))
+    }
+
+    /// A worksheet's non-empty cells in reading order: top to bottom, then left to right.
+    ///
+    /// Formulas are converted against the cells already seen, so the order decides
+    /// which references resolve.
+    ///
+    /// - Parameter sheet: The worksheet to read.
+    /// - Returns: Each cell's reference string paired with its value.
+    static func orderedCells(of sheet: Worksheet) -> [(reference: String, value: CellValue)] {
+        sheet.cellReferences
+            .sorted { lhs, rhs in
+                let refA = CellRef(lhs)
+                let refB = CellRef(rhs)
+                if refA.row != refB.row { return refA.row < refB.row }
+                return refA.column < refB.column
+            }
+            .compactMap { reference in
+                guard let value = sheet.cell(at: reference) else { return nil }
+                return (reference: reference, value: value)
+            }
+    }
+
+    /// Imports an explicit ordered list of cells into an ``ExcelModel``.
+    ///
+    /// This is the seam every other entry point funnels through. It is also how the
+    /// tests reach cell types `Worksheet` has no public write for — `.array`,
+    /// `.date`, and `.error`.
+    ///
+    /// - Parameter cells: Cells in the order they should be imported. Formulas resolve
+    ///   only against cells earlier in this list.
+    /// - Returns: An ``ImportResult`` containing the model, cell-to-node mapping, and warnings.
+    static func importCells(_ cells: [(reference: String, value: CellValue)]) -> ImportResult {
         let model = ExcelModel()
         var cellToNode: [CellRef: NodeRef] = [:]
         var warnings: [String] = []
 
-        let sortedRefs = sheet.cellReferences.sorted { a, b in
-            let refA = CellRef(a)
-            let refB = CellRef(b)
-            if refA.row != refB.row { return refA.row < refB.row }
-            return refA.column < refB.column
-        }
-
-        for refString in sortedRefs {
+        for (refString, value) in cells {
             let cellRef = CellRef(refString)
-            guard let value = sheet.cell(at: refString) else { continue }
 
             switch value {
             case .number(let num):
@@ -103,8 +129,25 @@ public enum ModelImporter {
             case .blank:
                 break
 
-            case .date, .error, .array:
-                warnings.append("Unsupported cell type at \(refString)")
+            case .array:
+                // Array formulas are how Excel stores data tables ({=TABLE(r,c)}),
+                // which are the detection signal for sensitivity-table recognition.
+                // Recognition is Phase 6; naming them here is what stops the signal
+                // from being lost silently before it can be built on.
+                warnings.append(
+                    "Array formula at \(refString) was not imported. Array formulas are "
+                        + "how Excel stores data tables ({=TABLE(r,c)}); recognizing them "
+                        + "is not yet supported"
+                )
+
+            case .date:
+                warnings.append("Unsupported cell type 'date' at \(refString)")
+
+            case .error(let excelError):
+                warnings.append(
+                    "Unsupported cell type 'error' at \(refString): the cell holds "
+                        + "\(excelError.rawValue)"
+                )
             }
         }
 

@@ -338,6 +338,48 @@ final class ModelImporterTests: XCTestCase {
         }
     }
 
+    // MARK: - Unsupported Cell Types
+
+    // `Worksheet` exposes no public write for `.array`, `.date`, or `.error`
+    // cells, so these drive the importer through its `importCells` seam.
+
+    func testArrayCellWarnsAsAnArrayFormula() throws {
+        let result = ModelImporter.importCells([
+            (reference: "D5", value: .array([.number(1), .number(2)]))
+        ])
+        let warning = try XCTUnwrap(result.warnings.first)
+        XCTAssertTrue(warning.contains("D5"), "Warning should name the cell: \(warning)")
+        XCTAssertTrue(
+            warning.lowercased().contains("array"),
+            "Warning should identify the cell as an array formula: \(warning)"
+        )
+    }
+
+    func testArrayWarningIsDistinctFromDateAndError() throws {
+        let result = ModelImporter.importCells([
+            (reference: "A1", value: .array([.number(1)])),
+            (reference: "A2", value: .date(Date(timeIntervalSince1970: 0))),
+            (reference: "A3", value: .error(.value)),
+        ])
+        XCTAssertEqual(result.warnings.count, 3)
+
+        let arrayWarning = try XCTUnwrap(result.warnings.first)
+        XCTAssertTrue(arrayWarning.lowercased().contains("array"))
+        XCTAssertFalse(
+            result.warnings.dropFirst().contains(arrayWarning),
+            "An array formula must not share the generic unsupported-cell message"
+        )
+        XCTAssertTrue(result.warnings[1].lowercased().contains("date"))
+        XCTAssertTrue(result.warnings[2].lowercased().contains("error"))
+    }
+
+    func testArrayCellDoesNotBecomeANode() {
+        let result = ModelImporter.importCells([
+            (reference: "D5", value: .array([.number(1), .number(2)]))
+        ])
+        XCTAssertEqual(result.model.nodeCount, 0, "Recognition is Phase 6; this only stops silent loss")
+    }
+
     // MARK: - Cell-to-Node Mapping
 
     func testCellToNodeMapping() {
