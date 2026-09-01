@@ -280,6 +280,16 @@ the destination types (`Scenario Analysis/SensitivityAnalysis.swift`):
 | One-variable data table | `ScenarioSensitivityAnalysis` — `inputValues: [Double]`, `outputValues: [Double]` (`:142`) |
 | Tornado layout | `TornadoDiagramAnalysis` (`:759`) |
 
+> **Correction, 2026-09-01.** The detection signal below is wrong, and measurement proved it.
+> Excel does not store a What-If table as `.array` cells. It writes **one self-closing formula
+> element** on the table's anchor cell:
+> `<f t="dataTable" ref="P6:T10" dt2D="1" r1="D11" r2="D21"/>`, where `ref` is the span and
+> `r1`/`r2` are the row and column input cells. Neither reference workbook contains a single
+> `.array` cell; the Wharton model contains exactly one `dataTable` element. SwiftXLSX 0.7.0
+> surfaces it as `_DATATABLE(span, inputs...)`, so Phase 6 reads the drivers and the span
+> **directly from the file** instead of inferring them from a grid of array cells. This is
+> strictly better: `r1`/`r2` are the sensitivity drivers, stated by Excel.
+
 **Yes — a two-way table is an array of arrays**, `results: [[Double]]`, indexed
 `[inputValues1][inputValues2]`. That is precisely Wharton's IRR sensitivity: exit multiple ×
 revenue growth → IRR grid.
@@ -585,7 +595,7 @@ no kernel worth handing to Metal or Accelerate.
 - *Lag decomposition* — `D6 = C6*1.15` yields one `RecognizedRollforward` and a period-local
   formula; `D9 = D6-D7` yields no rollforward; the mixed case `D12 = C12+D10` splits correctly.
   A lag-2 reference emits `.unsupportedLag` and does not silently become lag 1.
-- *Sensitivity tables* — a two-variable data table is recognized from its `.array` cells with the
+- *Sensitivity tables* — a two-variable data table is recognized from its `_DATATABLE` marker (`ref` span plus `r1`/`r2` drivers) with the
   correct drivers and axes; the **recomputed** grid is compared against the sheet's
   `cachedResults`, and a deliberate corruption of a cached cell produces `.sensitivityMismatch`
   rather than being accepted.
@@ -886,7 +896,7 @@ metric, not a kill gate.
 | 4 | Excel | Circular-interest recognition through `CycleSolver` under `PeriodDriver` | **Year-1 interest 11.75; Wharton IRR 24.67% / MoM 3.01** |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |
 | 5 | Excel | `UnitInference` + `TypedSourceWriter` | Generated source compiles; wrong-unit cases diagnose rather than guess |
-| 6 | Excel | Data-table recognition via `.array` cells → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
+| 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
 | 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
 
 Phases 1–2 depend on nothing upstream and produce the measured evidence that shapes everything

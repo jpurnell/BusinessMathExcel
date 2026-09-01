@@ -11,7 +11,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/jpurnell/BusinessMath", exact: "2.7.0"),
-        .package(url: "https://github.com/jpurnell/SwiftXLSX", exact: "0.6.0"),
+        .package(url: "https://github.com/jpurnell/SwiftXLSX", exact: "0.7.0"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
     ],
     targets: [

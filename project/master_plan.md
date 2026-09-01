@@ -197,6 +197,15 @@ BusinessMathExcel/
 - [x] `ModelImporter.importAllSheets(_:)` imports every worksheet; labels are sheet-qualified
       and `ImportResult.sheetCellToNode` keeps colliding cell references apart
 
+### Unreleased — SwiftXLSX 0.7.0 and the shared-formula correction
+- [x] SwiftXLSX bumped 0.6.0 → 0.7.0: shared formulas and What-If data tables were being read as
+      their cached constants, so 81 of 155 formula cells on the Wharton `ANSWER KEY` were invisible
+- [x] Corrected import fidelity on that sheet: **155 formula cells, 139 clean, 16 degraded,
+      12 warnings** — the earlier "65 of 74" measured less than half the formulas
+- [x] Phase 6's detection signal corrected in the proposal: data tables are `<f t="dataTable">`
+      elements naming their span and drivers, not `.array` cells. Neither reference workbook has
+      a single `.array` cell
+
 ### Next — Excel→ModelDefinition Recognizer, Phase 2
 - [ ] Stages 1–2: `SheetGrid`, `PeriodAxis`, `LabeledSeries`, with address-fallback naming
 - [ ] `Coverage` instrumented, plus per-row formula-uniformity reporting

@@ -75,6 +75,15 @@ All notable changes to BusinessMathExcel will be documented in this file.
   resource rather than excluded, so the plugin still builds it.
 
 ### Changed
+- **SwiftXLSX pinned to 0.7.0**, for the shared-formula fix released there. Excel stores a
+  repeated formula once on its group's master cell and leaves the other members' `<f>` elements
+  empty; every version before 0.7.0 read those cells as the constant Excel had cached in them.
+  On the Wharton `ANSWER KEY` that was **81 of 155 formula cells** arriving as `.number` inputs.
+
+  **Every import-fidelity figure recorded before this bump undercounts its denominator.** The
+  corrected measurement for that sheet: **155 formula cells, 139 translated cleanly, 16 degraded,
+  12 warnings.** The previously recorded "65 of 74 clean" was counting less than half the
+  formulas on the sheet, because the rest were invisible.
 - **SwiftXLSX pinned to 0.6.0**, up from 0.2.0, for the reader fix released there: every
   version before it selected the workbook part by substring match, which also matched the
   extended-properties relationship Excel writes first, so *any* Excel-authored file parsed

@@ -1,5 +1,5 @@
 {
-  "originHash" : "e5b10446d6fc1e2f2e117eb4693739e237b1550a1f0ed770289555d05f080b28",
+  "originHash" : "e60c7bf09584121fb50c0a469153602be595eedd5835828e1cf9c95205971ba9",
   "pins" : [
     {
       "identity" : "businessmath",
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpurnell/SwiftXLSX",
       "state" : {
-        "revision" : "d2921fc6f9c3b226a9be9802efc501d5fbaf1b4d",
-        "version" : "0.6.0"
+        "revision" : "a934a11d29435b67422e9a64240a0d396eaa1fb5",
+        "version" : "0.7.0"
       }
     },
     {
