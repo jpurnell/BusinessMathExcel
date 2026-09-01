@@ -6,6 +6,8 @@
 `ModelImporter` defect analysis and its adversarial review, which named the pivot)
 **Companion:** `BusinessMath/project/plans/proposals/TypedModelAuthoring.md`
 **Master Plan Reference:** Architecture — Import pipeline
+**Amended:** 2026-09-01 — `IF` and the comparison operators pulled forward into Phase 2, amending
+decision D8. See §15 Q0 for the measurement that forced it.
 
 ---
 
@@ -235,8 +237,9 @@ IF(ISNUMBER(sel), INDIRECT(ADDRESS(ROW()+109, 10+sel, …)), INDIRECT(ADDRESS(RO
 ```
 
 The else-branch folds; the then-branch has a column offset driven by a selector input. Once `IF`
-and the comparison operators land (decision D8), keep the conditional and fold the provable
-branch, marking the other dynamic. Until then the whole cell is residue.
+and the comparison operators land — Phase 2, pulled forward from D8 per §15 Q0 — keep the
+conditional and fold the provable branch, marking the other dynamic. Until then the whole cell is
+residue.
 
 **Tier 3 — genuinely dynamic.** Any argument depending on a computed value. `.dynamicReference`
 (error) and residue.
@@ -647,7 +650,9 @@ Floating-point assertions use accuracy-based comparison per project testing rule
 **ADR Check:**
 - [x] Reviewed `development-guidelines/rules/architecture_decisions.md`
 - [x] Supersedes an existing ADR? **No**
-- [x] Amends an existing ADR? **No**
+- [x] Amends an existing ADR? **Yes — decision D8** (`IF` + comparison operators), which placed
+  this work behind the upstream function-registry gate. Amended 2026-09-01 to Phase 2 of this
+  repo on measured evidence; see §15 Q0. D9, which governs what an `IF` *means*, is unchanged.
 - [x] New ADR required? **Yes — two**
 
 **New ADR Drafts:**
@@ -759,13 +764,26 @@ things badly. **Change two:** unit inference is opt-out via `RecognizerOptions.i
 
 ## 15. Open Questions
 
-0. **Should `IF` + comparison operators move earlier than D8 schedules them?** Measured against a
-   production credit model on 2026-09-01: **2982 of 5011 formulas contain `IF`**, and 39 of the 48
-   import warnings on its comparison sheet were the `equal` operator alone. On the Wharton model
-   the same gap is one warning, so Wharton badly understates it. Comparison operators are cheap —
-   the same shape as `NodeFormula.power`, which took one case and five switch sites — and they
-   gate Tier 2 of the dynamic-reference scheme. Recommend pulling them forward; they need nothing
-   from the upstream registry.
+0. ~~**Should `IF` + comparison operators move earlier than D8 schedules them?**~~
+   **Resolved 2026-09-01: yes. Pulled forward into Phase 2, amending D8.**
+
+   The evidence, kept because it is the whole reason: measured against a production credit model,
+   **2982 of 5011 formulas contain `IF`**, and the `equal` operator alone accounted for 39 of the
+   48 import warnings on its comparison sheet. The Wharton model shows exactly **one** — so the
+   reference workbook badly understates a gap that dominates real ones. Deciding this phase order
+   from Wharton alone would have been deciding it from an unrepresentative sample.
+
+   Three things make forward the right direction rather than merely the tempting one. The work is
+   cheap and self-contained: comparison operators are the same shape as `NodeFormula.power`, which
+   cost one enum case and five switch sites. It depends on nothing upstream — D8 placed it behind
+   the function-registry gate, but comparison operators are *operators*, not registry entries, and
+   `IF` is a control construct rather than a financial function. And it unblocks work already
+   written down: Tier 2 of the dynamic-reference scheme (§3) cannot proceed without it.
+
+   **What D8 got right, and is retained:** `IF` still must not become a general conditional in
+   `ModelDefinition`. Decision D9 stands — an `IF` answerable from the timeline alone is demoted
+   to an indicator series, and only a genuinely value-dependent `IF` survives as a conditional.
+   Pulling the *representation* forward does not pull forward the *semantics*.
 1. **Does `ModelBuilder` ship before `TypedSourceWriter`?** `ModelBuilder` only needs the string
    API and could land in Phase 3; `TypedSourceWriter` waits on upstream Phase 3. Recommend yes.
 2. ~~**Prior-period reference syntax.**~~ **Resolved 2026-09-01: not supported, deliberately.**
@@ -810,8 +828,8 @@ metric, not a kill gate.
 |---|---|---|---|
 | 0 | Excel | Bump the BusinessMath pin; drop any `BusinessMathDSL` reference | `swift build` clean |
 | 1 | Excel | `ModelImporter` fixes (`.cellRange`, `.power`, threaded warnings, multi-sheet) | Lossy imports now warn; regression tests green |
-| 2 | Excel | Stages 1–2 (`SheetGrid`, `PeriodAxis`, `LabeledSeries`) + `Coverage` instrumented, with address-fallback naming | Wharton coverage measured **and per-row formula uniformity reported** — the count of non-uniform rows is the number that determines how much of the sheet is hand-edited, and how far `IF`-free encoding can reach |
-| — | — | **Upstream gate:** `TypedModelAuthoring.md` 2a–2c (function registry) **and 2d (`PeriodDriver`)** | Registry + driver green |
+| 2 | Excel | Stages 1–2 (`SheetGrid`, `PeriodAxis`, `LabeledSeries`) + `Coverage` instrumented, with address-fallback naming. **Plus `IF` and the comparison operators in `NodeFormula`** (pulled forward from D8 — see §15 Q0; representation only, semantics stay with D9) | Wharton coverage measured **and per-row formula uniformity reported** — the count of non-uniform rows is the number that determines how much of the sheet is hand-edited, and how far `IF`-free encoding can reach |
+| — | — | **Upstream gate:** `TypedModelAuthoring.md` 2a–2c (function registry) **and 2d (`PeriodDriver`)**. No longer covers `IF`/comparisons, which moved to Phase 2 | Registry + driver green |
 | 3 | Excel | Stage 3 `FormulaTranslator` with **lag decomposition** + Stage 4 assembly + `ModelBuilder`. Dynamic references (§3) are **Tier 1 folding only** — an unfoldable `INDIRECT`/`OFFSET` goes to residue rather than blocking the phase | Golden path + negative-recognition tests green; rollforward round-trips; **~30% Wharton (interim)** |
 | 4 | Excel | Circular-interest recognition through `CycleSolver` under `PeriodDriver` | **Year-1 interest 11.75; Wharton IRR 24.67% / MoM 3.01** |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |

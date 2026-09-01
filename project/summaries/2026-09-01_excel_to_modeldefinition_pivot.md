@@ -63,10 +63,15 @@ in this repo (§7), and that our import path was aimed at the wrong target.
 | D5 | **`NPV` in formula text binds to `npvExcel`, not `npv`.** `NPV.swift:215-217` documents the one-period discounting difference. Pinned by a test asserting they differ. |
 | D6 | **Cross-period carry is a `PeriodDriver`, not a grammar feature.** Prior-period refs inside the grammar would require moving the dependency graph from per-account to per-(account, period) — a rewrite of the evaluation core. |
 | D7 | **Phantom-typed units** (`Money`, `Rate`, `Ratio`, `Duration`, `Condition`). Rate *basis* is a runtime value, not a second type parameter. |
-| D8 | **`IF` + comparison operators folded into Phase 2a.** |
+| D8 | ~~**`IF` + comparison operators folded into Phase 2a.**~~ **Amended 2026-09-01** — pulled forward into `BusinessMathExcel` Phase 2 and off the upstream gate entirely. The bar D8 set was that this work waits on the function registry; it shipped earlier because comparison operators are operators rather than registry entries, and because a production credit model measured at 2982 `IF`s in 5011 formulas against Wharton's one. See `PROPOSAL_excel_to_model_recognizer.md` §15 Q0. |
 | D9 | **Timeline conditionals become data.** "If the condition is answerable from the timeline alone, it is data; if it depends on a computed value, it is `IF`." Recognizer demotes period-testing `IF`s to indicator series. |
 | D10 | **Hand-edited cells are a finding, not something to smooth over.** A non-uniform row emits `.nonUniformRow`; the recognizer never picks a majority shape. |
 | D11 | **Target is 100% Wharton coverage.** 30% is an interim milestone, not a kill gate. |
+
+**Amendments since this session.** D8 was amended on 2026-09-01 (see the row above). No other
+decision in this table has changed. Amendments are recorded here rather than by editing the
+original wording, so the register shows where the plan was wrong rather than reading as though it
+was always right.
 
 ## 4. Dropped work (recorded so it is not silently lost)
 

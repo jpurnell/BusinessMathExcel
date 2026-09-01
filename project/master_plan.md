@@ -197,6 +197,16 @@ BusinessMathExcel/
 - [x] `ModelImporter.importAllSheets(_:)` imports every worksheet; labels are sheet-qualified
       and `ImportResult.sheetCellToNode` keeps colliding cell references apart
 
+### Next — Excel→ModelDefinition Recognizer, Phase 2
+- [ ] Stages 1–2: `SheetGrid`, `PeriodAxis`, `LabeledSeries`, with address-fallback naming
+- [ ] `Coverage` instrumented, plus per-row formula-uniformity reporting
+- [ ] `IF` and the comparison operators in `NodeFormula` — **pulled forward** from decision D8,
+      which had placed them behind the upstream function-registry gate. They are operators rather
+      than registry entries, so they need nothing upstream, and a production credit model measured
+      2982 `IF`s across 5011 formulas where Wharton shows one. Representation only: D9 still
+      governs what an `IF` *means*, and a timeline-answerable `IF` is still demoted to data.
+      See `project/plans/proposals/PROPOSAL_excel_to_model_recognizer.md` §15 Q0.
+
 ---
 
 ## Future Work
@@ -219,4 +229,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-01 — recorded recognizer Phase 1 (import warnings, cell ranges, `NodeFormula.power`, array-cell naming, multi-sheet import); refreshed counts to 293 tests / 138 public APIs; corrected the SwiftXLSX working-copy path, which is not a sibling of this repo.
+**Last Updated:** 2026-09-01 — recorded the D8 amendment pulling `IF`/comparisons into Phase 2, and Phase 2's scope; recorded recognizer Phase 1 (import warnings, cell ranges, `NodeFormula.power`, array-cell naming, multi-sheet import); refreshed counts to 293 tests / 138 public APIs; corrected the SwiftXLSX working-copy path, which is not a sibling of this repo.
