@@ -20,7 +20,17 @@ public enum ModelImporter {
         public let model: ExcelModel
 
         /// Maps cell references to their corresponding node references.
+        ///
+        /// A cell reference carries no sheet, so for a multi-sheet import this holds
+        /// the **first** sheet's mapping only — `A1` means something different on
+        /// every sheet. Use ``sheetCellToNode`` when more than one sheet is in play.
         public let cellToNode: [CellRef: NodeRef]
+
+        /// Cell-to-node mappings for each imported sheet, keyed by sheet name.
+        ///
+        /// Unlike ``cellToNode`` this survives sheets that share cell references,
+        /// which every multi-sheet workbook does.
+        public let sheetCellToNode: [String: [CellRef: NodeRef]]
 
         /// Warnings generated during import.
         ///
@@ -36,7 +46,12 @@ public enum ModelImporter {
     /// - Returns: An ``ImportResult`` containing the model, cell-to-node mapping, and warnings.
     public static func importWorkbook(_ workbook: Workbook) -> ImportResult {
         guard let sheet = workbook.sheets.first else {
-            return ImportResult(model: ExcelModel(), cellToNode: [:], warnings: [])
+            return ImportResult(
+                model: ExcelModel(),
+                cellToNode: [:],
+                sheetCellToNode: [:],
+                warnings: []
+            )
         }
         return importSheet(sheet)
     }
@@ -46,7 +61,56 @@ public enum ModelImporter {
     /// - Parameter sheet: The worksheet to import.
     /// - Returns: An ``ImportResult`` containing the model, cell-to-node mapping, and warnings.
     public static func importSheet(_ sheet: Worksheet) -> ImportResult {
-        importCells(orderedCells(of: sheet))
+        let model = ExcelModel()
+        var warnings: [String] = []
+        let cellToNode = addCells(
+            orderedCells(of: sheet),
+            to: model,
+            labelPrefix: "",
+            section: "Imported",
+            warnings: &warnings
+        )
+        return ImportResult(
+            model: model,
+            cellToNode: cellToNode,
+            sheetCellToNode: [sheet.name: cellToNode],
+            warnings: warnings
+        )
+    }
+
+    /// Imports every worksheet of a workbook into a single ``ExcelModel``.
+    ///
+    /// Each sheet becomes its own section, and node labels are qualified with the
+    /// sheet name (`Inputs!A1`) so that sheets sharing a cell reference stay
+    /// distinct. Formulas resolve only against cells on their own sheet;
+    /// cross-sheet references (`FormulaAST.sheetRef`) are not yet translated and
+    /// are reported in ``ImportResult/warnings`` rather than dropped.
+    ///
+    /// - Parameter workbook: The workbook to import.
+    /// - Returns: An ``ImportResult`` whose ``ImportResult/sheetCellToNode`` holds one
+    ///   mapping per sheet.
+    public static func importAllSheets(_ workbook: Workbook) -> ImportResult {
+        let model = ExcelModel()
+        var warnings: [String] = []
+        var perSheet: [String: [CellRef: NodeRef]] = [:]
+
+        for sheet in workbook.sheets {
+            perSheet[sheet.name] = addCells(
+                orderedCells(of: sheet),
+                to: model,
+                labelPrefix: "\(sheet.name)!",
+                section: sheet.name,
+                warnings: &warnings
+            )
+        }
+
+        let firstMapping = workbook.sheets.first.flatMap { perSheet[$0.name] } ?? [:]
+        return ImportResult(
+            model: model,
+            cellToNode: firstMapping,
+            sheetCellToNode: perSheet,
+            warnings: warnings
+        )
     }
 
     /// A worksheet's non-empty cells in reading order: top to bottom, then left to right.
@@ -81,18 +145,53 @@ public enum ModelImporter {
     /// - Returns: An ``ImportResult`` containing the model, cell-to-node mapping, and warnings.
     static func importCells(_ cells: [(reference: String, value: CellValue)]) -> ImportResult {
         let model = ExcelModel()
-        var cellToNode: [CellRef: NodeRef] = [:]
         var warnings: [String] = []
+        let cellToNode = addCells(
+            cells,
+            to: model,
+            labelPrefix: "",
+            section: "Imported",
+            warnings: &warnings
+        )
+        return ImportResult(
+            model: model,
+            cellToNode: cellToNode,
+            sheetCellToNode: ["": cellToNode],
+            warnings: warnings
+        )
+    }
 
-        for (refString, value) in cells {
-            let cellRef = CellRef(refString)
+    /// Adds an ordered list of cells to an existing model.
+    ///
+    /// - Parameters:
+    ///   - cells: Cells in import order. Formulas resolve only against cells earlier
+    ///     in this list, and only against cells passed to this same call — which is
+    ///     what keeps each sheet's references inside its own sheet.
+    ///   - model: The model to add nodes to.
+    ///   - labelPrefix: Prepended to each node label, e.g. `Inputs!`, so that sheets
+    ///     sharing a cell reference do not collide in the model's name index.
+    ///   - section: The section these cells belong to.
+    ///   - warnings: Accumulated import warnings.
+    /// - Returns: This call's cell-to-node mapping.
+    private static func addCells(
+        _ cells: [(reference: String, value: CellValue)],
+        to model: ExcelModel,
+        labelPrefix: String,
+        section: String,
+        warnings: inout [String]
+    ) -> [CellRef: NodeRef] {
+        var cellToNode: [CellRef: NodeRef] = [:]
+
+        for (reference, value) in cells {
+            let cellRef = CellRef(reference)
+            let refString = labelPrefix + reference
 
             switch value {
             case .number(let num):
                 let ref = model.addInput(
                     label: refString,
                     value: num,
-                    section: "Imported"
+                    section: section
                 )
                 cellToNode[cellRef] = ref
 
@@ -100,7 +199,7 @@ public enum ModelImporter {
                 let ref = model.addTextInput(
                     label: refString,
                     value: str,
-                    section: "Imported"
+                    section: section
                 )
                 cellToNode[cellRef] = ref
 
@@ -114,7 +213,7 @@ public enum ModelImporter {
                 let ref = model.addFormula(
                     label: refString,
                     formula: nodeFormula,
-                    section: "Imported"
+                    section: section
                 )
                 cellToNode[cellRef] = ref
 
@@ -122,7 +221,7 @@ public enum ModelImporter {
                 let ref = model.addFormula(
                     label: refString,
                     formula: .bool(b),
-                    section: "Imported"
+                    section: section
                 )
                 cellToNode[cellRef] = ref
 
@@ -151,11 +250,7 @@ public enum ModelImporter {
             }
         }
 
-        return ImportResult(
-            model: model,
-            cellToNode: cellToNode,
-            warnings: warnings
-        )
+        return cellToNode
     }
 
     // MARK: - Private

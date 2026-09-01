@@ -380,6 +380,89 @@ final class ModelImporterTests: XCTestCase {
         XCTAssertEqual(result.model.nodeCount, 0, "Recognition is Phase 6; this only stops silent loss")
     }
 
+    // MARK: - Multi-Sheet Import
+
+    func testImportAllSheetsImportsEverySheet() {
+        let wb = Workbook()
+        wb.addSheet(name: "Inputs").write(42.0, to: "A1")
+        wb.addSheet(name: "Calcs").write(7.0, to: "B2")
+
+        let result = ModelImporter.importAllSheets(wb)
+        XCTAssertEqual(result.model.nodeCount, 2)
+        XCTAssertNotNil(result.model.node(named: "Inputs!A1"))
+        XCTAssertNotNil(result.model.node(named: "Calcs!B2"))
+    }
+
+    func testImportAllSheetsGivesEachSheetItsOwnSection() {
+        let wb = Workbook()
+        wb.addSheet(name: "Inputs").write(42.0, to: "A1")
+        wb.addSheet(name: "Calcs").write(7.0, to: "B2")
+
+        let result = ModelImporter.importAllSheets(wb)
+        XCTAssertEqual(result.model.sections.map(\.name), ["Inputs", "Calcs"])
+    }
+
+    func testImportAllSheetsKeepsCollidingCellRefsApart() throws {
+        // Both sheets have an A1. A single flat cell map would lose one of them.
+        let wb = Workbook()
+        wb.addSheet(name: "One").write(1.0, to: "A1")
+        wb.addSheet(name: "Two").write(2.0, to: "A1")
+
+        let result = ModelImporter.importAllSheets(wb)
+        XCTAssertEqual(result.model.nodeCount, 2)
+        let one = try XCTUnwrap(result.sheetCellToNode["One"]?[CellRef("A1")])
+        let two = try XCTUnwrap(result.sheetCellToNode["Two"]?[CellRef("A1")])
+        XCTAssertNotEqual(one, two)
+    }
+
+    func testFormulasResolveWithinTheirOwnSheet() throws {
+        let wb = Workbook()
+        let one = wb.addSheet(name: "One")
+        one.write(10.0, to: "A1")
+        one.write(FormulaAST.multiply(.cellRef(CellRef("A1")), .number(2)), to: "A2")
+        wb.addSheet(name: "Two").write(99.0, to: "A1")
+
+        let result = ModelImporter.importAllSheets(wb)
+        let oneA1 = try XCTUnwrap(result.model.node(named: "One!A1"))
+        let oneA2 = try XCTUnwrap(result.model.node(named: "One!A2"))
+        guard case .formula(.multiply(let lhs, _)) =
+            try XCTUnwrap(result.model.kind(of: oneA2)) else {
+            return XCTFail("Expected a multiply formula")
+        }
+        XCTAssertEqual(lhs, .ref(oneA1), "A formula must bind to its own sheet's A1")
+    }
+
+    func testCrossSheetReferenceWarnsRatherThanVanishing() throws {
+        let wb = Workbook()
+        let one = wb.addSheet(name: "One")
+        one.write(
+            FormulaAST.sheetRef(SheetReference(sheet: "Two", cell: CellRef("A1"))),
+            to: "A1"
+        )
+        wb.addSheet(name: "Two").write(5.0, to: "A1")
+
+        let result = ModelImporter.importAllSheets(wb)
+        let warning = try XCTUnwrap(result.warnings.first)
+        XCTAssertTrue(warning.contains("sheetRef"), "Got: \(warning)")
+        XCTAssertTrue(warning.contains("One!A1"), "Warning should qualify the cell: \(warning)")
+    }
+
+    func testSingleSheetImportReportsItsSheetMapping() {
+        let wb = Workbook()
+        wb.addSheet(name: "Data").write(42.0, to: "A1")
+
+        let result = ModelImporter.importWorkbook(wb)
+        XCTAssertNotNil(result.cellToNode[CellRef("A1")])
+        XCTAssertNotNil(result.sheetCellToNode["Data"]?[CellRef("A1")])
+    }
+
+    func testImportAllSheetsOnAnEmptyWorkbookIsEmpty() {
+        let result = ModelImporter.importAllSheets(Workbook())
+        XCTAssertEqual(result.model.nodeCount, 0)
+        XCTAssertTrue(result.warnings.isEmpty)
+        XCTAssertTrue(result.sheetCellToNode.isEmpty)
+    }
+
     // MARK: - Cell-to-Node Mapping
 
     func testCellToNodeMapping() {
