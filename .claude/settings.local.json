@@ -84,7 +84,9 @@
       "Bash(git ls-tree *)",
       "Bash(git rm *)",
       "Bash(git *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "WebFetch(domain:news.ycombinator.com)",
+      "WebFetch(domain:www.orcaset.com)"
     ]
   }
 }
