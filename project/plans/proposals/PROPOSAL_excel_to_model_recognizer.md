@@ -182,6 +182,90 @@ public struct RecognizedIndicator: Sendable, Equatable {
 rather than being silently applied. `RecognizerOptions.demoteTimelineConditionals` (default
 `true`) turns it off for a caller who wants a literal transcription.
 
+### Dynamic references — `INDIRECT`, `ADDRESS`, `OFFSET` (Stage 3, advanced)
+
+**Status: deferred.** Not needed for Wharton, and not on the critical path. Written down now
+because a production credit model was measured against the pipeline on 2026-09-01 and the
+handling is non-obvious enough to be worth deciding once rather than improvising later.
+
+A dynamic reference computes *which cell to read* instead of naming it. The canonical form:
+
+```
+Comp!C4 = INDIRECT(ADDRESS(1,1,2,1,C$1),TRUE)
+```
+
+`ADDRESS` builds the string `'A'!A$1` — where the sheet name comes from the *value of* `C1` —
+and `INDIRECT` dereferences it. In the measured model, row 1 was a header of sheet names
+(`C1="A"`, `D1="B"`, `J1="C"`) matching per-entity sheets named `A`, `B`, `C`. The sheet is a
+comparison grid built out of dispatch.
+
+**This is not an import concern.** `Import/` transcribes it faithfully already — verified:
+
+```swift
+.function("INDIRECT", [
+  .function("ADDRESS", [.number(1), .number(1), .number(2), .number(1), .ref(C1)]),
+  .bool(true)])
+```
+
+The sheet-name argument binds to a real node because cell identity ignores `$` markers. Nothing
+is lost, and no warning fires. The question is entirely what Stage 3 does with it.
+
+#### Three tiers
+
+**Tier 1 — constant-foldable.** Every `ADDRESS` argument reduces to a constant:
+
+| Argument | Foldable when |
+|---|---|
+| `row_num`, `column_num` | numeric literals; `ROW()`/`COLUMN()`, which are constants *for the cell being defined*; or arithmetic over those (`ROW()+109`) |
+| `abs_num`, `a1` | numeric literals |
+| `sheet_text` | a `.ref` to a node whose ``NodeKind`` is `.textInput` — proven data, not computation |
+
+Fold to a concrete cross-sheet reference and emit `.foldedDynamicReference` (info) so the
+rewrite is auditable rather than invisible.
+
+The `sheet_text` rule is what does the real work, and it excludes more than it looks. In the
+measured model `F1…I1` held `IF(LEFT(E$1,8)="Scenario",E$1,"")` — computed, so any
+`ADDRESS(…,F$1)` is **not** foldable even though its neighbours are. "Is this cell data or
+computation" is already answerable from `NodeKind`; no new analysis is needed.
+
+**Tier 2 — guarded dispatch.** The dominant shape in the measured model (11 occurrences) was
+
+```
+IF(ISNUMBER(sel), INDIRECT(ADDRESS(ROW()+109, 10+sel, …)), INDIRECT(ADDRESS(ROW()-x, 8, …)))
+```
+
+The else-branch folds; the then-branch has a column offset driven by a selector input. Once `IF`
+and the comparison operators land (decision D8), keep the conditional and fold the provable
+branch, marking the other dynamic. Until then the whole cell is residue.
+
+**Tier 3 — genuinely dynamic.** Any argument depending on a computed value. `.dynamicReference`
+(error) and residue.
+
+#### The rule that outranks the tiers
+
+`Comp!C4` carries `"A"` in its cache. Promoting a cached value for a reference we could not fold
+would look flawless and be exactly the failure this project exists to prevent. **An unfoldable
+dynamic reference becomes residue. It never becomes a constant.**
+
+#### `OFFSET` is the larger population
+
+Counted across 5011 formulas in the measured model: **65 `INDIRECT`, 424 `OFFSET`, 250 `MATCH`**.
+`OFFSET(base, rows, cols)` is the same construct — a reference computed from a base plus offsets
+— and is 6.5× more common. It belongs in the same tiered treatment from the start; treating
+`INDIRECT` as the special case would miss most of the actual volume.
+
+#### Folding is a snapshot, and should say so
+
+`INDIRECT` survives row insertion; a resolved reference does not. Folding is therefore a semantic
+change, not a pure rewrite — correct for translating a model as it stands, wrong if the result is
+expected to track edits to the source workbook. The provenance comment must record that the
+reference was folded, not merely where it came from.
+
+#### What Stage 2 owes this
+
+Only that `SheetGrid` can express "a cell references another sheet by name-as-data". No folding,
+no diagnostics, no `OFFSET` handling in Stage 2.
+
 ### Sensitivity tables
 
 A What-If data table is not a formula and must not be recognized as accounts. Core already has
@@ -340,6 +424,8 @@ public enum DiagnosticCode: String, Sendable, Equatable, CaseIterable {
     case sensitivityMismatch         // recomputed grid ≠ the sheet's cached grid
     case nonUniformRow               // a hand-edited cell breaks the row's shape
     case conditionalDemotedToData    // info: an IF became an indicator series
+    case dynamicReference            // INDIRECT/OFFSET whose target cannot be proven
+    case foldedDynamicReference      // info: a dynamic reference resolved to a static one
 }
 
 // MARK: - Materialization
@@ -511,6 +597,10 @@ no kernel worth handing to Metal or Accelerate.
   and do not guess.
 - *Edge cases* — empty sheet, single period, label with no values, values with no label,
   duplicate labels (`.duplicateAccountName`), a sheet at `maximumCells`.
+- *Dynamic references* — `INDIRECT(ADDRESS(1,1,2,1,C$1))` with `C1` a text input folds to a
+  cross-sheet reference and emits `.foldedDynamicReference`; the same formula with `C1` holding a
+  *formula* does not fold and emits `.dynamicReference`. Critically, the unfoldable case must
+  **not** acquire the cached value Excel left in the cell.
 - *Determinism* — identical workbook → identical results including diagnostic ordering.
 - *Importer regression* — `SUM(D5:D16)` and `(1+r)^n` import as real nodes; unsupported nodes now
   appear in `warnings`.
@@ -662,11 +752,20 @@ things badly. **Change two:** unit inference is opt-out via `RecognizerOptions.i
   what a cell means. Possibly a higher-yield naming source than label binding.
 - **Learned lexicon** — seeded from a corpus rather than hand-listed.
 - **Round-trip editing** — recognize, modify the `ModelDefinition`, re-export to `.xlsx`.
+- **`OFFSET`/`MATCH` folding beyond Tier 1** — the tiered scheme in §3 covers the provable cases;
+  a corpus pass would show whether Tier 2 guarded dispatch is worth the conditional machinery.
 - **`MonteCarloExtension` repair** — its silent-zero evaluator should route through the registry
   once it exists, eliminating the last second-evaluator in this package.
 
 ## 15. Open Questions
 
+0. **Should `IF` + comparison operators move earlier than D8 schedules them?** Measured against a
+   production credit model on 2026-09-01: **2982 of 5011 formulas contain `IF`**, and 39 of the 48
+   import warnings on its comparison sheet were the `equal` operator alone. On the Wharton model
+   the same gap is one warning, so Wharton badly understates it. Comparison operators are cheap —
+   the same shape as `NodeFormula.power`, which took one case and five switch sites — and they
+   gate Tier 2 of the dynamic-reference scheme. Recommend pulling them forward; they need nothing
+   from the upstream registry.
 1. **Does `ModelBuilder` ship before `TypedSourceWriter`?** `ModelBuilder` only needs the string
    API and could land in Phase 3; `TypedSourceWriter` waits on upstream Phase 3. Recommend yes.
 2. ~~**Prior-period reference syntax.**~~ **Resolved 2026-09-01: not supported, deliberately.**
@@ -713,7 +812,7 @@ metric, not a kill gate.
 | 1 | Excel | `ModelImporter` fixes (`.cellRange`, `.power`, threaded warnings, multi-sheet) | Lossy imports now warn; regression tests green |
 | 2 | Excel | Stages 1–2 (`SheetGrid`, `PeriodAxis`, `LabeledSeries`) + `Coverage` instrumented, with address-fallback naming | Wharton coverage measured **and per-row formula uniformity reported** — the count of non-uniform rows is the number that determines how much of the sheet is hand-edited, and how far `IF`-free encoding can reach |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` 2a–2c (function registry) **and 2d (`PeriodDriver`)** | Registry + driver green |
-| 3 | Excel | Stage 3 `FormulaTranslator` with **lag decomposition** + Stage 4 assembly + `ModelBuilder` | Golden path + negative-recognition tests green; rollforward round-trips; **~30% Wharton (interim)** |
+| 3 | Excel | Stage 3 `FormulaTranslator` with **lag decomposition** + Stage 4 assembly + `ModelBuilder`. Dynamic references (§3) are **Tier 1 folding only** — an unfoldable `INDIRECT`/`OFFSET` goes to residue rather than blocking the phase | Golden path + negative-recognition tests green; rollforward round-trips; **~30% Wharton (interim)** |
 | 4 | Excel | Circular-interest recognition through `CycleSolver` under `PeriodDriver` | **Year-1 interest 11.75; Wharton IRR 24.67% / MoM 3.01** |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |
 | 5 | Excel | `UnitInference` + `TypedSourceWriter` | Generated source compiles; wrong-unit cases diagnose rather than guess |
