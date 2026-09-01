@@ -15,6 +15,33 @@ final class MonteCarloExtensionTests: XCTestCase {
         return (model, revenue)
     }
 
+    // MARK: - Formula Evaluation
+
+    func testEvaluatesPowerFormula() throws {
+        let model = ExcelModel()
+        let base = model.addInput(label: "Base", value: 2)
+        let output = model.addOutput(label: "Cubed", formula: .power(.ref(base), .number(3)))
+        let wb = try ModelExporter.export(model)
+
+        MonteCarloExtension.apply(
+            to: wb,
+            model: model,
+            outputRef: output,
+            variations: [.init(ref: base, distribution: .uniform(min: 2, max: 2))],
+            iterations: 3,
+            seed: 42
+        )
+
+        let data = try XCTUnwrap(wb.sheets.first { $0.name == "Simulation Data" })
+        guard case .number(let value) = try XCTUnwrap(data.cell(at: "B2")) else {
+            return XCTFail("Expected a numeric output value")
+        }
+        XCTAssertEqual(
+            value, 8, accuracy: 1e-9,
+            "2^3 must evaluate to 8, not fall through to a silent zero"
+        )
+    }
+
     // MARK: - Sheet Creation
 
     func testAddsDataSheet() throws {

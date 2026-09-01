@@ -291,6 +291,53 @@ final class ModelImporterTests: XCTestCase {
         }
     }
 
+    // MARK: - Exponentiation
+
+    func testImportsPowerFormula() throws {
+        let wb = Workbook()
+        let sheet = wb.addSheet(name: "Test")
+        sheet.write(0.08, to: "B2")
+        sheet.write(5.0, to: "B3")
+        sheet.write(
+            FormulaAST.power(
+                .add(.number(1), .cellRef(CellRef("B2"))),
+                .cellRef(CellRef("B3"))
+            ),
+            to: "B4"
+        )
+
+        let result = ModelImporter.importWorkbook(wb)
+        let b2 = try XCTUnwrap(result.model.node(named: "B2"))
+        let b3 = try XCTUnwrap(result.model.node(named: "B3"))
+        let b4 = try XCTUnwrap(result.model.node(named: "B4"))
+        guard case .formula(.power(let base, let exponent)) =
+            try XCTUnwrap(result.model.kind(of: b4)) else {
+            return XCTFail("Expected a power formula")
+        }
+        XCTAssertEqual(base, .add(.number(1), .ref(b2)))
+        XCTAssertEqual(exponent, .ref(b3))
+        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+    }
+
+    func testPowerResolvesBackToPowerOnExport() throws {
+        let model = ExcelModel()
+        let rate = model.addInput(label: "Rate", value: 0.08)
+        let periods = model.addInput(label: "Periods", value: 5)
+        model.addOutput(
+            label: "Discount Factor",
+            formula: .power(.add(.number(1), .ref(rate)), .ref(periods))
+        )
+
+        let wb = try ModelExporter.export(model, title: "Power")
+        let sheet = try XCTUnwrap(wb.sheets.first)
+        let ast = try XCTUnwrap(
+            sheet.cellReferences.compactMap { sheet.cell(at: $0)?.formulaAST }.first
+        )
+        guard case .power = ast else {
+            return XCTFail("Expected a power AST — `^` must not become POWER(), got \(ast)")
+        }
+    }
+
     // MARK: - Cell-to-Node Mapping
 
     func testCellToNodeMapping() {

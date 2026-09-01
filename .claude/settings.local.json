@@ -86,7 +86,10 @@
       "Bash(git *)",
       "Bash(echo \"exit: $?\")",
       "WebFetch(domain:news.ycombinator.com)",
-      "WebFetch(domain:www.orcaset.com)"
+      "WebFetch(domain:www.orcaset.com)",
+      "Bash(xcode-select -p)",
+      "Bash(xcrun --find xctest)",
+      "Read(//Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/System/Library/Frameworks/**)"
     ]
   }
 }

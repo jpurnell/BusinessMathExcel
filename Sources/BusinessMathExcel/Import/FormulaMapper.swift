@@ -114,7 +114,8 @@ public enum FormulaMapper {
             }
 
         case .add(let lhs, let rhs), .subtract(let lhs, let rhs),
-             .multiply(let lhs, let rhs), .divide(let lhs, let rhs):
+             .multiply(let lhs, let rhs), .divide(let lhs, let rhs),
+             .power(let lhs, let rhs):
             collectFunctions(
                 from: lhs, financial: &financial,
                 statistical: &statistical, unmapped: &unmapped,

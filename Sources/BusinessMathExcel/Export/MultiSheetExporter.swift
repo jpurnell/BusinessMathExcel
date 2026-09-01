@@ -245,6 +245,12 @@ public enum MultiSheetExporter {
                 resolveWithCrossSheet(formula: rhs, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
             )
 
+        case .power(let base, let exponent):
+            return try .power(
+                resolveWithCrossSheet(formula: base, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping),
+                resolveWithCrossSheet(formula: exponent, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)
+            )
+
         case .negate(let expr):
             return try .negate(
                 resolveWithCrossSheet(formula: expr, model: model, multiAssignment: multiAssignment, currentSheet: currentSheet, localMapping: localMapping)

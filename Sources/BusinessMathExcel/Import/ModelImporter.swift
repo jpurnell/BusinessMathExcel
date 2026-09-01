@@ -180,6 +180,12 @@ public enum ModelImporter {
                 convertAST(rhs, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             )
 
+        case .power(let base, let exponent):
+            return .power(
+                convertAST(base, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1),
+                convertAST(exponent, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
+            )
+
         case .negate(let expr):
             return .negate(
                 convertAST(expr, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
@@ -190,8 +196,7 @@ public enum ModelImporter {
                 convertAST($0, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             })
 
-        case .sheetRef, .namedRange, .error,
-             .power, .concatenate,
+        case .sheetRef, .namedRange, .error, .concatenate,
              .equal, .notEqual, .greaterThan, .lessThan,
              .greaterOrEqual, .lessOrEqual:
             warnings.append(

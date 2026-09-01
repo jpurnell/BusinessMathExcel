@@ -158,6 +158,16 @@ public enum MonteCarloExtension {
             guard denominator != 0 else { return 0 }
             return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides) / denominator
 
+        case .power(let base, let exponent):
+            let result = pow(
+                evaluateFormula(base, model: model, inputOverrides: inputOverrides),
+                evaluateFormula(exponent, model: model, inputOverrides: inputOverrides)
+            )
+            // A negative base with a fractional exponent is #NUM! in Excel. This
+            // evaluator has no error channel, so it reports zero — the same
+            // convention `divide` already uses for a zero denominator.
+            return result.isFinite ? result : 0
+
         case .negate(let expr):
             return -evaluateFormula(expr, model: model, inputOverrides: inputOverrides)
 

@@ -30,6 +30,14 @@ public indirect enum NodeFormula: Equatable, Hashable, Sendable {
     /// Division of two expressions.
     case divide(NodeFormula, NodeFormula)
 
+    /// Exponentiation of a base by an exponent.
+    ///
+    /// Kept as a dedicated case rather than folded into
+    /// ``NodeFormula/function(_:_:)`` as `POWER(base, exponent)` so that `^`
+    /// survives a round trip as `^`, and so evaluators can compute it directly
+    /// instead of routing it through function dispatch.
+    case power(NodeFormula, NodeFormula)
+
     /// Negation of an expression.
     case negate(NodeFormula)
 
@@ -73,6 +81,9 @@ public indirect enum NodeFormula: Equatable, Hashable, Sendable {
 
         case .divide(let lhs, let rhs):
             return try .divide(lhs.resolve(using: mapping), rhs.resolve(using: mapping))
+
+        case .power(let base, let exponent):
+            return try .power(base.resolve(using: mapping), exponent.resolve(using: mapping))
 
         case .negate(let expr):
             return try .negate(expr.resolve(using: mapping))
