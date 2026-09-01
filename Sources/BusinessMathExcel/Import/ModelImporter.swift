@@ -144,6 +144,9 @@ public enum ModelImporter {
             )
             return .text("REF:\(cellRef.reference)")
 
+        case .cellRange(let range):
+            return convertRange(range, cellToNode: cellToNode, cell: cell, warnings: &warnings)
+
         case .number(let value):
             return .number(value)
 
@@ -187,7 +190,7 @@ public enum ModelImporter {
                 convertAST($0, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             })
 
-        case .cellRange, .sheetRef, .namedRange, .error,
+        case .sheetRef, .namedRange, .error,
              .power, .concatenate,
              .equal, .notEqual, .greaterThan, .lessThan,
              .greaterOrEqual, .lessOrEqual:
@@ -197,6 +200,45 @@ public enum ModelImporter {
             )
             return .text("UNSUPPORTED")
         }
+    }
+
+    /// Converts a `CellRange` into a ``NodeFormula/range(_:)`` of node references.
+    ///
+    /// ``NodeFormula/range(_:)`` re-derives the exported `CellRange` from its first and
+    /// last reference, so both endpoints must resolve for the range to survive a round
+    /// trip. A range whose endpoint is blank, or which sits above the cells it covers so
+    /// that they have not been imported yet, cannot be anchored: it warns and degrades
+    /// rather than silently exporting a narrower range than the source workbook had.
+    ///
+    /// Interior cells that do not resolve are skipped without a warning. A blank
+    /// separator row inside `SUM(D5:D16)` is ordinary Excel, not a defect, and the
+    /// exported range is unaffected because only the endpoints determine it.
+    ///
+    /// - Parameters:
+    ///   - range: The source range.
+    ///   - cellToNode: Cells imported so far, in workbook order.
+    ///   - cell: The cell whose formula contains this range, for warning messages.
+    ///   - warnings: Accumulated import warnings.
+    /// - Returns: A ``NodeFormula/range(_:)``, or `.text("UNSUPPORTED")` if unanchored.
+    private static func convertRange(
+        _ range: CellRange,
+        cellToNode: [CellRef: NodeRef],
+        cell: String,
+        warnings: inout [String]
+    ) -> NodeFormula {
+        guard cellToNode[range.start] != nil, cellToNode[range.end] != nil else {
+            warnings.append(
+                "Range \(range.reference) at \(cell) could not be anchored: its first or "
+                    + "last cell is blank, or had not been imported when the formula was "
+                    + "converted; the range was replaced with UNSUPPORTED"
+            )
+            return .text("UNSUPPORTED")
+        }
+
+        // `range.cells` runs from `start` to `end` in order, so the surviving
+        // references keep both endpoints in their original positions.
+        let refs = range.cells.compactMap { cellToNode[$0] }
+        return .range(refs)
     }
 
     /// The `FormulaAST` case name for a node, used to make warnings specific.
