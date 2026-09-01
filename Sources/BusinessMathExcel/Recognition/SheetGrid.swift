@@ -9,8 +9,8 @@ import SwiftXLSX
 ///
 /// ## How the axis is found
 ///
-/// A **candidate axis** is a run of two or more period headings
-/// (see ``PeriodHeader``) in consecutive cells along one row or one column,
+/// A **candidate axis** is a run of two or more period headings — see the
+/// `PeriodHeader` rule — in consecutive cells along one row or one column,
 /// whose years strictly increase.
 ///
 /// Each part of that rule excludes something real:

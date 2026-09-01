@@ -178,14 +178,18 @@ public enum MonteCarloExtension {
             return -evaluateFormula(expr, model: model, inputOverrides: inputOverrides)
 
         case .equal(let lhs, let rhs):
+            // IEEE 754 comparison, deliberately: Excel's `=A1=B1` is exact, not
+            // tolerant, and a translation layer that quietly widened it to an
+            // epsilon would disagree with the sheet it came from.
             return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
-                == evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
+                .isEqual(to: evaluateFormula(rhs, model: model, inputOverrides: inputOverrides))
                 ? 1 : 0
 
         case .notEqual(let lhs, let rhs):
+            // IEEE 754 comparison, deliberately — see `.equal` above.
             return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)
-                != evaluateFormula(rhs, model: model, inputOverrides: inputOverrides)
-                ? 1 : 0
+                .isEqual(to: evaluateFormula(rhs, model: model, inputOverrides: inputOverrides))
+                ? 0 : 1
 
         case .greaterThan(let lhs, let rhs):
             return evaluateFormula(lhs, model: model, inputOverrides: inputOverrides)

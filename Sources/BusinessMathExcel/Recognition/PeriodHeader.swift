@@ -91,7 +91,11 @@ enum PeriodHeader {
     }
 
     private static func year(ofNumber value: Double) -> Int? {
-        guard value == value.rounded(), value >= 1900, value <= 2200 else { return nil }
+        // IEEE 754 comparison, deliberately: the question is whether the cell holds a
+        // whole number, and 2024.5 is not a year no matter how small the tolerance.
+        guard value.isEqual(to: value.rounded()), value >= 1900, value <= 2200 else {
+            return nil
+        }
         return Int(value)
     }
 }
