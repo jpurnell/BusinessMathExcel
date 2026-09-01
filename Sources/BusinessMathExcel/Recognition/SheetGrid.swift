@@ -54,6 +54,16 @@ public struct SheetGrid: Sendable {
     /// What the file recorded Excel computing for each formula cell.
     public let cachedValues: [CellRef: CellValue]
 
+    /// Each formula cell's AST as the file wrote it, with `$` markers intact.
+    public let formulaASTs: [CellRef: FormulaAST]
+
+    /// Where each node sits, the inverse of the importer's cell-to-node map.
+    ///
+    /// A ``NodeFormula`` references nodes rather than positions, so anything
+    /// asking a geometric question about a formula — such as whether two cells
+    /// hold the same shape one column apart — has to come back through this.
+    public let nodeToCell: [NodeRef: CellRef]
+
     /// The smallest range containing every populated cell, or `nil` if empty.
     public let bounds: CellRange?
 
@@ -109,6 +119,8 @@ public struct SheetGrid: Sendable {
         }
 
         let cached = result.cachedValues
+        var nodeToCell: [NodeRef: CellRef] = [:]
+        for (cellRef, nodeRef) in result.cellToNode { nodeToCell[nodeRef] = cellRef }
         let bounds = boundingRange(of: cells.keys)
         let rowRun = longestRun(in: cells, cached: cached, along: .row)
         let columnRun = longestRun(in: cells, cached: cached, along: .column)
@@ -116,12 +128,14 @@ public struct SheetGrid: Sendable {
         switch options.orientation {
         case .periodsAcrossColumns:
             return SheetGrid(
-                cells: cells, cachedValues: cached, bounds: bounds, orientation: .periodsAcrossColumns,
+                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsAcrossColumns,
                 axisLine: rowRun?.line, axisCells: rowRun?.cells ?? [], diagnostics: diagnostics)
 
         case .periodsDownRows:
             return SheetGrid(
-                cells: cells, cachedValues: cached, bounds: bounds, orientation: .periodsDownRows,
+                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsDownRows,
                 axisLine: columnRun?.line, axisCells: columnRun?.cells ?? [],
                 diagnostics: diagnostics)
 
@@ -137,28 +151,33 @@ public struct SheetGrid: Sendable {
                     message: "No row or column holds two or more consecutive, advancing "
                         + "period headings"))
             return SheetGrid(
-                cells: cells, cachedValues: cached, bounds: bounds, orientation: nil, axisLine: nil, axisCells: [],
+                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: nil, axisLine: nil, axisCells: [],
                 diagnostics: diagnostics)
 
         case (let row?, nil):
             return SheetGrid(
-                cells: cells, cachedValues: cached, bounds: bounds, orientation: .periodsAcrossColumns,
+                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsAcrossColumns,
                 axisLine: row.line, axisCells: row.cells, diagnostics: diagnostics)
 
         case (nil, let column?):
             return SheetGrid(
-                cells: cells, cachedValues: cached, bounds: bounds, orientation: .periodsDownRows,
+                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsDownRows,
                 axisLine: column.line, axisCells: column.cells, diagnostics: diagnostics)
 
         case (let row?, let column?):
             if row.cells.count > column.cells.count {
                 return SheetGrid(
-                    cells: cells, cachedValues: cached, bounds: bounds, orientation: .periodsAcrossColumns,
+                    cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsAcrossColumns,
                     axisLine: row.line, axisCells: row.cells, diagnostics: diagnostics)
             }
             if column.cells.count > row.cells.count {
                 return SheetGrid(
-                    cells: cells, cachedValues: cached, bounds: bounds, orientation: .periodsDownRows,
+                    cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsDownRows,
                     axisLine: column.line, axisCells: column.cells, diagnostics: diagnostics)
             }
             diagnostics.append(
@@ -168,7 +187,8 @@ public struct SheetGrid: Sendable {
                         + "\(row.cells.count) period headings; the sheet reads equally well "
                         + "both ways, so no direction was chosen"))
             return SheetGrid(
-                cells: cells, cachedValues: cached, bounds: bounds, orientation: nil, axisLine: nil, axisCells: [],
+                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+                nodeToCell: nodeToCell, bounds: bounds, orientation: nil, axisLine: nil, axisCells: [],
                 diagnostics: diagnostics)
         }
     }

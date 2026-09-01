@@ -44,6 +44,19 @@ public enum ModelImporter {
         /// file's own record of it is not.
         public let cachedValues: [CellRef: CellValue]
 
+        /// Each formula cell's AST exactly as the file wrote it.
+        ///
+        /// ``NodeFormula`` references nodes rather than addresses, which is what
+        /// makes a model independent of layout — but it therefore cannot say
+        /// whether a reference was written `D14` or `$D$14`. That distinction is
+        /// invisible to evaluation and decisive for geometry: a formula filled
+        /// across a row keeps its absolute references fixed and shifts its relative
+        /// ones, so two cells only share a shape if they agree about which is which.
+        ///
+        /// Preserved for that reason, alongside ``cachedValues``, on the same
+        /// principle: the file said it, so discarding it is a fidelity loss.
+        public let formulaASTs: [CellRef: FormulaAST]
+
         /// Warnings generated during import.
         ///
         /// Non-empty whenever the import dropped or degraded something: an
@@ -63,6 +76,7 @@ public enum ModelImporter {
                 cellToNode: [:],
                 sheetCellToNode: [:],
                 cachedValues: [:],
+                formulaASTs: [:],
                 warnings: []
             )
         }
@@ -84,6 +98,7 @@ public enum ModelImporter {
             cellToNode: cellToNode,
             sheetCellToNode: [sheet.name: cellToNode],
             cachedValues: cachedValues(cells),
+            formulaASTs: formulaASTs(cells),
             warnings: warnings
         )
     }
@@ -104,6 +119,7 @@ public enum ModelImporter {
         var warnings: [String] = []
         var perSheet: [String: [CellRef: NodeRef]] = [:]
         var cached: [CellRef: CellValue] = [:]
+        var asts: [CellRef: FormulaAST] = [:]
 
         for sheet in workbook.sheets {
             let cells = orderedCells(of: sheet)
@@ -117,6 +133,7 @@ public enum ModelImporter {
             // Cell references carry no sheet, so the first sheet's entries win, in
             // step with `cellToNode` below.
             cached.merge(cachedValues(cells)) { existing, _ in existing }
+            asts.merge(formulaASTs(cells)) { existing, _ in existing }
         }
 
         let firstMapping = workbook.sheets.first.flatMap { perSheet[$0.name] } ?? [:]
@@ -125,6 +142,7 @@ public enum ModelImporter {
             cellToNode: firstMapping,
             sheetCellToNode: perSheet,
             cachedValues: cached,
+            formulaASTs: asts,
             warnings: warnings
         )
     }
@@ -174,6 +192,7 @@ public enum ModelImporter {
             cellToNode: cellToNode,
             sheetCellToNode: ["": cellToNode],
             cachedValues: cachedValues(cells),
+            formulaASTs: formulaASTs(cells),
             warnings: warnings
         )
     }
@@ -290,6 +309,21 @@ public enum ModelImporter {
             cached[identity(CellRef(reference))] = result
         }
         return cached
+    }
+
+    /// Each formula cell's AST as written, keyed by cell identity.
+    ///
+    /// - Parameter cells: Cells in import order.
+    /// - Returns: The formula ASTs, with `$` markers intact inside them.
+    private static func formulaASTs(
+        _ cells: [(reference: String, value: CellValue)]
+    ) -> [CellRef: FormulaAST] {
+        var asts: [CellRef: FormulaAST] = [:]
+        for (reference, value) in cells {
+            guard case .formula(let ast, _) = value else { continue }
+            asts[identity(CellRef(reference))] = ast
+        }
+        return asts
     }
 
     /// Whether a cell contributes a node to the model.

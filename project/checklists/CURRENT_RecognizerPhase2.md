@@ -122,14 +122,21 @@ bumped the pin.
 Phase 2's gate names this explicitly: the count of non-uniform rows is what tells us how much of
 a sheet is hand-edited, and how far `IF`-free encoding can reach.
 
-- [ ] **RED** — test: a row whose cells share a shape modulo column offset is uniform.
-- [ ] **RED** — test: one hand-edited cell makes the row non-uniform and emits `.nonUniformRow`.
+- [x] **RED** — test: a row whose cells share a shape modulo column offset is uniform.
+- [x] **RED** — test: one hand-edited cell makes the row non-uniform and emits `.nonUniformRow`.
       **The recognizer never picks a majority shape** (decision D10).
-- [ ] **GREEN** — implement.
-- [ ] **Decide:** shape comparison needs cell positions to compute the offset, but `NodeFormula`
-      references nodes, not cells. Resolve refs back through `cellToNode` — this is why
-      uniformity lives with `SheetGrid` rather than in the model layer.
-- [ ] Commit.
+- [x] **GREEN** — implement.
+- [x] **Decided, and the first answer was wrong.** Resolving refs through `cellToNode` loses
+      whether a reference was written `D14` or `$D$14`, because the importer normalizes `$`
+      away for cell *identity*. That distinction is invisible to evaluation and decisive for
+      geometry, and ignoring it reported `$D$14*-1` repeated across five untouched periods as
+      five different shapes. `ImportResult` now preserves each formula's original AST, and the
+      comparison is true R1C1: pinned components keep their address, free ones become offsets.
+- [x] **Added, not in the original plan:** a `seededRollforward` classification. A typed opening
+      period followed by one rule applied forward is the commonest structure in a model and is
+      directly expressible; counting it as a hand edit would overstate the number this task
+      exists to produce.
+- [x] Commit.
 
 ## Task 7 — Measure
 
