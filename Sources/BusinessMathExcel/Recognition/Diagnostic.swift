@@ -102,4 +102,13 @@ public enum DiagnosticCode: String, Sendable, Equatable, CaseIterable {
 
     /// A dynamic reference resolved to a static one. Stage 3.
     case foldedDynamicReference
+
+    /// A carry whose opening value the sheet does not state. Stage 3.
+    ///
+    /// A rollforward needs the period before the timeline, and that figure lives
+    /// in the first period's own cell. When that cell is itself computed and the
+    /// file carries no cached value for it, there is nothing to seed from — and
+    /// seeding zero produces a model that runs, converges, and is wrong from the
+    /// first period on.
+    case unseededCarry
 }

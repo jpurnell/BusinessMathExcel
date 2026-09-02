@@ -65,6 +65,7 @@ public enum ExcelRecognizer {
 
             guard let account = translate(
                 entry,
+                seeded: report.kind == .seededRollforward,
                 in: grid,
                 axis: axis,
                 imported: imported,
@@ -96,6 +97,7 @@ public enum ExcelRecognizer {
     /// Turns one bound series into an account, or into residue.
     private static func translate(
         _ entry: LabeledSeries,
+        seeded: Bool,
         in grid: SheetGrid,
         axis: PeriodAxis,
         imported: ModelImporter.ImportResult,
@@ -110,7 +112,19 @@ public enum ExcelRecognizer {
 
         // A row whose cells are all literals is data the model is given.
         let formulaCells = cells.filter { grid.formulaASTs[$0] != nil }
-        guard let representative = formulaCells.first else {
+
+        // On a seeded row the first period is the seed and every period after it
+        // is the rule, so the rule must be read from after the seed. Usually the
+        // seed is a typed number and the first formula cell is already the second
+        // period; when the seed is itself computed it is not, and reading the
+        // first cell adopts the opening balance's own arithmetic as the rule for
+        // all time. Only seeded rows skip: on a uniform row the first period may
+        // be the one reaching into the at-close column, and that is the carry.
+        var candidates = formulaCells
+        if seeded, let first = cells.first, candidates.first == first {
+            candidates.removeFirst()
+        }
+        guard let representative = candidates.first else {
             var values: [Period: Double] = [:]
             for (index, cell) in entry.cells.enumerated() {
                 guard let cell, index < axis.periods.count,

@@ -273,19 +273,59 @@ public enum LagDecomposition {
     /// - Returns: The opening account's name.
     private static func carry(
         to account: String,
+        definedAt cell: CellRef,
         seededFrom reference: CellRef,
         in grid: SheetGrid,
-        into rollforwards: inout [RecognizedRollforward]
+        axis: PeriodAxis,
+        into rollforwards: inout [RecognizedRollforward],
+        diagnostics: inout [Diagnostic]
     ) -> String {
         let opening = "\(account) Opening"
+        let seedCell = seedCell(forRowDefining: cell, in: grid, axis: axis) ?? reference
+        guard let seed = seedValue(at: seedCell, in: grid) else {
+            diagnostics.append(
+                Diagnostic(
+                    severity: .error, code: .unseededCarry, cell: cell,
+                    message: "\(cell.reference) carries \(account) forward, but "
+                        + "\(seedCell.reference) states no opening value for it — it is "
+                        + "computed and the file cached no result. Seeding zero would give a "
+                        + "model that runs and is wrong in every period"))
+            return opening
+        }
         let record = RecognizedRollforward(
-            opening: opening,
-            closing: account,
-            seedCell: reference,
-            seed: seedValue(at: reference, in: grid)
-        )
+            opening: opening, closing: account, seedCell: seedCell, seed: seed)
         if !rollforwards.contains(record) { rollforwards.append(record) }
         return opening
+    }
+
+    /// The cell holding the first-period value of the row that `cell` belongs to.
+    ///
+    /// A carry opens where the sheet says it opens, and the sheet says it in the
+    /// row's **own** first period — not in the cell being referenced. For a row
+    /// growing off itself, `D6 = C6 * 1.15`, these are the same cell and the
+    /// distinction costs nothing. For a link to another row they are not:
+    /// `D4 = C7` says opening debt follows last period's closing debt, but the
+    /// opening balance is the hard number typed in `C4`, and `C7` is a formula
+    /// that in period one has no prior period to compute from.
+    ///
+    /// - Parameters:
+    ///   - cell: The cell whose formula carries.
+    ///   - grid: The sheet's topology.
+    ///   - axis: The period axis.
+    /// - Returns: The row's first-period cell, or `nil` if the axis has no periods.
+    private static func seedCell(
+        forRowDefining cell: CellRef,
+        in grid: SheetGrid,
+        axis: PeriodAxis
+    ) -> CellRef? {
+        guard let orientation = grid.orientation else { return nil }
+        let positions = axis.sources.map {
+            orientation == .periodsAcrossColumns ? $0.column : $0.row
+        }
+        guard let first = positions.min() else { return nil }
+        return orientation == .periodsAcrossColumns
+            ? CellRef(column: first, row: cell.row)
+            : CellRef(column: cell.column, row: first)
     }
 
     /// The value a seed cell holds.
@@ -299,11 +339,11 @@ public enum LagDecomposition {
     /// - Parameters:
     ///   - reference: The seed cell.
     ///   - grid: The sheet's topology.
-    /// - Returns: The value, or zero when the cell holds nothing readable.
-    private static func seedValue(at reference: CellRef, in grid: SheetGrid) -> Double {
+    /// - Returns: The value, or `nil` when the cell states none.
+    private static func seedValue(at reference: CellRef, in grid: SheetGrid) -> Double? {
         if case .input(let literal)? = grid.cells[reference] { return literal }
         if case .number(let cached)? = grid.cachedValues[reference] { return cached }
-        return 0
+        return nil
     }
 
     /// An account name as the grammar must receive it.
@@ -360,7 +400,10 @@ public enum LagDecomposition {
         if let anchor = axis.anchor,
            there == anchor.position,
            here == positions.min() {
-            return quoted(carry(to: account, seededFrom: reference, in: grid, into: &rollforwards))
+            return quoted(
+                carry(
+                    to: account, definedAt: cell, seededFrom: reference, in: grid,
+                    axis: axis, into: &rollforwards, diagnostics: &diagnostics))
         }
 
         // A reference off the period axis is a scalar: an assumption that holds
@@ -375,7 +418,10 @@ public enum LagDecomposition {
             return quoted(account)
 
         case 1:
-            return quoted(carry(to: account, seededFrom: reference, in: grid, into: &rollforwards))
+            return quoted(
+                carry(
+                    to: account, definedAt: cell, seededFrom: reference, in: grid,
+                    axis: axis, into: &rollforwards, diagnostics: &diagnostics))
 
         default:
             diagnostics.append(
