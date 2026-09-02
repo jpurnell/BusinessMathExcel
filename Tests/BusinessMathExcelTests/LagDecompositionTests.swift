@@ -341,4 +341,119 @@ final class LagDecompositionTests: XCTestCase {
             "a name with nothing behind it is reported, not treated as zero silently"
         )
     }
+
+    /// A range off the timeline is still a column of accounts.
+    ///
+    /// `Total Uses = SUM(L9:L10)` sits in the assumptions block, where no column
+    /// is a period. What makes a range readable is that it stays in one column, so
+    /// every cell in it belongs to a different account read at the same moment —
+    /// not that the column happens to be a year. Requiring a period column here
+    /// meant the Wharton sources-and-uses totals worked or failed according to
+    /// whether their block happened to overlap the timeline's columns.
+    func testARangeOutsideThePeriodColumnsStillReadsAsAccounts() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Term Loan", to: "A2")
+            sheet.write("Equity", to: "A3")
+            sheet.write("Total Sources", to: "A4")
+            sheet.write(60.0, to: "B2")
+            sheet.write(40.0, to: "B3")
+            sheet.write(
+                FormulaAST.function(
+                    "SUM", [.cellRange(CellRange(from: CellRef("B2"), to: CellRef("B3")))]),
+                to: "B4")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("B4"), in: grid, axis: axis))
+        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        XCTAssertEqual(split.formula, "SUM([Term Loan], Equity)")
+    }
+
+    /// A text literal is not an account, and must not be rendered as one.
+    ///
+    /// The Wharton `ANSWER KEY` closes its sources-and-uses with
+    /// `IF(L11=H11,"True",L11-H11)` — a display check that shows a word when the
+    /// two agree. A model of numbers cannot hold a word. Rendering `"True"` as the
+    /// bare name `True` produced a formula that read it as an *account*, which
+    /// either fails to resolve or, worse, binds to a real account that happens to
+    /// be spelled that way.
+    func testATextLiteralIsRefusedRatherThanReadAsAnAccount() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Check", to: "A2")
+            sheet.write("True", to: "A3")
+            for column in ["C", "D", "E"] { sheet.write(1.0, to: "\(column)3") }
+            sheet.write(
+                FormulaAST.function(
+                    "IF",
+                    [.equal(.cellRef(CellRef("C3")), .number(1)),
+                     .text("True"),
+                     .number(0)]),
+                to: "C2")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("C2"), in: grid, axis: axis))
+        XCTAssertEqual(split.diagnostics.map(\.code), [.unsupportedFormulaNode])
+        // Row 3 really is named `True`, which is the trap: the reference to C3
+        // *should* read as that account, and the literal in the second argument
+        // should not — one is a cell on that row, the other is a word.
+        XCTAssertEqual(split.formula, "IF((True = 1.0), 0, 0.0)")
+    }
+
+    // MARK: - Held flat at the first period
+
+    /// A row pinned to its own first period is constant, not self-defining.
+    ///
+    /// `F33 = $E$33` on the Wharton `ANSWER KEY`, where `E33 = D10`, is the ordinary
+    /// idiom for *set this in year one and hold it*. Read cell by cell it says the
+    /// row equals itself, which translated to `% margin = [% margin]` — an account
+    /// defined as itself, which materializes, forms a one-account cycle, and fails
+    /// as underdetermined because any value at all satisfies it.
+    ///
+    /// What the row actually means is the seed's own definition, repeated.
+    func testARowPinnedToItsOwnSeedTakesTheSeedsDefinition() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("EBITDA margin", to: "A3")
+            sheet.write(0.4, to: "B3")
+            sheet.write("% margin", to: "A4")
+            sheet.write(FormulaAST.cellRef(CellRef("B3")), to: "C4")
+            sheet.write(FormulaAST.cellRef(CellRef("$C$4")), to: "D4")
+            sheet.write(FormulaAST.cellRef(CellRef("$C$4")), to: "E4")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        XCTAssertEqual(split.formula, "[EBITDA margin]")
+        XCTAssertTrue(split.rollforwards.isEmpty, "holding flat is not a carry")
+    }
+
+    func testARowPinnedToALiteralSeedIsThatConstant() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Tax Rate", to: "A4")
+            sheet.write(0.25, to: "C4")
+            sheet.write(FormulaAST.cellRef(CellRef("$C$4")), to: "D4")
+            sheet.write(FormulaAST.cellRef(CellRef("$C$4")), to: "E4")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        XCTAssertEqual(split.formula, "0.25", "the seed states it; nothing else does")
+    }
+
+    /// A pinned reference to *another* row is unaffected.
+    func testAPinnedReferenceToAnotherRowStillNamesThatRow() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Revenue growth", to: "A3")
+            sheet.write(0.1, to: "B3")
+            sheet.write("% growth", to: "A4")
+            for column in ["C", "D", "E"] {
+                sheet.write(FormulaAST.cellRef(CellRef("$B$3")), to: "\(column)4")
+            }
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        XCTAssertEqual(split.formula, "[Revenue growth]")
+    }
 }

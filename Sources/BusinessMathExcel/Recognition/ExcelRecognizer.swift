@@ -29,7 +29,7 @@ public enum ExcelRecognizer {
         in workbook: Workbook? = nil
     ) -> RecognitionResult {
         let imported = ModelImporter.importSheet(sheet)
-        let grid = SheetGrid.build(
+        var grid = SheetGrid.build(
             from: imported, options: options,
             namedCells: namedCells(from: workbook, for: sheet))
         var diagnostics = grid.diagnostics
@@ -48,6 +48,42 @@ public enum ExcelRecognizer {
 
         let (series, bindingDiagnostics) = LabeledSeries.bind(in: grid, axis: axis)
         diagnostics.append(contentsOf: bindingDiagnostics)
+
+        // Binding settles what each cell is called, including the disambiguation it
+        // applies when two rows share a heading. Every name is settled *before* a
+        // single formula is translated, because a translation reads these answers
+        // and cannot be revised once a later collision renames something.
+        let (boundScalars, scalarDiagnostics) = ScalarBlock.bind(in: grid, axis: axis)
+        var assumptions: [ScalarAssumption] = []
+        let seriesNames = Set(series.map(\.name))
+        for assumption in boundScalars {
+            // Both survive a collision. Dropping the assumption because a row shares
+            // its heading loses a figure the model is built on, and leaves every
+            // reference to it resolving to the row instead — the same confusion in
+            // the other direction.
+            guard seriesNames.contains(assumption.name) else {
+                assumptions.append(assumption)
+                continue
+            }
+            diagnostics.append(
+                Diagnostic(
+                    severity: .warning, code: .duplicateAccountName,
+                    cell: assumption.labelCell,
+                    message: "\"\(assumption.name)\" names both a series on the timeline and "
+                        + "an assumption at \(assumption.labelCell.reference); the assumption "
+                        + "is distinguished by its cell"))
+            assumptions.append(
+                ScalarAssumption(
+                    name: "\(assumption.name) (\(assumption.labelCell.reference))",
+                    labelCell: assumption.labelCell,
+                    valueCell: assumption.valueCell))
+        }
+
+        for entry in series {
+            for cell in entry.populatedCells { grid.name(entry.name, at: cell) }
+            if let anchor = entry.anchorCell { grid.name(entry.name, at: anchor) }
+        }
+        for assumption in assumptions { grid.name(assumption.name, at: assumption.valueCell) }
 
         let (uniformity, uniformityDiagnostics) = FormulaUniformity.assess(series, in: grid)
         diagnostics.append(contentsOf: uniformityDiagnostics)
@@ -86,23 +122,12 @@ public enum ExcelRecognizer {
             if let labelCell = entry.labelCell { recognized.insert(labelCell) }
         }
 
-        // Assumptions stated outside the timeline. They come last so a name already
-        // taken by a series wins: a row with six periods of figures is more surely
-        // an account than a label with one.
-        let (assumptions, scalarDiagnostics) = ScalarBlock.bind(in: grid, axis: axis)
+        // Assumptions stated outside the timeline. They are translated last so a
+        // name already taken by a series wins: a row with six periods of figures is
+        // more surely an account than a label with one.
         diagnostics.append(contentsOf: scalarDiagnostics)
 
         for assumption in assumptions {
-            guard !accounts.contains(where: { $0.name == assumption.name }) else {
-                diagnostics.append(
-                    Diagnostic(
-                        severity: .warning, code: .duplicateAccountName,
-                        cell: assumption.labelCell,
-                        message: "\"\(assumption.name)\" names both a series on the timeline "
-                            + "and an assumption at \(assumption.labelCell.reference); the "
-                            + "series is kept and the assumption is not recognized"))
-                continue
-            }
             guard let account = translate(assumption, in: grid, axis: axis, imported: imported)
             else {
                 residue.append(

@@ -67,6 +67,42 @@ public struct SheetGrid: Sendable {
     /// resolved to the wrong cell.
     public let namedCells: [String: CellRef]
 
+    /// What the binder called each cell, once binding has run.
+    ///
+    /// Empty on a freshly built grid and filled in by ``ExcelRecognizer`` after
+    /// ``LabeledSeries`` and ``ScalarBlock`` have decided which label owns what.
+    /// It exists because those two settle a question the grid cannot: when two
+    /// rows carry the same heading the binder keeps both and distinguishes the
+    /// second by its cell, and a translator that re-derives a name from the
+    /// nearest label throws that away — resolving a reference to whichever row the
+    /// label search reaches first, which may be an assumption rather than the row
+    /// meant. That is a model that runs and is wrong, so the binder's answer is
+    /// carried rather than recomputed.
+    public var accountNames: [CellRef: String] = [:]
+
+    /// What the binder called a cell, ignoring its `$` markers.
+    ///
+    /// A ``CellRef`` carries whether each half was pinned, and hashes it, so
+    /// `$B$2` and `B2` are different keys for the same cell. A formula writes the
+    /// pinned form and the binder records the plain one, so a lookup that did not
+    /// normalize would silently miss every absolute reference — which is most of
+    /// the references to an assumption.
+    ///
+    /// - Parameter cell: The cell, pinned or not.
+    /// - Returns: The account name, or `nil` when nothing bound that cell.
+    public func accountName(at cell: CellRef) -> String? {
+        accountNames[CellRef(column: cell.column, row: cell.row)]
+    }
+
+    /// Records what the binder called a cell, ignoring its `$` markers.
+    ///
+    /// - Parameters:
+    ///   - name: The account name.
+    ///   - cell: The cell it belongs to.
+    public mutating func name(_ name: String, at cell: CellRef) {
+        accountNames[CellRef(column: cell.column, row: cell.row)] = name
+    }
+
     /// Where each node sits, the inverse of the importer's cell-to-node map.
     ///
     /// A ``NodeFormula`` references nodes rather than positions, so anything

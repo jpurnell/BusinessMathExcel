@@ -186,4 +186,144 @@ final class BlockDetectionTests: XCTestCase {
             "D2 belongs to Right; naming it Left would build a model off the wrong number"
         )
     }
+
+    // MARK: - What-If tables
+
+    /// A two-way data table occupies its body *and* the inputs around it.
+    ///
+    /// Excel declares the body on the table's master cell — `<f t="dataTable"
+    /// ref="P6:T10" dt2D="1"/>` — and leaves every other cell in the grid holding
+    /// nothing but a cached number. The varying inputs sit in the row above and
+    /// the column to the left, which is what makes it two-way, so the block a
+    /// reader must account for is one row taller and one column wider than the
+    /// span the file states.
+    func testATwoWayTableOccupiesItsHeadersToo() throws {
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Model")
+        sheet.write("2024", to: "C9")
+        sheet.write("2025", to: "D9")
+        sheet.write("2026", to: "E9")
+        sheet.write(
+            FormulaAST.function(
+                "_DATATABLE",
+                [.text("D4:E5"), .cellRef(CellRef("A1")), .cellRef(CellRef("A2"))]),
+            to: "D4")
+
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let block = try XCTUnwrap(DataTableBlock.find(in: grid).first)
+
+        XCTAssertEqual(block.body, CellRange(from: CellRef("D4"), to: CellRef("E5")))
+        XCTAssertTrue(block.contains(CellRef("D4")), "the body")
+        XCTAssertTrue(block.contains(CellRef("C3")), "the corner, above and left")
+        XCTAssertTrue(block.contains(CellRef("D3")), "a column input, in the row above")
+        XCTAssertTrue(block.contains(CellRef("C5")), "a row input, in the column left")
+        XCTAssertFalse(block.contains(CellRef("B4")), "and no further than that")
+        XCTAssertFalse(block.contains(CellRef("F4")))
+    }
+
+    /// A label beside a table does not own the table's cells.
+    ///
+    /// This is the collision Rule 1 fixed for series, one block further right. On
+    /// the Wharton `ANSWER KEY` the IRR sensitivity grid sits in columns N through
+    /// T on the same rows as the assumption tables, so `Total Purchase Price` in
+    /// `F5` owned its own value in `H5` *and* six cells of the grid's header row,
+    /// and was refused as owning seven things.
+    func testALabelDoesNotOwnTheCellsOfATableBesideIt() throws {
+        let result = scalars { sheet in
+            withAxisBelow(sheet)
+            sheet.write("Total Purchase Price", to: "A2")
+            sheet.write(200.0, to: "B2")
+            // A two-way table whose body is F3:G4, so its inputs occupy E2:G2.
+            sheet.write(
+                FormulaAST.function(
+                    "_DATATABLE",
+                    [.text("F3:G4"), .cellRef(CellRef("A9")), .cellRef(CellRef("A10"))]),
+                to: "F3")
+            for column in ["E", "F", "G"] { sheet.write(0.06, to: "\(column)2") }
+        }
+
+        let scalar = try XCTUnwrap(
+            result.scalars.first { $0.name == "Total Purchase Price" },
+            "Got: \(result.scalars.map(\.name)), \(result.diagnostics.map(\.code.rawValue))"
+        )
+        XCTAssertEqual(scalar.valueCell, CellRef("B2"), "its own value, and only that")
+    }
+
+    /// A one-way table is taken at exactly the span the file states.
+    ///
+    /// Which side a one-way table's inputs sit on is in the `dtr` attribute, which
+    /// the reader does not carry. Guessing both sides would swallow a column of
+    /// real accounts; claiming neither leaves a label reported rather than read,
+    /// and reported is the failure worth having.
+    func testAOneWayTableClaimsOnlyItsBody() throws {
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Model")
+        sheet.write("2024", to: "C9")
+        sheet.write("2025", to: "D9")
+        sheet.write("2026", to: "E9")
+        sheet.write(
+            FormulaAST.function(
+                "_DATATABLE", [.text("D4:E5"), .cellRef(CellRef("A1"))]),
+            to: "D4")
+
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let block = try XCTUnwrap(DataTableBlock.find(in: grid).first)
+
+        XCTAssertTrue(block.contains(CellRef("D4")))
+        XCTAssertFalse(block.contains(CellRef("C3")), "no header row or column is assumed")
+    }
+
+    /// A reference names the account the binder gave that cell, not a re-derived
+    /// label.
+    ///
+    /// Two rows may carry the same heading; the binder keeps both and distinguishes
+    /// the second by its cell. Re-deriving a name from the nearest label throws that
+    /// away, so a reference to the second row resolves to the **first** — and if the
+    /// first is an assumption rather than a row, the formula quietly reads a
+    /// percentage where it wanted a balance.
+    ///
+    /// This is what the Wharton `ANSWER KEY` did: `Equity of PE Firm` sums a column
+    /// that includes `Debt` in row 58, and resolved it to the `Debt` assumption in
+    /// row 4, which is 60%. Every period came out as 0.6 against a sheet saying
+    /// 0 and then 240.98 — a model that ran, converged, and was wrong.
+    func testAReferenceUsesTheBindersNameForTheCell() throws {
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Model")
+        sheet.write("2024", to: "C5")
+        sheet.write("2025", to: "D5")
+        sheet.write("2026", to: "E5")
+        // An assumption called Debt, above the timeline.
+        sheet.write("Debt", to: "A2")
+        sheet.write(0.6, to: "B2")
+        // A row also called Debt, on the timeline.
+        sheet.write("Debt", to: "A6")
+        for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)6") }
+        sheet.write("Equity", to: "A7")
+        for column in ["C", "D", "E"] {
+            sheet.write(FormulaAST.cellRef(CellRef("\(column)6")), to: "\(column)7")
+        }
+
+        sheet.write("Loan", to: "A8")
+        for column in ["C", "D", "E"] {
+            sheet.write(FormulaAST.cellRef(CellRef("$B$2")), to: "\(column)8")
+        }
+
+        let plan = ExcelRecognizer.recognize(sheet)
+        let names = plan.model.accounts.map(\.name)
+
+        let equity = try XCTUnwrap(plan.model.accounts.first { $0.name == "Equity" }, "\(names)")
+        XCTAssertEqual(
+            equity.formula, "Debt",
+            "the row on the timeline keeps the plain heading, and the reference to "
+                + "its cell resolves there"
+        )
+
+        let loan = try XCTUnwrap(plan.model.accounts.first { $0.name == "Loan" }, "\(names)")
+        XCTAssertEqual(
+            loan.formula, "[Debt (A2)]",
+            "and the assumption, distinguished by its cell, stays reachable. Dropping "
+                + "it would lose 60% and send this reference to the row instead"
+        )
+        XCTAssertTrue(names.contains("Debt (A2)"), "both survive. Got: \(names)")
+    }
 }

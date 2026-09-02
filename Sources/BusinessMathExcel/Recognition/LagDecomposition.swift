@@ -120,6 +120,33 @@ public enum LagDecomposition {
             diagnostics: &diagnostics
         )
 
+        // A row whose whole rule is its own name is pinned to its own first
+        // period: `F33 = $E$33`, the ordinary idiom for *set this in year one and
+        // hold it*. Cell by cell that reads as "the row equals itself", which
+        // materializes into a one-account cycle and fails as underdetermined,
+        // because every value satisfies it equally. What the row means is the
+        // seed's own definition repeated, so that is what it takes.
+        // Only when the rewrite had nothing to report. A refusal — a reach of two
+        // periods, say — also renders as the row's own name, and that rendering is
+        // a neutral placeholder standing in for a formula we would not translate,
+        // not a claim that the row is held flat.
+        if formula == quoted(ownAccount), diagnostics.isEmpty,
+           let seed = seedCell(forRowDefining: cell, in: grid, axis: axis), seed != cell {
+            if grid.formulaASTs[seed] != nil,
+               let held = decompose(cell: seed, in: grid, axis: axis) {
+                return Split(
+                    formula: held.formula,
+                    definedAccount: nil,
+                    rollforwards: held.rollforwards,
+                    diagnostics: held.diagnostics)
+            }
+            if let value = seedValue(at: seed, in: grid) {
+                return Split(
+                    formula: "\(value)", definedAccount: nil,
+                    rollforwards: [], diagnostics: [])
+            }
+        }
+
         // A row growing off its own prior value keeps its label on the carried
         // series, because that is where the sheet's printed numbers are.
         if let selfCarry = rollforwards.first(where: { $0.closing == ownAccount }) {
@@ -175,7 +202,17 @@ public enum LagDecomposition {
             return "\(value)"
 
         case .text(let value):
-            return quoted(value)
+            // A word is not an account. Rendering it as a name produced a formula
+            // that read the literal as a reference, which either fails to resolve
+            // or binds to a real account spelled the same way — and the second is
+            // a model that runs on a number nobody wrote.
+            diagnostics.append(
+                Diagnostic(
+                    severity: .error, code: .unsupportedFormulaNode, cell: cell,
+                    message: "\(cell.reference) contains the text \"\(value)\". A model of "
+                        + "numbers has nowhere to put a word, and naming an account after it "
+                        + "would be a reference the sheet never wrote"))
+            return "0"
 
         case .bool(let value):
             return value ? "1" : "0"
@@ -292,9 +329,11 @@ public enum LagDecomposition {
 
     /// A cell range as a list of the accounts it covers.
     ///
-    /// A range that stays within one period is a list of accounts read in that
-    /// period: `SUM(E42:E46)` totals five rows of a cash-flow build, and every one
-    /// of them is an account. There is no time in the construct at all, so it
+    /// A range that stays within one column is a list of accounts read at one
+    /// moment: `SUM(E42:E46)` totals five rows of a cash-flow build, and every one
+    /// of them is an account. The column need not be a period — `SUM(L9:L10)`
+    /// totals two assumptions in a block that has no timeline at all — because
+    /// what makes the range readable is that it does not move sideways. There is no time in the construct at all, so it
     /// translates to `EBITDA, Less: Taxes, …` and the surrounding `SUM` needs
     /// nothing special — the grammar has been variadic since the function registry
     /// landed. Cells the range passes over that hold nothing are skipped, which is
@@ -321,8 +360,6 @@ public enum LagDecomposition {
         diagnostics: inout [Diagnostic]
     ) -> String {
         guard let orientation = grid.orientation else { return refuse(range, at: cell, &diagnostics) }
-        let positions = Set(
-            axis.sources.map { orientation == .periodsAcrossColumns ? $0.column : $0.row })
 
         let from = orientation == .periodsAcrossColumns ? range.start.column : range.start.row
         let to = orientation == .periodsAcrossColumns ? range.end.column : range.end.row
@@ -336,10 +373,6 @@ public enum LagDecomposition {
                         + "it period-locally would silently drop every period but one"))
             return "0"
         }
-        guard positions.contains(from) || axis.anchor?.position == from else {
-            return refuse(range, at: cell, &diagnostics)
-        }
-
         let lineFrom = orientation == .periodsAcrossColumns ? range.start.row : range.start.column
         let lineTo = orientation == .periodsAcrossColumns ? range.end.row : range.end.column
         let names = stride(from: min(lineFrom, lineTo), through: max(lineFrom, lineTo), by: 1)
@@ -544,6 +577,11 @@ public enum LagDecomposition {
     private static func accountName(
         for reference: CellRef, in grid: SheetGrid, axis: PeriodAxis
     ) -> String {
+        // What the binder called this cell wins. Re-deriving a name from the
+        // nearest label loses the disambiguation the binder applied when two rows
+        // share a heading, and a reference then resolves to whichever of them the
+        // label search happens to reach first.
+        if let bound = grid.accountName(at: reference) { return bound }
         guard let orientation = grid.orientation else { return reference.reference }
         let line = orientation == .periodsAcrossColumns ? reference.row : reference.column
         // The nearest label before the cell itself, not before the first period.

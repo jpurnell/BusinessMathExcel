@@ -82,10 +82,11 @@ public enum ScalarBlock {
         var diagnostics: [Diagnostic] = []
         var scalars: [ScalarAssumption] = []
         var usedNames: Set<String> = []
+        let whatIf = DataTableBlock.find(in: grid)
 
         for line in lines(in: grid, orientation: orientation).sorted() where line < axisLine {
             for (labelCell, name, owned) in tables(
-                on: line, in: grid, orientation: orientation
+                on: line, in: grid, orientation: orientation, excluding: whatIf
             ) {
                 // A heading owns nothing and is not a finding — `Assumptions` and
                 // `Purchase Price Analysis` are titles. A label owning *several*
@@ -130,12 +131,15 @@ public enum ScalarBlock {
     private static func tables(
         on line: Int,
         in grid: SheetGrid,
-        orientation: SheetGrid.Orientation
+        orientation: SheetGrid.Orientation,
+        excluding whatIf: [DataTableBlock]
     ) -> [(labelCell: CellRef, name: String, owned: [CellRef])] {
         var occupied: [(position: Int, ref: CellRef, text: String?)] = []
         for (ref, kind) in grid.cells {
             let lineOf = orientation == .periodsAcrossColumns ? ref.row : ref.column
             guard lineOf == line else { continue }
+            // A What-If table's cells are answers, and the table speaks for them.
+            guard !whatIf.contains(where: { $0.contains(ref) }) else { continue }
             let position = orientation == .periodsAcrossColumns ? ref.column : ref.row
             occupied.append((position, ref, LabeledSeries.text(of: kind)))
         }

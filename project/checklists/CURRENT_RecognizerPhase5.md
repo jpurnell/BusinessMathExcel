@@ -50,7 +50,7 @@ folded silently into another task, because the design did not predict any of it.
       named range rather than a cell. `NodeFormula` has no case for one. Decide: resolve named
       ranges to their targets, or refuse with a diagnostic of its own. It gates `Less: Interest`,
       which gates `EBT`.
-- [ ] **The sensitivity grid in columns N onward.** Rows 5–11 extend past the assumption tables
+- [x] **The sensitivity grid in columns N onward.** Rows 5–11 extend past the assumption tables
       into a What-If grid whose headings sit on different rows, so seven labels own several
       values and are refused as `ambiguousAssumption` — the same class of collision Rule 1 fixed
       for series, one block further right. Phase 6 owns the grid itself; this is only about not

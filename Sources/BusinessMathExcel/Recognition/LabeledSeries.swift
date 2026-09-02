@@ -186,9 +186,14 @@ public struct LabeledSeries: Sendable, Equatable {
             textPositions.append(orientation == .periodsAcrossColumns ? ref.column : ref.row)
         }
 
+        let whatIf = DataTableBlock.find(in: grid)
         let start = labelPosition ?? Int.min
         return { position in
-            !textPositions.contains { $0 > start && $0 <= position }
+            let ref = cellRef(line: line, position: position, orientation: orientation)
+            // A What-If table's cells are answers to one formula, not periods of a
+            // row that happens to run alongside them.
+            guard !whatIf.contains(where: { $0.contains(ref) }) else { return false }
+            return !textPositions.contains { $0 > start && $0 <= position }
         }
     }
 
