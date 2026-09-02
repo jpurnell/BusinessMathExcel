@@ -130,7 +130,7 @@ public enum LagDecomposition {
             return "\(value)"
 
         case .text(let value):
-            return "[\(value)]"
+            return quoted(value)
 
         case .bool(let value):
             return value ? "1" : "0"
@@ -190,12 +190,25 @@ public enum LagDecomposition {
             return "(\(parts[0]) <> \(parts[1]))"
 
         case .function(let name, let arguments):
+            let upper = name.uppercased()
             let rendered = arguments.map {
                 rewrite(
                     $0, definedAt: cell, grid: grid, axis: axis,
                     rollforwards: &rollforwards, diagnostics: &diagnostics)
             }
-            return "\(name.uppercased())(\(rendered.joined(separator: ", ")))"
+            // Checked against the shipped registry rather than a list copied into
+            // this file, so a name registered or withdrawn upstream moves this with
+            // it instead of leaving the two to drift.
+            guard FormulaEvaluator<Double>.Function(rawValue: upper) != nil else {
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .error, code: .unregisteredFunction, cell: cell,
+                        message: "\(cell.reference) calls '\(upper)', which the formula "
+                            + "evaluator has no entry for; the cell goes to residue and its "
+                            + "cached value is not used in its place"))
+                return "0"
+            }
+            return "\(upper)(\(rendered.joined(separator: ", ")))"
 
         case .cellRange, .sheetRef, .namedRange, .error, .concatenate:
             diagnostics.append(
@@ -204,6 +217,22 @@ public enum LagDecomposition {
                     message: "\(cell.reference) uses a construct the translator cannot express"))
             return "0"
         }
+    }
+
+    /// An account name as the grammar must receive it.
+    ///
+    /// A bare name is left bare; anything else is bracketed. The evaluator reads
+    /// `&`, `/` and spaces as operators and separators, so `Sales & Marketing`
+    /// reaches it as three tokens and fails — and `A/P` would silently become a
+    /// division. The bracketed form is the grammar's own escape for exactly this.
+    ///
+    /// - Parameter name: The account name.
+    /// - Returns: The name, bracketed if it needs to be.
+    private static func quoted(_ name: String) -> String {
+        let isBare = !name.isEmpty
+            && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+            && !(name.first?.isNumber ?? true)
+        return isBare ? name : "[\(name)]"
     }
 
     /// The account name a reference resolves to, recording a carry when it reaches
@@ -218,7 +247,7 @@ public enum LagDecomposition {
     ) -> String {
         let account = accountName(for: reference, in: grid, axis: axis)
 
-        guard let orientation = grid.orientation else { return account }
+        guard let orientation = grid.orientation else { return quoted(account) }
         let positions = Set(
             axis.sources.map { orientation == .periodsAcrossColumns ? $0.column : $0.row })
 
@@ -227,19 +256,21 @@ public enum LagDecomposition {
 
         // A reference off the period axis is a scalar: an assumption that holds
         // for every period rather than a value belonging to one.
-        guard positions.contains(there), positions.contains(here) else { return account }
+        guard positions.contains(there), positions.contains(here) else {
+            return quoted(account)
+        }
 
         let lag = here - there
         switch lag {
         case 0:
-            return account
+            return quoted(account)
 
         case 1:
             let opening = "\(account) Opening"
             let carry = RecognizedRollforward(
                 opening: opening, closing: account, seedCell: reference)
             if !rollforwards.contains(carry) { rollforwards.append(carry) }
-            return opening
+            return quoted(opening)
 
         default:
             diagnostics.append(
@@ -250,7 +281,7 @@ public enum LagDecomposition {
                         + "rollforward carries exactly one period, and treating this as one "
                         + "would produce a model that runs and is wrong by \(abs(lag) - 1) "
                         + "period(s)"))
-            return account
+            return quoted(account)
         }
     }
 

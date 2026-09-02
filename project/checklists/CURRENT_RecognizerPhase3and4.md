@@ -71,13 +71,26 @@ and a return computed from that is not merely wrong but plausible.
 
 `NodeFormula` to a string the upstream `FormulaEvaluator` will actually parse.
 
-- [ ] **RED** — arithmetic, comparisons and calls round-trip through `FormulaEvaluator.tokenise`.
-- [ ] **RED** — a name with `&`, `/` or spaces survives via the bracketed form.
-- [ ] **RED** — **an unregistered function emits `.unregisteredFunction` and goes to residue.**
+- [x] **RED** — arithmetic, comparisons and calls round-trip through `FormulaEvaluator.tokenise`.
+- [x] **RED** — a name with `&`, `/` or spaces survives via the bracketed form.
+- [x] **RED** — **an unregistered function emits `.unregisteredFunction` and goes to residue.**
       It must **not** be dropped, and its value must **not** be replaced by the cell's cached
       number. Substituting a plausible figure for a formula we cannot evaluate is the precise
       failure this project exists to avoid.
-- [ ] **GREEN** — implement against the real registry, not a guess at it. Commit.
+- [x] **GREEN** — implement against the real registry, not a guess at it. Commit.
+
+
+**Verified through the upstream parser, not against my own expectations.** Each translated string
+is run back through `FormulaEvaluator.accountNames(in:)`, which parses it and throws if it cannot.
+A translator checked only against what its author expected is a translator that agrees with
+itself; this one has to satisfy the thing that will actually read its output.
+
+That is also what proves the fix made upstream during 2.8.0 — a function name is no longer
+reported as a required account, so `MIN(cash, debt)` reads two accounts rather than three.
+
+The registry is consulted by `Function(rawValue:)` against the shipped enum rather than a list
+copied into this file, so a name registered or withdrawn upstream moves this with it instead of
+leaving the two to drift.
 
 ## Task 3 — Stage 4 assembly
 
