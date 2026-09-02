@@ -54,16 +54,25 @@ public enum LagDecomposition {
         /// The cell the opening value is seeded from.
         public let seedCell: CellRef
 
+        /// The opening value for the first period, read from ``seedCell``.
+        ///
+        /// Resolved here rather than at materialization so the plan is
+        /// self-contained: a builder that had to be handed the grid to finish
+        /// reading the plan would not be working from a plan.
+        public let seed: Double
+
         /// Creates a recognized carry.
         ///
         /// - Parameters:
         ///   - opening: The account receiving the prior period's value.
         ///   - closing: The account carried forward.
         ///   - seedCell: The cell holding the first period's opening value.
-        public init(opening: String, closing: String, seedCell: CellRef) {
+        ///   - seed: That cell's value.
+        public init(opening: String, closing: String, seedCell: CellRef, seed: Double) {
             self.opening = opening
             self.closing = closing
             self.seedCell = seedCell
+            self.seed = seed
         }
     }
 
@@ -229,13 +238,36 @@ public enum LagDecomposition {
     private static func carry(
         to account: String,
         seededFrom reference: CellRef,
+        in grid: SheetGrid,
         into rollforwards: inout [RecognizedRollforward]
     ) -> String {
         let opening = "\(account) Opening"
         let record = RecognizedRollforward(
-            opening: opening, closing: account, seedCell: reference)
+            opening: opening,
+            closing: account,
+            seedCell: reference,
+            seed: seedValue(at: reference, in: grid)
+        )
         if !rollforwards.contains(record) { rollforwards.append(record) }
         return opening
+    }
+
+    /// The value a seed cell holds.
+    ///
+    /// A literal is read directly; a computed cell is read from what the file
+    /// recorded Excel producing for it. That is evidence about an opening balance,
+    /// not a substitute for a formula: the cell's own rule still becomes an
+    /// account, and this only supplies the period before the timeline begins,
+    /// where by definition no rule of ours ran.
+    ///
+    /// - Parameters:
+    ///   - reference: The seed cell.
+    ///   - grid: The sheet's topology.
+    /// - Returns: The value, or zero when the cell holds nothing readable.
+    private static func seedValue(at reference: CellRef, in grid: SheetGrid) -> Double {
+        if case .input(let literal)? = grid.cells[reference] { return literal }
+        if case .number(let cached)? = grid.cachedValues[reference] { return cached }
+        return 0
     }
 
     /// An account name as the grammar must receive it.
@@ -292,7 +324,7 @@ public enum LagDecomposition {
         if let anchor = axis.anchor,
            there == anchor.position,
            here == positions.min() {
-            return quoted(carry(to: account, seededFrom: reference, into: &rollforwards))
+            return quoted(carry(to: account, seededFrom: reference, in: grid, into: &rollforwards))
         }
 
         // A reference off the period axis is a scalar: an assumption that holds
@@ -307,7 +339,7 @@ public enum LagDecomposition {
             return quoted(account)
 
         case 1:
-            return quoted(carry(to: account, seededFrom: reference, into: &rollforwards))
+            return quoted(carry(to: account, seededFrom: reference, in: grid, into: &rollforwards))
 
         default:
             diagnostics.append(

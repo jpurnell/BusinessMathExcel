@@ -117,10 +117,22 @@ formula uniformity in Phase 2, arriving from a completely different direction.
 
 ## Task 4 — `ModelBuilder`
 
-- [ ] Plan to `ModelDefinition`, **throwing**: recognition never throws, materialization does.
-- [ ] **RED** — an unresolved reference, a duplicate account and an unparseable formula each
+- [x] Plan to `ModelDefinition`, **throwing**: recognition never throws, materialization does.
+- [x] **RED** — an unresolved reference, a duplicate account and an unparseable formula each
       throw a named error rather than producing a partial model.
-- [ ] Commit.
+- [x] Commit.
+
+
+**Named `ModelMaterializer`, not `ModelBuilder`.** `BusinessMath` already exports a public
+`ModelBuilder` for its fluent API, and this package imports it. Two types with one name is a
+collision waiting for whoever writes the next `import`. Caught before writing rather than at the
+first build — which is the second time a name the proposal chose was already taken in core, after
+`Account<U>`. The proposal was written without checking core's namespace, and anything else it
+names should be checked before it is typed.
+
+**The seed moved onto the plan.** A rollforward's opening value is resolved during recognition,
+where the grid is at hand, rather than during materialization. A builder that had to be handed
+the grid to finish reading the plan would not be working from a plan.
 
 ## Task 5 — The golden path, end to end
 
