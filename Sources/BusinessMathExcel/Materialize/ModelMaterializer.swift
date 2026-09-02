@@ -115,3 +115,85 @@ public enum ModelMaterializer {
         )
     }
 }
+
+/// A model built from the part of a plan that resolves, and what was left out.
+public struct ResolvableModel: Sendable {
+
+    /// The model, holding every account that could be built.
+    public let model: MaterializedModel
+
+    /// The accounts removed, each naming what it could not read.
+    public let dropped: [Residue]
+}
+
+extension ModelMaterializer {
+
+    /// Builds the part of a plan that resolves, and reports the rest.
+    ///
+    /// ``build(from:)`` throws on the first hole, which is the right answer when a
+    /// caller wants a whole model or nothing. It is the wrong answer when a caller
+    /// wants to know *how much* of a workbook works: on the Wharton `ANSWER KEY` a
+    /// single exit-year row that cannot be stated as a period rule stops a sheet
+    /// whose income statement, cash-flow build and debt schedule are all sound.
+    ///
+    /// This is refusal, not repair. Nothing is filled in, defaulted, or guessed.
+    /// An account naming something the model does not define is **removed** and
+    /// returned, along with everything that then read it — a model built on a
+    /// dropped account is not a model. What comes back is a definition every part
+    /// of which the sheet actually supports.
+    ///
+    /// - Parameter plan: The recognized plan.
+    /// - Returns: The model and the accounts left out of it.
+    /// - Throws: ``MaterializationError`` for anything that is not a missing
+    ///   reference — a duplicate account, or a formula that will not parse. Those
+    ///   are defects in the plan rather than gaps in the sheet, and dropping them
+    ///   quietly would hide a bug in recognition.
+    public static func buildResolvable(from plan: RecognizedModel) throws -> ResolvableModel {
+        var kept = plan.accounts
+        var dropped: [Residue] = []
+
+        // Each pass removes exactly one account, so the plan's own size bounds the
+        // work. Stated as a ceiling rather than left to a `while true` that relies
+        // on the body always finding its way out.
+        for _ in 0...plan.accounts.count {
+            let openings = Set(plan.rollforwards.map(\.opening))
+            let known = Set(kept.map(\.name)).union(openings)
+            var offender: (account: RecognizedAccount, missing: String)?
+
+            for account in kept {
+                guard let formula = account.formula else { continue }
+                let reads: Set<String>
+                do {
+                    reads = try FormulaEvaluator<Double>.accountNames(in: formula)
+                } catch {
+                    throw MaterializationError.invalidFormula(
+                        account: account.name, underlying: "\(error)")
+                }
+                if let missing = reads.subtracting(known).sorted().first {
+                    offender = (account, missing)
+                    break
+                }
+            }
+
+            guard let offender else { break }
+            kept.removeAll { $0.name == offender.account.name }
+            dropped.append(
+                Residue(
+                    label: offender.account.name,
+                    cells: offender.account.provenance,
+                    reason: .unresolvedReference))
+        }
+
+        let resolvable = RecognizedModel(
+            periods: plan.periods,
+            accounts: kept,
+            // A carry whose closing account is gone would leave the driver
+            // supplying an opening nothing ever closes.
+            rollforwards: plan.rollforwards.filter { carry in
+                kept.contains { $0.name == carry.closing }
+            },
+            residue: plan.residue
+        )
+        return ResolvableModel(model: try build(from: resolvable), dropped: dropped)
+    }
+}

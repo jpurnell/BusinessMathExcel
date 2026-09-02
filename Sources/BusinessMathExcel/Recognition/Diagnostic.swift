@@ -120,4 +120,11 @@ public enum DiagnosticCode: String, Sendable, Equatable, CaseIterable {
     /// right often enough to be dangerous, so the label is reported and left
     /// unrecognized instead.
     case ambiguousAssumption
+
+    /// An account whose formula names something the model does not define.
+    ///
+    /// Reported by ``ModelMaterializer/buildResolvable(from:)`` for each account
+    /// removed so the rest can run — most often because the row it reads went to
+    /// residue upstream, and once for every account that then read *it*.
+    case unresolvedReference
 }

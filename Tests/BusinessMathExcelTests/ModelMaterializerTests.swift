@@ -171,4 +171,85 @@ final class ModelMaterializerTests: XCTestCase {
         XCTAssertEqual(carry.opening, "Revenue")
         XCTAssertEqual(carry.closing, "Revenue Closing")
     }
+
+    // MARK: - Building what resolves
+
+    /// Building the part that resolves, and saying what did not.
+    ///
+    /// ``ModelMaterializer/build(from:)`` throws on the first hole, which is the
+    /// right answer when a caller wants a model or nothing. It is the wrong answer
+    /// when a caller wants to know *how much* of a workbook works: one exit-year
+    /// row that cannot be expressed as a period rule stops a sheet whose income
+    /// statement, cash-flow build and debt schedule are all fine.
+    ///
+    /// This is refusal, not repair. Nothing is filled in, guessed, or defaulted —
+    /// the accounts that cannot resolve are removed and returned, and so is
+    /// everything that depended on them.
+    func testWhatCannotResolveIsDroppedAndNamed() throws {
+        let plan = try recognize { sheet in
+            sheet.write("Revenue", to: "A2")
+            for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
+            sheet.write("Doubled", to: "A3")
+            for column in ["C", "D", "E"] {
+                sheet.write(
+                    FormulaAST.multiply(.cellRef(CellRef("\(column)2")), .number(2)),
+                    to: "\(column)3")
+            }
+        }
+        // An account nothing in the plan defines.
+        let holed = RecognizedModel(
+            periods: plan.periods,
+            accounts: plan.accounts + [
+                RecognizedAccount(
+                    name: "Exit", formula: "([Missing Row] * 2)", provenance: [CellRef("A9")])
+            ],
+            rollforwards: plan.rollforwards,
+            residue: plan.residue
+        )
+
+        let pruned = try ModelMaterializer.buildResolvable(from: holed)
+
+        XCTAssertEqual(pruned.dropped.map(\.label), ["Exit"])
+        XCTAssertEqual(pruned.dropped.first?.reason, .unresolvedReference)
+        XCTAssertNotNil(pruned.model.definition.formula(for: "Doubled"), "the rest still builds")
+
+        let evaluated = try PeriodDriver(
+            definition: pruned.model.definition, rollforwards: pruned.model.rollforwards
+        ).run(over: pruned.model.periods)
+        XCTAssertEqual(evaluated["Doubled"]?.valuesArray, [200, 200, 200])
+    }
+
+    func testDroppingIsTransitive() throws {
+        let plan = try recognize { sheet in
+            sheet.write("Revenue", to: "A2")
+            for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
+        }
+        let holed = RecognizedModel(
+            periods: plan.periods,
+            accounts: plan.accounts + [
+                RecognizedAccount(
+                    name: "Exit", formula: "([Missing Row] * 2)", provenance: [CellRef("A9")]),
+                RecognizedAccount(
+                    name: "Equity", formula: "(Exit + Revenue)", provenance: [CellRef("A10")]),
+            ],
+            rollforwards: plan.rollforwards,
+            residue: plan.residue
+        )
+
+        let pruned = try ModelMaterializer.buildResolvable(from: holed)
+        XCTAssertEqual(
+            pruned.dropped.map(\.label).sorted(), ["Equity", "Exit"],
+            "a model built on a dropped account is not a model"
+        )
+    }
+
+    func testAWholeModelDropsNothing() throws {
+        let plan = try recognize { sheet in
+            sheet.write("Revenue", to: "A2")
+            for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
+        }
+
+        let pruned = try ModelMaterializer.buildResolvable(from: plan)
+        XCTAssertTrue(pruned.dropped.isEmpty)
+    }
 }

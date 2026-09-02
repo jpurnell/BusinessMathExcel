@@ -148,11 +148,18 @@ final class WhartonImportMeasurementTests: XCTestCase {
             let seeded = uniformity.filter { $0.kind == .seededRollforward }.count
             let broken = uniformity.filter { $0.kind == .nonUniform }.count
 
+            // The stage figure above counts what *binding* explains. The recognizer
+            // also reads assumptions outside the timeline, so its own coverage is
+            // the number to quote; reporting only the first understates the whole
+            // by however much of the sheet is not a period series.
+            let whole = ExcelRecognizer.recognize(sheet, in: workbook).coverage
+
             print("""
                 WHARTON recognition — \(name)
                   periods            \(axis.count) (\(axis.granularity))
                   populated cells    \(grid.populatedCells)
-                  recognized cells   \(recognized)  (\(Int(coverage.fraction * 100))%)
+                  bound to series    \(recognized)  (\(Int(coverage.fraction * 100))%)
+                  recognized in all  \(whole.recognizedCells)  (\(Int(whole.fraction * 100))%)
                   series bound       \(series.count)
                     uniform          \(uniform)
                     seeded forward   \(seeded)
@@ -216,6 +223,80 @@ final class WhartonImportMeasurementTests: XCTestCase {
             XCTAssertGreaterThan(
                 plan.model.accounts.count, 0, "\(name): something should translate")
         }
+    }
+
+    /// The measurement that matters: does the model agree with the sheet?
+    ///
+    /// Coverage says how much we can name; materialization says how much we can
+    /// run. Neither says whether the numbers are *right*. This runs the recognized
+    /// model over the timeline and compares every value against what Excel itself
+    /// cached in that cell — the only reference that cannot be talked into
+    /// agreeing with us.
+    ///
+    /// A row that grows off its own prior value prints its openings, so its cells
+    /// belong to the carried account rather than to the one named for the formula.
+    /// Comparing the wrong one of those reports every figure a period out, which
+    /// is a bug in the comparison and looks exactly like a bug in the model.
+    func testTheRecognizedModelAgreesWithTheSheetsOwnValues() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook)
+        let resolvable = try ModelMaterializer.buildResolvable(from: plan.model)
+        let evaluated = try PeriodDriver(
+            definition: resolvable.model.definition,
+            rollforwards: resolvable.model.rollforwards
+        ).run(over: resolvable.model.periods)
+
+        var readAs: [String: String] = [:]
+        for carry in plan.model.rollforwards where carry.closing == "\(carry.opening) Closing" {
+            readAs[carry.closing] = carry.opening
+        }
+
+        let periodColumns = Set(axis.sources.map(\.column))
+        var agreed = 0
+        var disagreed: [String] = []
+
+        for account in plan.model.accounts {
+            guard let series = evaluated[readAs[account.name] ?? account.name] else { continue }
+            let cells = account.provenance
+                .filter { periodColumns.contains($0.column) }
+                .sorted { $0.column < $1.column }
+
+            for (index, period) in axis.periods.enumerated() {
+                guard index < cells.count, let computed = series[period] else { continue }
+                var cached: Double?
+                if case .number(let value)? = grid.cachedValues[cells[index]] { cached = value }
+                if case .input(let value)? = grid.cells[cells[index]] { cached = value }
+                guard let expected = cached else { continue }
+
+                // Relative, because the sheet spans a 0.4 margin and a 240 exit
+                // value, and one absolute tolerance cannot be right for both.
+                let error = abs(computed - expected) / max(abs(expected), 1)
+                if error < 1e-4 { agreed += 1 } else {
+                    disagreed.append(
+                        "\(account.name) @\(cells[index].reference): "
+                            + "\(computed) vs \(expected)")
+                }
+            }
+        }
+
+        print("""
+            WHARTON agreement — ANSWER KEY
+              dropped as unresolvable  \(resolvable.dropped.map(\.label).sorted())
+              values agreeing          \(agreed)
+              values disagreeing       \(disagreed.count)
+            \(disagreed.map { "      \($0)" }.joined(separator: "\n"))
+            """)
+
+        XCTAssertTrue(
+            disagreed.isEmpty,
+            "every value the model produces must match the one Excel cached in that "
+                + "cell. A model that runs and disagrees is worse than one that refuses"
+        )
+        XCTAssertGreaterThan(agreed, 100, "and it must actually be checking something")
     }
 
     /// The collision that stopped the sheet, and the rule that resolves it.
