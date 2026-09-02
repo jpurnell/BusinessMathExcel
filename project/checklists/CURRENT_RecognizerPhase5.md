@@ -36,6 +36,26 @@ still waits on `TypedModelAuthoring.md` Phase 3; block detection waits on nothin
       `Entry EBITDA * Purchase Multiple`, not `200`.
 - [x] Commit.
 
+## Task 2b — What Rules 1 and 2 revealed
+
+Added 2026-09-02, after Task 2. Block detection landed and moved the blocker forward; the sheet
+still does not run, and none of what stops it now is block detection. Recorded here rather than
+folded silently into another task, because the design did not predict any of it.
+
+- [ ] **`SUM` over a vertical cell range.** `E47 = SUM(E42:E46)`, `E52 = SUM(E50:E51)`,
+      `E61 = SUM(E57:E60)` — sums of *accounts within one period*. Entirely expressible as
+      `[EBITDA] + [Less: Taxes] + …`; simply not expressed. Three model rows plus the
+      `Total Sources` / `Total Uses` assumptions. This is the largest single gap.
+- [ ] **The named range `Circ`.** `E36 = E54 * -1 * Circ` — the model's circularity switch, a
+      named range rather than a cell. `NodeFormula` has no case for one. Decide: resolve named
+      ranges to their targets, or refuse with a diagnostic of its own. It gates `Less: Interest`,
+      which gates `EBT`.
+- [ ] **The sensitivity grid in columns N onward.** Rows 5–11 extend past the assumption tables
+      into a What-If grid whose headings sit on different rows, so seven labels own several
+      values and are refused as `ambiguousAssumption` — the same class of collision Rule 1 fixed
+      for series, one block further right. Phase 6 owns the grid itself; this is only about not
+      letting it swallow the assumptions beside it.
+
 ## Task 3 — Scalars through materialization
 
 - [ ] **RED** — a scalar becomes an input holding its value in every period, so a formula
