@@ -140,6 +140,9 @@ public enum ExcelRecognizer {
         }
 
         return RecognizedAccount(
-            name: entry.name, formula: split.formula, provenance: provenance)
+            name: split.definedAccount ?? entry.name,
+            formula: split.formula,
+            provenance: provenance
+        )
     }
 }

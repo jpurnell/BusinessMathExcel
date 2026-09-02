@@ -31,6 +31,21 @@ public enum LagDecomposition {
         /// references replaced by account names.
         public let formula: String
 
+        /// The account this formula actually defines, when it is not the one the
+        /// row is labelled with.
+        ///
+        /// A row that grows off its own prior value — `D6 = C6 * 1.15` — reads in
+        /// the sheet as *this period equals last period times 1.15*. The values
+        /// printed in that row are therefore the **openings**: 1,000,000 then
+        /// 1,150,000 then 1,322,500. What the formula computes is the *next*
+        /// period's figure, which is a closing balance.
+        ///
+        /// So the row's own label stays on the carried series, where the sheet's
+        /// numbers are, and the derived account takes a `Closing` suffix. Naming
+        /// them the other way round produces a model that is correct and reports
+        /// every figure one period early.
+        public let definedAccount: String?
+
         /// The carries this formula needs, one per reference reaching back.
         public let rollforwards: [RecognizedRollforward]
 
@@ -94,6 +109,8 @@ public enum LagDecomposition {
 
         var rollforwards: [RecognizedRollforward] = []
         var diagnostics: [Diagnostic] = []
+        var definedAccount: String?
+        let ownAccount = accountName(for: cell, in: grid, axis: axis)
         let formula = rewrite(
             ast,
             definedAt: cell,
@@ -103,8 +120,27 @@ public enum LagDecomposition {
             diagnostics: &diagnostics
         )
 
+        // A row growing off its own prior value keeps its label on the carried
+        // series, because that is where the sheet's printed numbers are.
+        if let selfCarry = rollforwards.first(where: { $0.closing == ownAccount }) {
+            definedAccount = "\(ownAccount) Closing"
+            rollforwards = rollforwards.map {
+                $0 == selfCarry
+                    ? RecognizedRollforward(
+                        opening: ownAccount,
+                        closing: "\(ownAccount) Closing",
+                        seedCell: $0.seedCell,
+                        seed: $0.seed)
+                    : $0
+            }
+        }
+
         return Split(
-            formula: formula,
+            formula: definedAccount == nil
+                ? formula
+                : formula.replacingOccurrences(
+                    of: quoted("\(ownAccount) Opening"), with: quoted(ownAccount)),
+            definedAccount: definedAccount,
             rollforwards: rollforwards,
             diagnostics: diagnostics
         )

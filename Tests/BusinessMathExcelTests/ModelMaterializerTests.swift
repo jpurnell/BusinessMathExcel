@@ -165,6 +165,10 @@ final class ModelMaterializerTests: XCTestCase {
         let built = try ModelMaterializer.build(from: plan)
         let carry = try XCTUnwrap(built.rollforwards.first)
         XCTAssertEqual(carry.seed, 100, "seeded from the first period's own cell")
-        XCTAssertEqual(carry.closing, "Revenue")
+        // The row grows off itself, so its printed values are the openings and the
+        // formula computes the close. Naming these the other way round evaluates
+        // cleanly and reports every period one step early — see GoldenPathTests.
+        XCTAssertEqual(carry.opening, "Revenue")
+        XCTAssertEqual(carry.closing, "Revenue Closing")
     }
 }
