@@ -945,3 +945,92 @@ The refusals themselves are the design working. Every one of these produced a *d
 residue* rather than a number — including `unseededCarry`, added in Phase 4 after a carry seeded
 with a fabricated zero produced a model that ran, converged, and was wrong in every period.
 
+
+## 17. Phase 5 Design — Block Detection
+
+Added 2026-09-02, after the Phase 3–4 measurement. This section specifies the work that must
+land before `UnitInference`, and it exists because the measurement said so rather than because
+the plan predicted it.
+
+### 17.1 What the sheet actually looks like
+
+The `ANSWER KEY` is not one grid. Above the model it holds **three label/value tables side by
+side**, and below it one timeline:
+
+```
+      B                     D        F                     H       J               L
+  2   Assumptions                    Purchase Price Analysis
+  3   Purchase Price Fin.            Purchase Multiple      5
+  4   Debt                  0.6      Entry EBITDA           40
+  5   Equity                =1-D4    Total Purchase Price   =H4*H3
+  …
+  9   2023 Revenue          100      Term Loan              =D4*H5   Purchase Price   =…
+ 11   Revenue growth        0.10     Total Sources          =SUM(…)  Total Uses       =…
+  …
+ 27   P&L Analysis          Closing  2023  2024  2025  2026  2027  2028   <- the axis, row 27
+ 30   Revenue                        =…    =…    =…    =…    =…    =…
+```
+
+Column `D` is the at-close anchor for the timeline, and *also* the value column for the
+left-hand assumptions table. Column `H` is the 2026 period, and *also* the value column for the
+middle table. Neither coincidence is unusual; both are invisible to a recognizer that treats a
+sheet as one grid with one timeline.
+
+### 17.2 The two defects, which compound
+
+**Defect 1 — a label claims values belonging to another label.** Binding sweeps a row's label
+across every axis column, so `B11` ("Revenue growth") claims `H11`, which is the middle table's
+`SUM(H9:H10)` and belongs to `F11` ("Total Sources"). The row then holds `10%` and a
+sources-and-uses total, disagrees with itself, and is refused as non-uniform. Six of the seven
+non-uniform rows on the `ANSWER KEY` are this.
+
+**Defect 2 — no scalars.** Fix defect 1 alone and `Revenue growth` has no cells on the axis at
+all; it holds one value in `D11`, which the recognizer reads as an at-close anchor because `D`
+is the anchor column *for the timeline block*. Row 11 is not in that block, so `D11` is not an
+anchor — it is the assumption's value. Without a way to say that, the row still vanishes, and
+`% growth`, which references it, still cannot resolve.
+
+Neither fix is worth anything without the other. That is why they are one phase.
+
+### 17.3 Rule 1 — a value belongs to its nearest label
+
+A label owns a value cell only when no other text cell lies between them on the same line.
+
+This is local, needs no notion of a block, and is the whole of defect 1. On row 9, `F9`
+("Term Loan") stands between `B9` and `H9`, so `H9` is Term Loan's, not `2023 Revenue`'s. On
+row 30 nothing stands between `B30` and `E30:J30`, so the model rows are untouched.
+
+Chosen over the alternatives because it reads the sheet the way a person does. A column-range
+rule ("the timeline owns E:J") needs the ranges to come from somewhere, and the only honest
+source is the same nearest-label logic. A density rule ("a row on the timeline populates most
+of its periods") drops `Exit Value`, which legitimately holds one cell in the final year.
+
+### 17.4 Rule 2 — the timeline governs its own block
+
+The period axis governs rows at or below its heading line, not the whole sheet. Outside that
+block:
+
+- The anchor column carries no special meaning; a value there is just a value.
+- A label owning exactly one value becomes a **scalar** — an assumption with one figure that
+  holds for every period, materialized as an input with that value repeated across the
+  timeline. `Revenue growth` becomes `0.10` in all six years, and `% growth` resolves.
+- A label owning a *formula* off the axis becomes a **derived scalar**: `Total Purchase Price`
+  is `=H4*H3`, which is `Entry EBITDA * Purchase Multiple` and wants to stay that way rather
+  than being flattened to `200`.
+
+The boundary is the axis heading line because that is what the sheet itself declares. A model
+that puts timeline rows *above* its year header is not supported and will report rather than
+guess — a limitation worth stating, not worth pre-solving.
+
+### 17.5 What this is not
+
+Not general section detection. Blank-row spacing, merged headings, and bold formatting are all
+tempting signals and all unreliable — §12 already records the merged-header problem. Rules 1
+and 2 use only what the recognizer already trusts: where the axis is, and which cells hold
+text. Anything they cannot place still becomes residue with a reason.
+
+### 17.6 Gate
+
+The `ANSWER KEY` **materializes and runs**. That is a step change from "70% recognized" and it
+is the number to report: the sheet either produces a `ModelDefinition` that evaluates over six
+periods, or it names the row that stopped it.
