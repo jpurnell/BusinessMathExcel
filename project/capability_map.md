@@ -51,15 +51,39 @@ formula's cached value is never substituted for a formula that could not be tran
 
 ## Workbook Recognition
 
-**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `FormulaUniformity`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
-**Interfaces:** `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`
-**Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, and whether a row computes the same way in every period
+**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
+**Interfaces:** `ExcelRecognizer.recognize(_:options:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
+**Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, whether a row computes the same way in every period, and which references reach back a period rather than sideways to an assumption
 **Dependencies:** BusinessMath (`Period`, `PeriodType`)
 
-Stages 1–2 of the Excel→`ModelDefinition` recognizer. Interpretive, and deliberately separate from
+Stages 1–4 of the Excel→`ModelDefinition` recognizer. Interpretive, and deliberately separate from
 `Import/`, which never interprets. Reports ambiguity rather than resolving it: a sheet readable
-both ways yields no orientation, and a row that disagrees with itself yields no shape. Coverage is
-reported as a progress metric and never gates a build.
+both ways yields no orientation, a row that disagrees with itself yields no shape, and a carry
+whose opening the sheet never states is refused rather than seeded with zero. Recognition never
+throws — it produces a plan, and what it cannot express becomes residue carrying the reason.
+Coverage is reported as a progress metric and never gates a build.
+
+`$` is read as the seam between a reference that fills across (last period, a carry) and one that
+is pinned (this rate, an assumption); reading it wrong turns an interest rate into a balance that
+carries. A row growing off its own prior value keeps its label on the *carried* series, because
+that is where the sheet's printed numbers are — the derived account takes a `Closing` suffix.
+
+## Model Materialization
+
+**Key types:** `ModelMaterializer`, `MaterializedModel`, `MaterializationError`
+**Interfaces:** `ModelMaterializer.build(from:)`
+**Applications:** Turning a recognized plan into a `ModelDefinition` and its rollforwards, ready to run under `PeriodDriver` — including sheets whose accounts depend on each other within a period
+**Dependencies:** BusinessMath (`ModelDefinition`, `Rollforward`, `PeriodDriver`, `Period`)
+
+The opposite discipline to recognition. Recognition is best-effort and never throws, so a workbook
+that half-fits still yields a readable plan; materialization validates and **throws**, because a
+definition built from a plan with a hole in it would run and produce numbers. An unresolved
+reference stops the sheet rather than being filled in.
+
+Within-period circularity — interest on an average balance, swept against the cash left after
+paying it — is carried through as a cycle and converged by `PeriodDriver`, not broken by timing.
+The distinction is measurable: on a 120 draw at 10%, a correct cyclic solve accrues 11.75 where
+beginning-balance timing gives 12.00. Both run and both converge.
 
 ## Model Builders
 

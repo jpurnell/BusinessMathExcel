@@ -136,39 +136,48 @@ the grid to finish reading the plan would not be working from a plan.
 
 ## Task 5 — The golden path, end to end
 
-- [ ] **RED** — the proposal's validation trace: `B6 = "Revenue"`, `C6 = 1000000`,
+- [x] **RED** — the proposal's validation trace: `B6 = "Revenue"`, `C6 = 1000000`,
       `D6 = C6*1.15`, `E6 = D6*1.15` recognizes as one account, materializes, and evaluates to
       **1,000,000 / 1,150,000 / 1,322,500** — Excel's own numbers, not merely self-consistent.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 6 — Phase 4: the circular sweep
 
-- [ ] **RED** — a workbook with interest on an average balance recognizes, and its
+- [x] **RED** — a workbook with interest on an average balance recognizes, and its
       `dependencyReport()` names exactly one cycle containing interest and closing debt.
-- [ ] **RED** — it converges under `PeriodDriver`, and **year-one interest on a 120 draw at 10%
+- [x] **RED** — it converges under `PeriodDriver`, and **year-one interest on a 120 draw at 10%
       is 11.75**. Beginning-balance accrual gives 12.00, so this single number distinguishes a
       correct cyclic solve from a model that broke the cycle by timing.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 7 — Measure against Wharton
 
-- [ ] Report coverage after translation, alongside Phase 2's recognition figure.
-- [ ] **The reference numbers: IRR 24.67%, MoM 3.01.** Report what we get. If they do not
+- [x] Report coverage after translation, alongside Phase 2's recognition figure.
+- [x] **The reference numbers: IRR 24.67%, MoM 3.01.** Report what we get. If they do not
       reproduce, say so plainly and say why — a number that nearly matches is worse than one
       that visibly does not.
-- [ ] Record in the proposal's phasing table and `master_plan.md`. Commit.
+- [x] Record in the proposal's phasing table and `master_plan.md`. Commit.
+
+**Measured 2026-09-02.** IRR **24.67%** and MoM **3.01** both reproduce through
+recognition, unchanged. `ANSWER KEY` recognition coverage 70% (196 of 279), and after
+translation: 21 accounts, 3 rollforwards, 12 residue. The sheet does **not** materialize —
+rows 3–11 are two side-by-side assumption tables whose value column H is also the 2026
+period column, so `Revenue growth` reads as `10%` in D11 and `SUM(H9:H10)` in H11 and is
+refused as non-uniform; `% growth` then cannot resolve. Six of the seven non-uniform rows
+are that one overlap. Said plainly rather than rounded off: Phases 3 and 4 made recognized
+cells runnable, and did not recognize more of them.
 
 ---
 
 ## Done when
 
-- [ ] All seven tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All seven tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all` — the default set omits five checkers, which is how a broken DocC
       example shipped through four clean gate runs upstream.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.
 
 ## Do NOT do in these phases
 

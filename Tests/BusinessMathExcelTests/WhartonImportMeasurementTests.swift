@@ -167,6 +167,92 @@ final class WhartonImportMeasurementTests: XCTestCase {
         }
     }
 
+    /// How far a recognized plan gets toward running, and what stops it.
+    ///
+    /// Recognition coverage says how much of the sheet we can name. This says how
+    /// much of it we can *run*, which is the harder number and the one that moves
+    /// last. Materialization throws on the first unresolved reference rather than
+    /// building a definition with a hole in it, so a single row lost upstream
+    /// stops the whole sheet — which is the point of reporting both.
+    func testReportsMaterializationReach() throws {
+        let workbook = try fixture()
+
+        for name in ["ANSWER KEY", "BLANK MODEL"] {
+            let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
+            let plan = ExcelRecognizer.recognize(sheet)
+
+            var byCode: [String: Int] = [:]
+            for diagnostic in plan.diagnostics { byCode[diagnostic.code.rawValue, default: 0] += 1 }
+
+            var outcome = "runs"
+            var cycles = 0
+            var evaluated = 0
+            do {
+                let built = try ModelMaterializer.build(from: plan.model)
+                cycles = try built.definition.dependencyReport().cycles.count
+                let driver = PeriodDriver(
+                    definition: built.definition, rollforwards: built.rollforwards)
+                evaluated = try driver.run(over: built.periods).count
+            } catch {
+                outcome = "\(error)"
+            }
+
+            let codes = byCode.sorted { $0.key < $1.key }
+                .map { "\($0.key) x\($0.value)" }
+                .joined(separator: ", ")
+
+            print("""
+                WHARTON materialization — \(name)
+                  accounts           \(plan.model.accounts.count)
+                  rollforwards       \(plan.model.rollforwards.count)
+                  residue            \(plan.model.residue.count)
+                  diagnostics        \(codes)
+                  cycles             \(cycles)
+                  evaluated accounts \(evaluated)
+                  outcome            \(outcome)
+                """)
+
+            // Reported, never gated — same reason as coverage above.
+            XCTAssertGreaterThan(
+                plan.model.accounts.count, 0, "\(name): something should translate")
+        }
+    }
+
+    /// The single cause behind most of what the ANSWER KEY loses.
+    ///
+    /// Rows 3 through 11 are two assumption tables side by side: a label in B with
+    /// its value in D, and a second label in F with its value in H. Neither is a
+    /// period series — they sit well above the timeline. But H is also the 2026
+    /// column, so binding sweeps each row across the axis and reads an unrelated
+    /// cell as that row's 2026 value. `Revenue growth` is 10% in D11 and
+    /// `SUM(H9:H10)` in H11, so the row disagrees with itself and is refused.
+    ///
+    /// Six of the ANSWER KEY's seven non-uniform rows are this one overlap, and
+    /// losing `Revenue growth` is what stops the sheet from materializing. It is
+    /// recorded here as a measurement because the fix is block detection — knowing
+    /// an assumptions table is not a timeline — which is Phase 5's subject.
+    func testAssumptionRowsCollideWithThePeriodAxis() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+
+        XCTAssertEqual(grid.axisLine, 27, "the timeline is row 27")
+        XCTAssertNotNil(grid.cells[CellRef("H27")], "and H is one of its period columns")
+
+        // The collision itself: one row, two unrelated values.
+        guard case .input(let assumption)? = grid.cells[CellRef("D11")] else {
+            return XCTFail("D11 is the revenue growth assumption")
+        }
+        XCTAssertEqual(assumption, 0.1, accuracy: 1e-9)
+        XCTAssertNotNil(grid.formulaASTs[CellRef("H11")], "H11 is a sources-and-uses total")
+
+        let plan = ExcelRecognizer.recognize(sheet)
+        XCTAssertTrue(
+            plan.model.residue.contains { $0.label == "Revenue growth" },
+            "so the row is refused rather than given one of its two meanings"
+        )
+    }
+
     func testRecognizesTheAtCloseColumnBeforeTheTimeline() throws {
         let workbook = try fixture()
         let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })

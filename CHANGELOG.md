@@ -4,6 +4,46 @@ All notable changes to BusinessMathExcel will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `LagDecomposition`: splits an Excel formula into a period-local formula and the carries it
+  implies, reading `$` as the seam between a reference that fills across (last period) and one
+  that is pinned (an assumption).
+- `RecognizedModel` and `ExcelRecognizer`: recognition never throws. It produces a plan, and
+  anything it cannot express becomes residue carrying the reason.
+- `ModelMaterializer`: turns a plan into a `ModelDefinition` and its rollforwards. This one
+  validates and throws — a definition with a hole in it would run and produce numbers. Named
+  for the `ModelBuilder` in the proposal, which is a name BusinessMath already exports.
+- `DiagnosticCode.unseededCarry`: a rollforward whose opening the sheet does not state anywhere
+  is refused rather than seeded with zero.
+
+### Fixed
+- A row growing off its own prior value kept its label on the derived account. `D6 = C6 * 1.15`
+  says *this* period equals last period times 1.15, so the row's printed values are its
+  openings and the formula computes a close. The row's label now stays on the carried series
+  and the derived account takes a `Closing` suffix. The old naming was self-consistent,
+  evaluated cleanly, threw nothing, and reported every figure one period early.
+- Carries were seeded from the *referenced* cell rather than from the defining row's own first
+  period. For a self-carry these are the same cell; for `D4 = C7` — opening debt follows last
+  period's closing debt — they are not, and the referenced cell is a formula that in period one
+  has no prior period to compute from. Year-one interest on a cash-swept revolver read as
+  -0.88 before this and 11.75 after.
+- Seeding fell back to zero when a cell stated no value, which is a fabricated opening balance.
+  It now reports `unseededCarry` and sends the row to residue.
+- On a seeded row the rule was read from the first formula cell. Where the seed is a typed
+  number that cell is already the second period, which is why this held; where the seed is
+  itself computed, the opening balance's own arithmetic was adopted as the rule for every
+  period. Seeded rows now read the rule from after the seed. Uniform rows are unchanged,
+  because there the first period may be the cell reaching into the at-close column.
+
+### Measured
+- Wharton `ANSWER KEY`, 2026-09-02: 21 accounts, 3 rollforwards, 12 residue, recognition
+  coverage 70%. The golden path reproduces Excel's own 1,000,000 / 1,150,000 / 1,322,500, and a
+  cash-swept revolver accrues 11.75 in year one where beginning-balance timing gives 12.00. The
+  sheet as a whole does not yet materialize: rows 3–11 are two side-by-side assumption tables
+  whose value column H is also the 2026 period column, so `Revenue growth` reads as `10%` in
+  D11 and `SUM(H9:H10)` in H11 and is refused as non-uniform. See
+  `project/plans/proposals/PROPOSAL_excel_to_model_recognizer.md`.
+
 ## [0.6.0] - 2026-09-01
 
 Reading a real Excel workbook works, and the first two stages of recognition can say what one

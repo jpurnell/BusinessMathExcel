@@ -229,6 +229,36 @@ BusinessMathExcel/
       2982 `IF`s across 5011 formulas where Wharton shows one. Representation only: D9 still
       governs what an `IF` *means*, and a timeline-answerable `IF` is still demoted to data.
       See `project/plans/proposals/PROPOSAL_excel_to_model_recognizer.md` §15 Q0.
+### Unreleased — Excel→ModelDefinition Recognizer, Phases 3 and 4 (complete)
+- [x] `LagDecomposition`: a period-local formula plus the carries it implies, with `$` read as
+      the seam between "fills across" and "pinned"
+- [x] `RecognizedModel` / `ExcelRecognizer`: recognition never throws and produces a plan;
+      anything it cannot express becomes residue with a reason
+- [x] `ModelMaterializer` (the proposal's `ModelBuilder`; that name is taken in core) — the
+      opposite discipline: it validates and throws, because a definition with a hole in it
+      would run and produce numbers
+- [x] **Golden path: the validation trace reproduces Excel's own 1,000,000 / 1,150,000 /
+      1,322,500.** A row growing off its own prior value prints its *openings*, so the row's
+      label stays on the carried series and the derived account takes a `Closing` suffix.
+      Naming them the other way round is self-consistent and reports every figure one period
+      early — which is what this test exists to catch, and did
+- [x] **Circular sweep: year-one interest 11.75** on a cash-swept revolver — 120 opening, 115
+      closing, 117.5 average, 10%. Beginning-balance accrual gives 12.00, so that one number
+      separates a correct cyclic solve from a model that broke the circle by timing. The cycle
+      is found by `dependencyReport()` and converged by `PeriodDriver`
+- [x] Carries seed from the defining row's **own** first period, not from the referenced cell.
+      For a self-carry the two agree; for `D4 = C7` they do not, and the referenced cell is a
+      formula with no prior period to compute from
+- [x] `unseededCarry`: an opening the sheet does not state is refused, not defaulted to zero.
+      The zero produced a model that ran, converged, and was wrong in every period
+- [x] **Measured 2026-09-02 on the Wharton `ANSWER KEY`: 21 accounts, 3 rollforwards, 12
+      residue; recognition coverage unchanged at 70%.** Phases 3 and 4 made recognized cells
+      *runnable* rather than recognizing more of them. The sheet does not yet materialize, for
+      one identifiable reason: rows 3–11 are two side-by-side assumption tables whose value
+      column H is also the 2026 period column, so `Revenue growth` reads as `10%` in D11 and
+      `SUM(H9:H10)` in H11 and is refused. This makes **block detection** Phase 5's first item,
+      ahead of `UnitInference`
+
 
 ---
 
@@ -252,4 +282,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-01 — recorded Phase 2 complete with its measured coverage; recorded the D8 amendment pulling `IF`/comparisons into Phase 2, and Phase 2's scope; recorded recognizer Phase 1 (import warnings, cell ranges, `NodeFormula.power`, array-cell naming, multi-sheet import); refreshed counts to 293 tests / 138 public APIs; corrected the SwiftXLSX working-copy path, which is not a sibling of this repo.
+**Last Updated:** 2026-09-02 — recorded recognizer Phases 3 and 4 complete: lag decomposition, `ExcelRecognizer`, `ModelMaterializer`, the golden path against Excel's own numbers, and the circular sweep at 11.75. Recorded the two seeding defects found by measuring rather than by reasoning, and the `unseededCarry` refusal added for the second. Recorded the Wharton measurement after Phases 3–4 and the assumptions-block column collision that stops the sheet materializing, which moves block detection ahead of `UnitInference` in Phase 5. Counts refreshed to 418 tests.

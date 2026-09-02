@@ -892,10 +892,10 @@ metric, not a kill gate.
 | 1 | Excel | `ModelImporter` fixes (`.cellRange`, `.power`, threaded warnings, multi-sheet) | Lossy imports now warn; regression tests green |
 | 2 | Excel | Stages 1–2 (`SheetGrid`, `PeriodAxis`, `LabeledSeries`) + `Coverage` instrumented, with address-fallback naming. **Plus `IF` and the comparison operators in `NodeFormula`** (pulled forward from D8 — see §15 Q0; representation only, semantics stay with D9). **Measured 2026-09-01: `ANSWER KEY` 70% coverage (196 of 279 cells), 36 series — 26 uniform, 3 seeded rollforward, 7 non-uniform** | Wharton coverage measured **and per-row formula uniformity reported** — the count of non-uniform rows is the number that determines how much of the sheet is hand-edited, and how far `IF`-free encoding can reach |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` 2a–2c (function registry) **and 2d (`PeriodDriver`)**. No longer covers `IF`/comparisons, which moved to Phase 2 | Registry + driver green |
-| 3 | Excel | Stage 3 `FormulaTranslator` with **lag decomposition** + Stage 4 assembly + `ModelBuilder`. Dynamic references (§3) are **Tier 1 folding only** — an unfoldable `INDIRECT`/`OFFSET` goes to residue rather than blocking the phase | Golden path + negative-recognition tests green; rollforward round-trips; **~30% Wharton (interim)** |
-| 4 | Excel | Circular-interest recognition through `CycleSolver` under `PeriodDriver` | **Year-1 interest 11.75; Wharton IRR 24.67% / MoM 3.01** |
+| 3 | Excel | Stage 3 `FormulaTranslator` with **lag decomposition** + Stage 4 assembly + `ModelMaterializer` (renamed from `ModelBuilder`; the name was taken in core). Dynamic references (§3) are **Tier 1 folding only** — an unfoldable `INDIRECT`/`OFFSET` goes to residue rather than blocking the phase | ✅ **Done 2026-09-02.** Golden path reproduces Excel's own 1,000,000 / 1,150,000 / 1,322,500. `ANSWER KEY`: 21 accounts, 3 rollforwards, 12 residue |
+| 4 | Excel | Circular-interest recognition through the cycle solver under `PeriodDriver` | ✅ **Done 2026-09-02. Year-1 interest 11.75** on a cash-swept revolver (beginning-balance accrual gives 12.00); **Wharton IRR 24.67% / MoM 3.01** still reproduce through recognition. The `ANSWER KEY` as a whole does **not** yet materialize — see Phase 5 |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |
-| 5 | Excel | `UnitInference` + `TypedSourceWriter` | Generated source compiles; wrong-unit cases diagnose rather than guess |
+| 5 | Excel | **Block detection** (the measured blocker — see below), then `UnitInference` + `TypedSourceWriter` | `ANSWER KEY` materializes and runs; generated source compiles; wrong-unit cases diagnose rather than guess |
 | 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
 | 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
 
@@ -903,3 +903,45 @@ Phases 1–2 depend on nothing upstream and produce the measured evidence that s
 after. Phase 6 is last because the What-If table is the one Wharton construct with no obvious
 mapping to accounts-and-formulas, and it should be designed against real coverage data rather
 than speculation.
+### Measured after Phases 3 and 4 — 2026-09-02
+
+Reported by `WhartonImportMeasurementTests`, which prints rather than gates.
+
+| | `ANSWER KEY` | `BLANK MODEL` |
+|---|---|---|
+| Populated cells | 279 | 157 |
+| Recognized | 196 (70%) | 88 (56%) |
+| Series bound | 36 | 19 |
+| — uniform / seeded / non-uniform | 26 / 3 / 7 | 14 / 1 / 4 |
+| Accounts translated | 21 | 6 |
+| Rollforwards | 3 | 1 |
+| Residue | 12 | 7 |
+| Materializes | no | no |
+
+Recognition coverage has not moved since Phase 2, which is expected: Phases 3 and 4 turned
+recognized cells into *runnable* ones rather than recognizing more of them. What did move is
+that a plan now materializes and runs — proven on the golden path and on the revolver, and
+refused on Wharton for one identifiable reason.
+
+**The blocker is a column collision, not a formula gap.** Rows 3 through 11 of the `ANSWER KEY`
+hold two assumption tables side by side: a label in B with its value in D, and a second label in
+F with its value in H. Neither is a period series — they sit sixteen rows above the timeline in
+row 27. But H is also the 2026 column, so label binding sweeps each row across the axis and
+reads an unrelated cell as that row's 2026 value. `Revenue growth` is `10%` in D11 and
+`SUM(H9:H10)` in H11; the row therefore disagrees with itself, is refused as non-uniform, and
+`% growth` — which needs it — cannot resolve. Materialization stops there.
+
+Six of the seven non-uniform rows on the `ANSWER KEY` are this one overlap. The remaining
+diagnostics are genuine and much smaller: four duplicate labels (disambiguated by cell, not
+lost), four unsupported constructs, and one forward reference.
+
+This is what makes **block detection** Phase 5's first item rather than `UnitInference`. The
+recognizer currently assumes one sheet is one timeline; a real model is a stack of blocks, only
+some of which are on the axis. Nothing downstream can be measured honestly until a sheet's
+assumptions stop being read as periods, and the fix is worth more than any further formula
+coverage: it is one cause standing between a 70%-recognized sheet and a sheet that runs.
+
+The refusals themselves are the design working. Every one of these produced a *diagnostic and
+residue* rather than a number — including `unseededCarry`, added in Phase 4 after a carry seeded
+with a fabricated zero produced a model that ran, converged, and was wrong in every period.
+
