@@ -41,6 +41,32 @@ rightly. The carry is what relates the two, and it lives in the rollforward wher
 A reach of two or more is refused with the arithmetic spelled out in the message: how many
 periods it reaches, and by how much a model would be wrong if the reach were treated as one.
 
+## Task 1b — The at-close column (added after measuring)
+
+Not in the original plan, and found by checking the IRR before building on it.
+
+Wharton's header row reads `D27 = "Closing"`, `E27 = 2023` … `J27 = 2028`, and its IRR range is
+`D61:I61` — the transaction close plus five years. Column D holds values that belong to a series
+but to **no period**: the equity cheque written at close.
+
+Phase 2 anchored binding on the period axis, deliberately, and that decision stands — it
+dissolved the blank-run question and handles the label-gap-values layout every model uses. But it
+assumes every value in a series sits in a period column, and an at-close column breaks that.
+Bound to period columns alone, the equity row is `[0, 0, 0, 0, 240.98]` with no investment in it,
+and a return computed from that is not merely wrong but plausible.
+
+- [x] `PeriodAxis.Anchor` — position, label, and the heading cell it came from.
+- [x] **The discriminator is what lies below the heading, not the heading itself.** A label column
+      holds words; an anchor column holds money. Matching on vocabulary (`Closing`, `At Close`,
+      `Initial`) would be a guess and would grow a phantom period out of any sheet whose row
+      labels happen to sit against the timeline.
+- [x] A heading that parses as a year is a period, not an anchor — it would already be on the axis.
+- [x] `LabeledSeries.anchorCell`, kept **out** of `cells` so the period alignment Phase 2 promised
+      is untouched. A consumer that needs the at-close value prepends it knowingly.
+- [x] **Verified end to end: IRR 24.67% and MoM 3.01**, reached through recognition rather than by
+      reading the sheet's cached answer.
+- [x] Commit.
+
 ## Task 2 — Formula translation
 
 `NodeFormula` to a string the upstream `FormulaEvaluator` will actually parse.

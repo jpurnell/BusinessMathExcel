@@ -167,6 +167,69 @@ final class WhartonImportMeasurementTests: XCTestCase {
         }
     }
 
+    func testRecognizesTheAtCloseColumnBeforeTheTimeline() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+
+        let anchor = try XCTUnwrap(axis.anchor, "column D is headed \"Closing\"")
+        XCTAssertEqual(anchor.label, "Closing")
+        XCTAssertEqual(anchor.source.reference, "D27")
+        XCTAssertEqual(axis.count, 6, "and it is still not counted as a period")
+    }
+
+    func testReproducesThePublishedIRRThroughRecognition() throws {
+        // The reference figure, reached through the pipeline rather than by reading
+        // the sheet's cached answer: bind the equity row, take its at-close value
+        // and its periods, and compute.
+        //
+        // The at-close column is what makes this work. Bound to period columns
+        // alone the row is [0, 0, 0, 0, 240.98] with no investment in it, and a
+        // return computed on that is meaningless — or worse, plausible.
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let imported = ModelImporter.importSheet(sheet)
+        let grid = SheetGrid.build(from: imported)
+        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let (series, _) = LabeledSeries.bind(in: grid, axis: axis)
+
+        let equity = try XCTUnwrap(series.first { $0.name == "Equity of PE Firm" })
+        XCTAssertEqual(equity.anchorCell?.reference, "D61")
+
+        func value(_ reference: CellRef?) -> Double? {
+            guard let reference else { return nil }
+            if case .number(let number)? = imported.cachedValues[reference] { return number }
+            guard let node = imported.cellToNode[reference],
+                  case .input(let literal)? = imported.model.kind(of: node) else { return nil }
+            return literal
+        }
+
+        var flows: [Double] = []
+        if let atClose = value(equity.anchorCell) { flows.append(atClose) }
+        for cell in equity.cells { if let periodValue = value(cell) { flows.append(periodValue) } }
+
+        XCTAssertEqual(flows.count, 6, "at close, then five years")
+        XCTAssertEqual(flows.first, -80, "the equity cheque")
+
+        let rate = try irr(cashFlows: flows)
+        XCTAssertEqual(rate, 0.2467, accuracy: 0.0001, "the published IRR of 24.67%")
+    }
+
+    func testReproducesThePublishedMultipleOfMoney() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+
+        guard case .formula(_, let exitCached) = sheet.cell(at: "I61"),
+              case .number(let exit)? = exitCached,
+              case .formula(_, let equityCached) = sheet.cell(at: "H10"),
+              case .number(let invested)? = equityCached else {
+            return XCTFail("expected an exit value and an equity contribution")
+        }
+
+        XCTAssertEqual(exit / invested, 3.01, accuracy: 0.01, "the published MoM of 3.01")
+    }
+
     // MARK: - Import Fidelity
 
     func testEveryPopulatedCellBecomesANode() throws {

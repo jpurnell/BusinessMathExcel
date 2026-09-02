@@ -39,6 +39,46 @@ public struct PeriodAxis: Sendable, Equatable {
     /// discussion.
     public let granularity: PeriodType
 
+    /// The column immediately before the timeline, when it holds values belonging
+    /// to a series rather than to any period.
+    ///
+    /// A transaction model has figures that belong to no year: the equity written
+    /// at close, an opening balance, a purchase price. Wharton puts them in the
+    /// column left of its first year, headed `Closing`, and its IRR runs from
+    /// there — `D61:I61` against an axis of `E27:J27`. A series bound only to
+    /// period columns would miss the initial outflow entirely and compute a return
+    /// on nothing.
+    ///
+    /// Kept separate from ``periods`` rather than prepended to it. It is not a
+    /// period, and giving it one would place a cash flow in a year it did not
+    /// happen.
+    public let anchor: Anchor?
+
+    /// A column of values sitting before the timeline.
+    public struct Anchor: Sendable, Equatable {
+
+        /// The column index, or row index when periods run down rows.
+        public let position: Int
+
+        /// The heading, as written — `Closing`, `At Close`, `Initial`.
+        public let label: String
+
+        /// The heading cell the anchor was recognized from.
+        public let source: CellRef
+
+        /// Creates an anchor.
+        ///
+        /// - Parameters:
+        ///   - position: The column or row index.
+        ///   - label: The heading text.
+        ///   - source: The heading cell.
+        public init(position: Int, label: String, source: CellRef) {
+            self.position = position
+            self.label = label
+            self.source = source
+        }
+    }
+
     /// The number of periods on the axis.
     public var count: Int { periods.count }
 
@@ -80,8 +120,61 @@ public struct PeriodAxis: Sendable, Equatable {
         }
 
         return (
-            PeriodAxis(periods: periods, sources: grid.axisCells, granularity: .annual),
+            PeriodAxis(
+                periods: periods,
+                sources: grid.axisCells,
+                granularity: .annual,
+                anchor: anchor(before: grid.axisCells, in: grid)
+            ),
             []
         )
+    }
+
+    /// The anchor column before a timeline, if there is one.
+    ///
+    /// Two conditions, and the second is the one that matters. The cell on the axis
+    /// line immediately before the first period must hold text that is **not** a
+    /// period — a heading like `Closing`. And the column below it must hold more
+    /// figures than text.
+    ///
+    /// Without that second test, every sheet whose row labels happen to sit against
+    /// the timeline would grow a phantom period out of its own labels. The
+    /// discriminator is what lies *below* the heading: a label column holds words,
+    /// an anchor column holds money.
+    ///
+    /// - Parameters:
+    ///   - axisCells: The period headings, in order.
+    ///   - grid: The sheet's topology.
+    /// - Returns: The anchor, or `nil`.
+    private static func anchor(before axisCells: [CellRef], in grid: SheetGrid) -> Anchor? {
+        guard let orientation = grid.orientation, let first = axisCells.first else { return nil }
+
+        let axisLine = orientation == .periodsAcrossColumns ? first.row : first.column
+        let firstPeriod = orientation == .periodsAcrossColumns ? first.column : first.row
+        let candidate = firstPeriod - 1
+        guard candidate >= 1 else { return nil }
+
+        let headingCell = orientation == .periodsAcrossColumns
+            ? CellRef(column: candidate, row: axisLine)
+            : CellRef(column: axisLine, row: candidate)
+
+        guard case .textInput(let heading)? = grid.cells[headingCell] else { return nil }
+        let label = heading.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty, PeriodHeader.year(of: label) == nil else { return nil }
+
+        var figures = 0
+        var words = 0
+        for (cellRef, kind) in grid.cells {
+            let position = orientation == .periodsAcrossColumns ? cellRef.column : cellRef.row
+            let line = orientation == .periodsAcrossColumns ? cellRef.row : cellRef.column
+            guard position == candidate, line != axisLine else { continue }
+            switch kind {
+            case .input, .formula, .output: figures += 1
+            case .textInput, .label: words += 1
+            }
+        }
+
+        guard figures > words else { return nil }
+        return Anchor(position: candidate, label: label, source: headingCell)
     }
 }

@@ -41,6 +41,15 @@ public struct LabeledSeries: Sendable, Equatable {
     /// One entry per period, in axis order. `nil` where that period has no cell.
     public let cells: [CellRef?]
 
+    /// The series' value in the anchor column, when it has one.
+    ///
+    /// Deliberately not part of ``cells``, which stays aligned one-to-one with the
+    /// axis. This value belongs to the series but to no period — an equity cheque
+    /// written at close, an opening balance — and a consumer that needs it, such
+    /// as a return calculation, prepends it knowingly rather than finding it mixed
+    /// into the timeline.
+    public let anchorCell: CellRef?
+
     /// The cells that actually hold something, in axis order.
     public var populatedCells: [CellRef] { cells.compactMap { $0 } }
 
@@ -78,6 +87,11 @@ public struct LabeledSeries: Sendable, Equatable {
             }
             guard let firstCell = cells.compactMap({ $0 }).first else { continue }
 
+            let anchorCell = axis.anchor.map {
+                cellRef(line: line, position: $0.position, orientation: orientation)
+            }
+            let boundAnchor = anchorCell.flatMap { grid.cells[$0] == nil ? nil : $0 }
+
             let labelCell = label(in: grid, line: line, before: firstPeriod, orientation: orientation)
             var name = labelCell.flatMap { text(of: grid.cells[$0]) } ?? firstCell.reference
 
@@ -100,7 +114,9 @@ public struct LabeledSeries: Sendable, Equatable {
 
             usedNames.insert(name)
             series.append(
-                LabeledSeries(name: name, labelCell: labelCell, line: line, cells: cells))
+                LabeledSeries(
+                    name: name, labelCell: labelCell, line: line, cells: cells,
+                    anchorCell: boundAnchor))
         }
 
         return (series, diagnostics)
