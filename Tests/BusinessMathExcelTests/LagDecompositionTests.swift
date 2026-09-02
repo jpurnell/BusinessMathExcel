@@ -212,4 +212,83 @@ final class LagDecompositionTests: XCTestCase {
         XCTAssertTrue(split.rollforwards.isEmpty)
         XCTAssertTrue(split.diagnostics.isEmpty)
     }
+
+    // MARK: - Cell ranges
+
+    /// A range down one period column is a sum of accounts in that period.
+    ///
+    /// `E47 = SUM(E42:E46)` on the Wharton `ANSWER KEY` totals five rows of a cash
+    /// flow build. Every one of them is an account, the range holds no time in it
+    /// at all, and the whole construct is `SUM([EBITDA], [Less: Taxes], …)` — which
+    /// the grammar has expressed since the function registry landed.
+    func testARangeWithinOnePeriodBecomesItsAccounts() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("EBITDA", to: "A2")
+            sheet.write("Taxes", to: "A3")
+            sheet.write("Total", to: "A4")
+            for column in ["C", "D", "E"] {
+                sheet.write(10.0, to: "\(column)2")
+                sheet.write(2.0, to: "\(column)3")
+                sheet.write(
+                    FormulaAST.function(
+                        "SUM", [.cellRange(CellRange(from: CellRef("\(column)2"),
+                                                     to: CellRef("\(column)3")))]),
+                    to: "\(column)4")
+            }
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        XCTAssertEqual(split.formula, "SUM(EBITDA, Taxes)")
+    }
+
+    func testARangeSkipsTheBlankRowsInsideIt() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("EBITDA", to: "A2")
+            sheet.write("Taxes", to: "A4")
+            sheet.write("Total", to: "A5")
+            for column in ["C", "D", "E"] {
+                sheet.write(10.0, to: "\(column)2")
+                sheet.write(2.0, to: "\(column)4")
+                sheet.write(
+                    FormulaAST.function(
+                        "SUM", [.cellRange(CellRange(from: CellRef("\(column)2"),
+                                                     to: CellRef("\(column)4")))]),
+                    to: "\(column)5")
+            }
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D5"), in: grid, axis: axis))
+        XCTAssertEqual(
+            split.formula, "SUM(EBITDA, Taxes)",
+            "row 3 holds nothing, and Excel's SUM passes over it"
+        )
+    }
+
+    /// A range running along the timeline is a different thing and is refused.
+    ///
+    /// `SUM(C2:E2)` totals one account across every period. That is an aggregate
+    /// over time, not a period-local formula, and the two cannot share a
+    /// translation: rendering it as `SUM(Revenue)` would read as this period's
+    /// revenue and quietly drop five years.
+    func testARangeAlongTheTimelineIsRefused() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Revenue", to: "A2")
+            sheet.write("Total", to: "A3")
+            for column in ["C", "D", "E"] { sheet.write(10.0, to: "\(column)2") }
+            sheet.write(
+                FormulaAST.function(
+                    "SUM", [.cellRange(CellRange(from: CellRef("C2"), to: CellRef("E2")))]),
+                to: "C3")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("C3"), in: grid, axis: axis))
+        XCTAssertEqual(
+            split.diagnostics.map(\.code), [.unsupportedFormulaNode],
+            "reported, not rendered as something that means less"
+        )
+    }
 }

@@ -255,13 +255,95 @@ public enum LagDecomposition {
             }
             return "\(upper)(\(rendered.joined(separator: ", ")))"
 
-        case .cellRange, .sheetRef, .namedRange, .error, .concatenate:
+        case .cellRange(let range):
+            return rewrite(range: range, definedAt: cell, grid: grid, axis: axis,
+                           diagnostics: &diagnostics)
+
+        case .sheetRef, .namedRange, .error, .concatenate:
             diagnostics.append(
                 Diagnostic(
                     severity: .error, code: .unsupportedFormulaNode, cell: cell,
                     message: "\(cell.reference) uses a construct the translator cannot express"))
             return "0"
         }
+    }
+
+    /// A cell range as a list of the accounts it covers.
+    ///
+    /// A range that stays within one period is a list of accounts read in that
+    /// period: `SUM(E42:E46)` totals five rows of a cash-flow build, and every one
+    /// of them is an account. There is no time in the construct at all, so it
+    /// translates to `EBITDA, Less: Taxes, …` and the surrounding `SUM` needs
+    /// nothing special — the grammar has been variadic since the function registry
+    /// landed. Cells the range passes over that hold nothing are skipped, which is
+    /// what Excel's own `SUM` does with a blank.
+    ///
+    /// A range running **along** the timeline is a different construct and is
+    /// refused. `SUM(C2:E2)` totals one account across every period — an aggregate
+    /// over time, not a period-local formula. Rendering it as `SUM(Revenue)` would
+    /// read as this period's revenue and quietly drop five years, which is exactly
+    /// the kind of answer that looks right.
+    ///
+    /// - Parameters:
+    ///   - range: The range to translate.
+    ///   - cell: The cell whose formula holds it, for diagnostics.
+    ///   - grid: The sheet's topology.
+    ///   - axis: The period axis.
+    ///   - diagnostics: Findings collected so far.
+    /// - Returns: The accounts, comma-separated, or `"0"` when refused.
+    private static func rewrite(
+        range: CellRange,
+        definedAt cell: CellRef,
+        grid: SheetGrid,
+        axis: PeriodAxis,
+        diagnostics: inout [Diagnostic]
+    ) -> String {
+        guard let orientation = grid.orientation else { return refuse(range, at: cell, &diagnostics) }
+        let positions = Set(
+            axis.sources.map { orientation == .periodsAcrossColumns ? $0.column : $0.row })
+
+        let from = orientation == .periodsAcrossColumns ? range.start.column : range.start.row
+        let to = orientation == .periodsAcrossColumns ? range.end.column : range.end.row
+        guard from == to else {
+            diagnostics.append(
+                Diagnostic(
+                    severity: .error, code: .unsupportedFormulaNode, cell: cell,
+                    message: "\(cell.reference) reads \(range.start.reference):"
+                        + "\(range.end.reference), which runs along the timeline rather than "
+                        + "down one period. That is an aggregate over time, and translating "
+                        + "it period-locally would silently drop every period but one"))
+            return "0"
+        }
+        guard positions.contains(from) || axis.anchor?.position == from else {
+            return refuse(range, at: cell, &diagnostics)
+        }
+
+        let lineFrom = orientation == .periodsAcrossColumns ? range.start.row : range.start.column
+        let lineTo = orientation == .periodsAcrossColumns ? range.end.row : range.end.column
+        let names = stride(from: min(lineFrom, lineTo), through: max(lineFrom, lineTo), by: 1)
+            .map { line in
+                orientation == .periodsAcrossColumns
+                    ? CellRef(column: from, row: line)
+                    : CellRef(column: line, row: from)
+            }
+            .filter { grid.cells[$0] != nil }
+            .map { quoted(accountName(for: $0, in: grid, axis: axis)) }
+
+        guard !names.isEmpty else { return refuse(range, at: cell, &diagnostics) }
+        return names.joined(separator: ", ")
+    }
+
+    /// Reports a range the translator cannot place and yields a neutral rendering.
+    private static func refuse(
+        _ range: CellRange, at cell: CellRef, _ diagnostics: inout [Diagnostic]
+    ) -> String {
+        diagnostics.append(
+            Diagnostic(
+                severity: .error, code: .unsupportedFormulaNode, cell: cell,
+                message: "\(cell.reference) reads \(range.start.reference):"
+                    + "\(range.end.reference), which the translator cannot place on the "
+                    + "period axis"))
+        return "0"
     }
 
     /// Records a carry and returns the opening account to read in its place.

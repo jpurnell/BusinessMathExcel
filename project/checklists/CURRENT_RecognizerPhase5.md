@@ -42,7 +42,7 @@ Added 2026-09-02, after Task 2. Block detection landed and moved the blocker for
 still does not run, and none of what stops it now is block detection. Recorded here rather than
 folded silently into another task, because the design did not predict any of it.
 
-- [ ] **`SUM` over a vertical cell range.** `E47 = SUM(E42:E46)`, `E52 = SUM(E50:E51)`,
+- [x] **`SUM` over a vertical cell range.** `E47 = SUM(E42:E46)`, `E52 = SUM(E50:E51)`,
       `E61 = SUM(E57:E60)` — sums of *accounts within one period*. Entirely expressible as
       `[EBITDA] + [Less: Taxes] + …`; simply not expressed. Three model rows plus the
       `Total Sources` / `Total Uses` assumptions. This is the largest single gap.
