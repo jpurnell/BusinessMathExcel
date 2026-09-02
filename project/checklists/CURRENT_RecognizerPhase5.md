@@ -46,7 +46,7 @@ folded silently into another task, because the design did not predict any of it.
       `E61 = SUM(E57:E60)` — sums of *accounts within one period*. Entirely expressible as
       `[EBITDA] + [Less: Taxes] + …`; simply not expressed. Three model rows plus the
       `Total Sources` / `Total Uses` assumptions. This is the largest single gap.
-- [ ] **The named range `Circ`.** `E36 = E54 * -1 * Circ` — the model's circularity switch, a
+- [x] **The named range `Circ`.** `E36 = E54 * -1 * Circ` — the model's circularity switch, a
       named range rather than a cell. `NodeFormula` has no case for one. Decide: resolve named
       ranges to their targets, or refuse with a diagnostic of its own. It gates `Less: Interest`,
       which gates `EBT`.

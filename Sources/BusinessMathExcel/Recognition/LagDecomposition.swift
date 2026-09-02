@@ -259,7 +259,29 @@ public enum LagDecomposition {
             return rewrite(range: range, definedAt: cell, grid: grid, axis: axis,
                            diagnostics: &diagnostics)
 
-        case .sheetRef, .namedRange, .error, .concatenate:
+        case .namedRange(let alias):
+            // A name is an alias for a cell, so it takes the cell's road: pinned
+            // or filling across, on the axis or off it, all decided the same way.
+            // Excel's own resolution is case-insensitive, and a model that writes
+            // `Circ` in one formula and `circ` in the next means the same switch.
+            guard let target = grid.namedCells.first(where: {
+                $0.key.compare(alias, options: .caseInsensitive) == .orderedSame
+            })?.value else {
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .error, code: .unsupportedFormulaNode, cell: cell,
+                        message: "\(cell.reference) refers to the name '\(alias)', which this "
+                            + "sheet does not define as a single cell on itself. It may point "
+                            + "at another sheet, a range, or an expression; whichever it is, "
+                            + "resolving it to a guess would build the model off the wrong "
+                            + "number"))
+                return "0"
+            }
+            return name(
+                of: target, definedAt: cell, grid: grid, axis: axis,
+                rollforwards: &rollforwards, diagnostics: &diagnostics)
+
+        case .sheetRef, .error, .concatenate:
             diagnostics.append(
                 Diagnostic(
                     severity: .error, code: .unsupportedFormulaNode, cell: cell,

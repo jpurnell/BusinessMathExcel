@@ -18,13 +18,20 @@ public enum ExcelRecognizer {
     /// - Parameters:
     ///   - sheet: The worksheet to read.
     ///   - options: Recognizer options.
+    ///   - workbook: The book the sheet came from, when there is one. Named ranges
+    ///     are workbook-level, so a formula written `= Balance * Rate` cannot be
+    ///     read from the sheet alone. Passing the book is what makes those names
+    ///     resolvable; omitting it leaves them refused rather than guessed.
     /// - Returns: The plan, the diagnostics, and the coverage.
     public static func recognize(
         _ sheet: Worksheet,
-        options: RecognizerOptions = RecognizerOptions()
+        options: RecognizerOptions = RecognizerOptions(),
+        in workbook: Workbook? = nil
     ) -> RecognitionResult {
         let imported = ModelImporter.importSheet(sheet)
-        let grid = SheetGrid.build(from: imported, options: options)
+        let grid = SheetGrid.build(
+            from: imported, options: options,
+            namedCells: namedCells(from: workbook, for: sheet))
         var diagnostics = grid.diagnostics
 
         let (axis, axisDiagnostics) = PeriodAxis.build(from: grid, options: options)
@@ -124,6 +131,36 @@ public enum ExcelRecognizer {
     }
 
     // MARK: - Private
+
+    /// The workbook's names that point at a single cell on this sheet.
+    ///
+    /// Kept deliberately narrow. A name pointing at a range, at an expression, or
+    /// at a *different* sheet is left out, so the formula holding it is refused
+    /// with a reason rather than resolved to something nearby. Cross-sheet
+    /// recognition is a stage of its own and pretending otherwise would produce a
+    /// model that reads a plausible number off the wrong page.
+    ///
+    /// - Parameters:
+    ///   - workbook: The book, when the caller has one.
+    ///   - sheet: The sheet being recognized.
+    /// - Returns: Names to cells on this sheet.
+    private static func namedCells(
+        from workbook: Workbook?, for sheet: Worksheet
+    ) -> [String: CellRef] {
+        guard let workbook else { return [:] }
+        var resolved: [String: CellRef] = [:]
+        for named in workbook.namedRanges.all {
+            switch workbook.namedRanges.resolve(named.name, inSheet: sheet.name) {
+            case .cell(let ref):
+                resolved[named.name] = ref
+            case .sheetCell(let reference) where reference.sheetName == sheet.name:
+                resolved[named.name] = reference.range.start
+            default:
+                continue
+            }
+        }
+        return resolved
+    }
 
     /// Turns one assumption into an account holding for every period.
     ///

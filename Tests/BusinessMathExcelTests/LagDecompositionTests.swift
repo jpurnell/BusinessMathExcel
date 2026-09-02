@@ -12,14 +12,18 @@ import SwiftXLSX
 final class LagDecompositionTests: XCTestCase {
 
     /// Years across C..E, so the period columns are C, D, E.
-    private func sheet(_ build: (Worksheet) -> Void) -> (SheetGrid, PeriodAxis) {
+    private func sheet(
+        names: [String: CellRef] = [:],
+        _ build: (Worksheet) -> Void
+    ) -> (SheetGrid, PeriodAxis) {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Model")
         sheet.write("2024", to: "C1")
         sheet.write("2025", to: "D1")
         sheet.write("2026", to: "E1")
         build(sheet)
-        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let grid = SheetGrid.build(
+            from: ModelImporter.importSheet(sheet), namedCells: names)
         guard let axis = PeriodAxis.build(from: grid).axis else {
             preconditionFailure("the fixture always has an axis")
         }
@@ -289,6 +293,52 @@ final class LagDecompositionTests: XCTestCase {
         XCTAssertEqual(
             split.diagnostics.map(\.code), [.unsupportedFormulaNode],
             "reported, not rendered as something that means less"
+        )
+    }
+
+    // MARK: - Named ranges
+
+    /// A named range pointing at a cell on this sheet reads as that cell's account.
+    ///
+    /// The Wharton `ANSWER KEY` routes its circularity switch through one:
+    /// `E36 = E54 * -1 * Circ`, where `Circ` is `'ANSWER KEY'!$M$1`. Until
+    /// SwiftXLSX 0.8.0 the reference was unresolvable — the name arrived with
+    /// nothing to look it up in — and the row went to residue, taking
+    /// `Less: Interest` and, through it, `EBT` down with it.
+    func testANamedRangeResolvesThroughTheNormalReferenceRules() throws {
+        let (grid, axis) = sheet(names: ["Rate": CellRef("$B$3")]) { sheet in
+            sheet.write("Interest Rate", to: "A3")
+            sheet.write(0.1, to: "B3")
+            sheet.write("Charge", to: "A4")
+            for column in ["C", "D", "E"] { sheet.write(10.0, to: "\(column)2") }
+            sheet.write(
+                FormulaAST.multiply(.cellRef(CellRef("C2")), .namedRange("Rate")), to: "C4")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("C4"), in: grid, axis: axis))
+        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        XCTAssertEqual(
+            split.formula, "(C2 * [Interest Rate])",
+            "the name resolves to B3, and B3's account is the one its row names — "
+                + "the name in the formula and the name of the account are different "
+                + "things and need not agree"
+        )
+    }
+
+    func testAnUnknownNamedRangeIsRefused() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Charge", to: "A3")
+            for column in ["C", "D", "E"] { sheet.write(10.0, to: "\(column)2") }
+            sheet.write(
+                FormulaAST.multiply(.cellRef(CellRef("C2")), .namedRange("Missing")), to: "C3")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("C3"), in: grid, axis: axis))
+        XCTAssertEqual(
+            split.diagnostics.map(\.code), [.unsupportedFormulaNode],
+            "a name with nothing behind it is reported, not treated as zero silently"
         )
     }
 }

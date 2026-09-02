@@ -179,7 +179,7 @@ final class WhartonImportMeasurementTests: XCTestCase {
 
         for name in ["ANSWER KEY", "BLANK MODEL"] {
             let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
-            let plan = ExcelRecognizer.recognize(sheet)
+            let plan = ExcelRecognizer.recognize(sheet, in: workbook)
 
             var byCode: [String: Int] = [:]
             for diagnostic in plan.diagnostics { byCode[diagnostic.code.rawValue, default: 0] += 1 }
