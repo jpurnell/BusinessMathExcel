@@ -23,14 +23,23 @@ where every cell sits.
 | `D12 = C12+D10` | mixed | split: the prior term carries, the current term stays |
 | `D5 = $B$2` | off-axis | a scalar input, constant across periods |
 
-- [ ] **RED** — a lag-0 formula translates with no rollforward.
-- [ ] **RED** — a lag-1 self-reference yields exactly one `Rollforward` and a period-local formula.
-- [ ] **RED** — a mixed formula splits, keeping both halves.
-- [ ] **RED** — a reference off the period axis becomes a scalar input, not a lagged one.
-- [ ] **RED** — **lag 2 or a forward reference emits `.unsupportedLag` and drops to residue.**
+- [x] **RED** — a lag-0 formula translates with no rollforward.
+- [x] **RED** — a lag-1 self-reference yields exactly one `Rollforward` and a period-local formula.
+- [x] **RED** — a mixed formula splits, keeping both halves.
+- [x] **RED** — a reference off the period axis becomes a scalar input, not a lagged one.
+- [x] **RED** — **lag 2 or a forward reference emits `.unsupportedLag` and drops to residue.**
       Wharton needs neither, and guessing at them is exactly the plausible-wrong-answer this
       project refuses.
-- [ ] **GREEN** — implement. Commit.
+- [x] **GREEN** — implement. Commit.
+
+
+**Decided while implementing.** A reference reaching back one period is rewritten to a distinct
+`"<account> Opening"` account rather than to the account itself. An account cannot open at its
+own close within a period — that is a self-reference the dependency graph would refuse, and
+rightly. The carry is what relates the two, and it lives in the rollforward where it can be read.
+
+A reach of two or more is refused with the arithmetic spelled out in the message: how many
+periods it reaches, and by how much a model would be wrong if the reach were treated as one.
 
 ## Task 2 — Formula translation
 
