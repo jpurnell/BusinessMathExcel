@@ -219,6 +219,25 @@ public enum LagDecomposition {
         }
     }
 
+    /// Records a carry and returns the opening account to read in its place.
+    ///
+    /// - Parameters:
+    ///   - account: The account being carried.
+    ///   - reference: The cell the prior value sits in, which seeds the first period.
+    ///   - rollforwards: The carries collected so far.
+    /// - Returns: The opening account's name.
+    private static func carry(
+        to account: String,
+        seededFrom reference: CellRef,
+        into rollforwards: inout [RecognizedRollforward]
+    ) -> String {
+        let opening = "\(account) Opening"
+        let record = RecognizedRollforward(
+            opening: opening, closing: account, seedCell: reference)
+        if !rollforwards.contains(record) { rollforwards.append(record) }
+        return opening
+    }
+
     /// An account name as the grammar must receive it.
     ///
     /// A bare name is left bare; anything else is bracketed. The evaluator reads
@@ -254,6 +273,28 @@ public enum LagDecomposition {
         let here = orientation == .periodsAcrossColumns ? cell.column : cell.row
         let there = orientation == .periodsAcrossColumns ? reference.column : reference.row
 
+        // A pinned reference names the same cell from every period, so it is an
+        // assumption rather than anything to do with time. The sheet says which is
+        // which: `E50 = D52` fills across and therefore means *last period*, while
+        // `$D$8` does not move and therefore means *this rate*. Reading the `$` is
+        // the difference between a rollforward and a constant, and getting it wrong
+        // turns an interest rate into a balance that carries.
+        let pinned = orientation == .periodsAcrossColumns
+            ? reference.absoluteColumn
+            : reference.absoluteRow
+        guard !pinned else { return quoted(account) }
+
+        // The at-close column is the period before the first one. A first-period
+        // formula reaching into it is a carry whose seed sits there — which is
+        // what the column is for. Without this it reads as an off-axis scalar,
+        // and `Beginning = End` becomes a within-period circle the sheet does not
+        // contain.
+        if let anchor = axis.anchor,
+           there == anchor.position,
+           here == positions.min() {
+            return quoted(carry(to: account, seededFrom: reference, into: &rollforwards))
+        }
+
         // A reference off the period axis is a scalar: an assumption that holds
         // for every period rather than a value belonging to one.
         guard positions.contains(there), positions.contains(here) else {
@@ -266,11 +307,7 @@ public enum LagDecomposition {
             return quoted(account)
 
         case 1:
-            let opening = "\(account) Opening"
-            let carry = RecognizedRollforward(
-                opening: opening, closing: account, seedCell: reference)
-            if !rollforwards.contains(carry) { rollforwards.append(carry) }
-            return quoted(opening)
+            return quoted(carry(to: account, seededFrom: reference, into: &rollforwards))
 
         default:
             diagnostics.append(

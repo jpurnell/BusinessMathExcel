@@ -94,11 +94,26 @@ leaving the two to drift.
 
 ## Task 3 — Stage 4 assembly
 
-- [ ] `RecognizedModel`: periods, accounts, residue — plain `Sendable` data, no construction.
-- [ ] `RecognizedAccount`: name, formula or values, provenance. **Provenance is never empty.**
-- [ ] `Residue`: what could not be translated, and why.
-- [ ] **RED** — every account's provenance cells actually hold what the account claims.
-- [ ] Commit.
+- [x] `RecognizedModel`: periods, accounts, residue — plain `Sendable` data, no construction.
+- [x] `RecognizedAccount`: name, formula or values, provenance. **Provenance is never empty.**
+- [x] `Residue`: what could not be translated, and why.
+- [x] **RED** — every account's provenance cells actually hold what the account claims.
+- [x] Commit.
+
+
+**Two lag defects that only running the real sheet would have shown.**
+
+`Beginning = End` — a within-period circle the workbook does not contain. Its formula is
+`E50 = D52`, reaching into the at-close column, which the lag rule treated as off-axis and so as
+a scalar. The at-close column *is* the period before the first, and a first-period formula
+reaching into it is a carry seeded there — which is what the column is for.
+
+Fixing that alone over-corrected: `Interest Expense` became
+`AVERAGE(End, Beginning) * [Interest Rate Opening]`, turning a rate into a balance that carries.
+The sheet says which is which, and it is the `$`: `E50 = D52` fills across and therefore means
+*last period*, while `$D$8` does not move and therefore means *this rate*. A pinned reference is
+an assumption regardless of where it points. That is the same `$` distinction that decided
+formula uniformity in Phase 2, arriving from a completely different direction.
 
 ## Task 4 — `ModelBuilder`
 

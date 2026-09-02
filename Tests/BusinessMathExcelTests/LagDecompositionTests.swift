@@ -169,4 +169,47 @@ final class LagDecompositionTests: XCTestCase {
         XCTAssertEqual(diagnostic.cell, CellRef("E2"))
         XCTAssertTrue(diagnostic.message.contains("2"), "Got: \(diagnostic.message)")
     }
+
+    // MARK: - Pinned references
+
+    func testAPinnedReferenceIsAnAssumptionNotACarry() throws {
+        // `$B$6` names the same cell from every period, so it is a rate, not last
+        // period's anything. Reading the `$` is the difference between a
+        // rollforward and a constant — and getting it wrong turns an interest rate
+        // into a balance that carries.
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Rate", to: "A6")
+            sheet.write(0.1, to: "B6")
+            sheet.write("Debt", to: "A2")
+            sheet.write(100.0, to: "C2")
+            sheet.write("Interest", to: "A3")
+            for column in ["C", "D", "E"] {
+                sheet.write(
+                    FormulaAST.multiply(
+                        .cellRef(CellRef("\(column)2")), .cellRef(CellRef("$B$6"))),
+                    to: "\(column)3")
+            }
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D3"), in: grid, axis: axis))
+        XCTAssertTrue(split.rollforwards.isEmpty, "a pinned cell carries nothing")
+        XCTAssertTrue(split.formula.contains("Rate"))
+    }
+
+    func testAPinnedReferenceOnePeriodBackIsStillAnAssumption() throws {
+        let (grid, axis) = sheet { sheet in
+            sheet.write("Base", to: "A2")
+            sheet.write(100.0, to: "C2")
+            sheet.write(110.0, to: "D2")
+            sheet.write("Derived", to: "A3")
+            // `$C$2` from D: one column left, but pinned, so it does not move.
+            sheet.write(FormulaAST.cellRef(CellRef("$C$2")), to: "D3")
+        }
+
+        let split = try XCTUnwrap(
+            LagDecomposition.decompose(cell: CellRef("D3"), in: grid, axis: axis))
+        XCTAssertTrue(split.rollforwards.isEmpty)
+        XCTAssertTrue(split.diagnostics.isEmpty)
+    }
 }
