@@ -81,7 +81,15 @@ public struct LabeledSeries: Sendable, Equatable {
 
         for line in linesHoldingValues(in: grid, orientation: orientation, at: periodPositions)
         where line != axisLine {
+            let labelCell = label(in: grid, line: line, before: firstPeriod, orientation: orientation)
+            let labelPosition = labelCell.map {
+                orientation == .periodsAcrossColumns ? $0.column : $0.row
+            }
+            let owns = ownership(
+                labelPosition: labelPosition, line: line, in: grid, orientation: orientation)
+
             let cells = periodPositions.map { position -> CellRef? in
+                guard owns(position) else { return nil }
                 let ref = cellRef(line: line, position: position, orientation: orientation)
                 return grid.cells[ref] == nil ? nil : ref
             }
@@ -90,9 +98,9 @@ public struct LabeledSeries: Sendable, Equatable {
             let anchorCell = axis.anchor.map {
                 cellRef(line: line, position: $0.position, orientation: orientation)
             }
-            let boundAnchor = anchorCell.flatMap { grid.cells[$0] == nil ? nil : $0 }
-
-            let labelCell = label(in: grid, line: line, before: firstPeriod, orientation: orientation)
+            let boundAnchor = anchorCell
+                .flatMap { grid.cells[$0] == nil ? nil : $0 }
+                .flatMap { owns(orientation == .periodsAcrossColumns ? $0.column : $0.row) ? $0 : nil }
             var name = labelCell.flatMap { text(of: grid.cells[$0]) } ?? firstCell.reference
 
             if let labelCell, usedNames.contains(name) {
@@ -141,6 +149,46 @@ public struct LabeledSeries: Sendable, Equatable {
     }
 
     /// The nearest text cell on a line, ahead of the first period.
+    /// The positions on a line that a label at `labelPosition` owns.
+    ///
+    /// A label owns a value only when no other text cell stands between them. Real
+    /// models put several small tables side by side — a label with its value beside
+    /// it, then another pair, then another — and their value columns land wherever
+    /// the page happened to be laid out, including in the timeline's columns. A
+    /// label that swept the whole axis would claim figures belonging to the table
+    /// on its right: on the Wharton `ANSWER KEY`, `Revenue growth` picked up a
+    /// sources-and-uses total and was refused as a row that disagreed with itself.
+    ///
+    /// Reading it this way is how a person reads the page — the nearest heading to
+    /// the left owns what follows it. It also excludes the intervening text cells
+    /// themselves, which are headings rather than values, by the same rule: a text
+    /// cell always has a text cell at its own position.
+    ///
+    /// - Parameters:
+    ///   - labelPosition: The label's own position, or `nil` when unlabelled.
+    ///   - line: The row, or column when periods run down rows.
+    ///   - grid: The sheet's topology.
+    ///   - orientation: Which way the periods run.
+    /// - Returns: A predicate answering whether the label owns a given position.
+    private static func ownership(
+        labelPosition: Int?,
+        line: Int,
+        in grid: SheetGrid,
+        orientation: SheetGrid.Orientation
+    ) -> (Int) -> Bool {
+        var textPositions: [Int] = []
+        for (ref, kind) in grid.cells {
+            let lineOf = orientation == .periodsAcrossColumns ? ref.row : ref.column
+            guard lineOf == line, text(of: kind) != nil else { continue }
+            textPositions.append(orientation == .periodsAcrossColumns ? ref.column : ref.row)
+        }
+
+        let start = labelPosition ?? Int.min
+        return { position in
+            !textPositions.contains { $0 > start && $0 <= position }
+        }
+    }
+
     private static func label(
         in grid: SheetGrid,
         line: Int,

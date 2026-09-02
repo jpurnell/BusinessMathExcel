@@ -141,4 +141,65 @@ final class LabeledSeriesTests: XCTestCase {
         XCTAssertEqual(series.name, "Revenue")
         XCTAssertEqual(series.cells.map { $0?.reference }, ["B3", "B4", "B5"])
     }
+
+    // MARK: - Rule 1: a value belongs to its nearest label
+
+    /// A second label on the same line owns the values after it.
+    ///
+    /// This is the layout the Wharton `ANSWER KEY` uses above its model: three
+    /// assumption tables side by side, each a label with its value beside it. The
+    /// tables know nothing of the timeline below them, but their value columns
+    /// land in the timeline's columns, and a label that sweeps the whole axis
+    /// claims figures belonging to the table on its right.
+    func testALabelDoesNotClaimValuesAfterAnotherLabel() throws {
+        let result = bind { sheet in
+            withAxis(sheet)
+            sheet.write("Purchase Multiple", to: "A2")
+            sheet.write(5.0, to: "B2")
+            // A second table starts here; D2 is its value, not the first table's.
+            sheet.write("Entry EBITDA", to: "C2")
+            sheet.write(40.0, to: "D2")
+        }
+
+        XCTAssertFalse(
+            result.series.contains { $0.populatedCells.contains(CellRef("D2")) },
+            "C2 stands between the first label and D2, so D2 is not Purchase Multiple's"
+        )
+        XCTAssertFalse(
+            result.series.contains { $0.populatedCells.contains(CellRef("C2")) },
+            "and C2 is a heading, not a value in the 2025 column"
+        )
+        // Neither table is a period series — they are assumptions that happen to
+        // sit under the timeline's columns. Turning them into scalars is Rule 2.
+        XCTAssertTrue(result.series.isEmpty)
+    }
+
+    func testAValueBoundedByNoInterveningLabelStillBinds() throws {
+        let result = bind { sheet in
+            withAxis(sheet)
+            sheet.write("Revenue", to: "A2")
+            sheet.write(100.0, to: "C2")
+            sheet.write(110.0, to: "D2")
+            sheet.write(121.0, to: "E2")
+            // A label further right than every value it could claim.
+            sheet.write("Note", to: "G2")
+        }
+
+        let series = try XCTUnwrap(result.series.first { $0.name == "Revenue" })
+        XCTAssertEqual(
+            series.cells.map { $0?.reference }, ["C2", "D2", "E2"],
+            "a label after the values takes nothing from the one before them"
+        )
+    }
+
+    func testAModelRowIsUntouched() throws {
+        let result = bind { sheet in
+            withAxis(sheet)
+            sheet.write("Revenue", to: "A2")
+            for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
+        }
+
+        let series = try XCTUnwrap(result.series.first)
+        XCTAssertEqual(series.cells.map { $0?.reference }, ["C2", "D2", "E2"])
+    }
 }

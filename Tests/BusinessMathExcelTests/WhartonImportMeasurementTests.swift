@@ -218,38 +218,42 @@ final class WhartonImportMeasurementTests: XCTestCase {
         }
     }
 
-    /// The single cause behind most of what the ANSWER KEY loses.
+    /// The collision that stopped the sheet, and the rule that resolves it.
     ///
     /// Rows 3 through 11 are two assumption tables side by side: a label in B with
     /// its value in D, and a second label in F with its value in H. Neither is a
     /// period series — they sit well above the timeline. But H is also the 2026
-    /// column, so binding sweeps each row across the axis and reads an unrelated
-    /// cell as that row's 2026 value. `Revenue growth` is 10% in D11 and
-    /// `SUM(H9:H10)` in H11, so the row disagrees with itself and is refused.
+    /// column, so a label that swept the whole axis read `SUM(H9:H10)` — the middle
+    /// table's sources-and-uses total — as `Revenue growth`'s 2026 value. The row
+    /// held `10%` and a total, disagreed with itself, and was refused.
     ///
-    /// Six of the ANSWER KEY's seven non-uniform rows are this one overlap, and
-    /// losing `Revenue growth` is what stops the sheet from materializing. It is
-    /// recorded here as a measurement because the fix is block detection — knowing
-    /// an assumptions table is not a timeline — which is Phase 5's subject.
-    func testAssumptionRowsCollideWithThePeriodAxis() throws {
+    /// Under Rule 1 a label owns a value only when no other text cell stands
+    /// between them, so `H11` belongs to `F11` and `Revenue growth` no longer
+    /// claims it. Six of the `ANSWER KEY`'s seven non-uniform rows were this one
+    /// overlap; the one that remains is genuinely irregular.
+    func testAssumptionRowsDoNotCollideWithThePeriodAxis() throws {
         let workbook = try fixture()
         let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
 
+        // The overlap itself is a fact about the sheet and has not gone away.
         XCTAssertEqual(grid.axisLine, 27, "the timeline is row 27")
         XCTAssertNotNil(grid.cells[CellRef("H27")], "and H is one of its period columns")
-
-        // The collision itself: one row, two unrelated values.
-        guard case .input(let assumption)? = grid.cells[CellRef("D11")] else {
-            return XCTFail("D11 is the revenue growth assumption")
-        }
-        XCTAssertEqual(assumption, 0.1, accuracy: 1e-9)
         XCTAssertNotNil(grid.formulaASTs[CellRef("H11")], "H11 is a sources-and-uses total")
 
-        let plan = ExcelRecognizer.recognize(sheet)
-        XCTAssertTrue(
-            plan.model.residue.contains { $0.label == "Revenue growth" },
-            "so the row is refused rather than given one of its two meanings"
+        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let (series, _) = LabeledSeries.bind(in: grid, axis: axis)
+
+        XCTAssertFalse(
+            series.contains { $0.populatedCells.contains(CellRef("H11")) },
+            "H11 belongs to the label in F11, not to anything in column B"
+        )
+
+        let (uniformity, _) = FormulaUniformity.assess(series, in: grid)
+        let nonUniform = uniformity.filter { $0.kind == .nonUniform }
+        XCTAssertEqual(
+            nonUniform.count, 1,
+            "seven before Rule 1. Remaining: \(nonUniform.map(\.series.name))"
         )
     }
 

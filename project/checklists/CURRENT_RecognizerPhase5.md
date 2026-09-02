@@ -16,13 +16,13 @@ still waits on `TypedModelAuthoring.md` Phase 3; block detection waits on nothin
 
 ## Task 1 — Rule 1: a value belongs to its nearest label
 
-- [ ] **RED** — a row with two labels and two values binds each value to the label on its own
+- [x] **RED** — a row with two labels and two values binds each value to the label on its own
       left: `B9` owns nothing across the axis when `F9` stands between it and `H9`.
-- [ ] **RED** — a model row is untouched: `B30` with values in `E30:J30` and no text between
+- [x] **RED** — a model row is untouched: `B30` with values in `E30:J30` and no text between
       still binds all six.
-- [ ] **RED** — the `ANSWER KEY`'s non-uniform count falls from 7 to 1. The six that go are the
+- [x] **RED** — the `ANSWER KEY`'s non-uniform count falls from 7 to 1. The six that go are the
       assumptions collision; the one that stays is `Debt (B58)`, which is genuinely irregular.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 2 — Rule 2: the timeline governs its own block
 
