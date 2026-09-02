@@ -79,6 +79,37 @@ public enum ExcelRecognizer {
             if let labelCell = entry.labelCell { recognized.insert(labelCell) }
         }
 
+        // Assumptions stated outside the timeline. They come last so a name already
+        // taken by a series wins: a row with six periods of figures is more surely
+        // an account than a label with one.
+        let (assumptions, scalarDiagnostics) = ScalarBlock.bind(in: grid, axis: axis)
+        diagnostics.append(contentsOf: scalarDiagnostics)
+
+        for assumption in assumptions {
+            guard !accounts.contains(where: { $0.name == assumption.name }) else {
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .warning, code: .duplicateAccountName,
+                        cell: assumption.labelCell,
+                        message: "\"\(assumption.name)\" names both a series on the timeline "
+                            + "and an assumption at \(assumption.labelCell.reference); the "
+                            + "series is kept and the assumption is not recognized"))
+                continue
+            }
+            guard let account = translate(assumption, in: grid, axis: axis, imported: imported)
+            else {
+                residue.append(
+                    Residue(
+                        label: assumption.name,
+                        cells: [assumption.labelCell, assumption.valueCell],
+                        reason: .unsupportedFormulaNode))
+                continue
+            }
+            accounts.append(account)
+            recognized.insert(assumption.labelCell)
+            recognized.insert(assumption.valueCell)
+        }
+
         return RecognitionResult(
             model: RecognizedModel(
                 periods: axis.periods,
@@ -93,6 +124,42 @@ public enum ExcelRecognizer {
     }
 
     // MARK: - Private
+
+    /// Turns one assumption into an account holding for every period.
+    ///
+    /// A literal becomes an input repeated across the timeline — `Revenue growth`
+    /// is 10% in all six years, not in one of them. A formula stays derived:
+    /// `Total Purchase Price` is `Entry EBITDA * Purchase Multiple`, and flattening
+    /// it to `200` would answer the question while discarding the model.
+    ///
+    /// - Parameters:
+    ///   - assumption: The bound label and its value.
+    ///   - grid: The sheet's topology.
+    ///   - axis: The period axis, whose periods the value is spread across.
+    ///   - imported: The import the grid was built from.
+    /// - Returns: The account, or `nil` when the formula could not be expressed.
+    private static func translate(
+        _ assumption: ScalarAssumption,
+        in grid: SheetGrid,
+        axis: PeriodAxis,
+        imported: ModelImporter.ImportResult
+    ) -> RecognizedAccount? {
+        let provenance = [assumption.labelCell, assumption.valueCell]
+
+        if grid.formulaASTs[assumption.valueCell] != nil {
+            guard let split = LagDecomposition.decompose(
+                cell: assumption.valueCell, in: grid, axis: axis),
+                split.diagnostics.isEmpty
+            else { return nil }
+            return RecognizedAccount(
+                name: assumption.name, formula: split.formula, provenance: provenance)
+        }
+
+        guard case .input(let value)? = grid.cells[assumption.valueCell] else { return nil }
+        var values: [Period: Double] = [:]
+        for period in axis.periods { values[period] = value }
+        return RecognizedAccount(name: assumption.name, values: values, provenance: provenance)
+    }
 
     /// Turns one bound series into an account, or into residue.
     private static func translate(

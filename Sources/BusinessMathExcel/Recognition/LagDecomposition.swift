@@ -442,15 +442,17 @@ public enum LagDecomposition {
     ) -> String {
         guard let orientation = grid.orientation else { return reference.reference }
         let line = orientation == .periodsAcrossColumns ? reference.row : reference.column
-        let firstPeriod = axis.sources
-            .map { orientation == .periodsAcrossColumns ? $0.column : $0.row }
-            .min() ?? 0
+        // The nearest label before the cell itself, not before the first period.
+        // A line can hold several tables side by side, and `H5` on the Wharton
+        // ANSWER KEY belongs to the label in `F5`, not to the one in `B5` — naming
+        // it for `B5` would build a model off a number from the wrong table.
+        let here = orientation == .periodsAcrossColumns ? reference.column : reference.row
 
         var best: (position: Int, text: String)?
         for (cellRef, kind) in grid.cells {
             let cellLine = orientation == .periodsAcrossColumns ? cellRef.row : cellRef.column
             let position = orientation == .periodsAcrossColumns ? cellRef.column : cellRef.row
-            guard cellLine == line, position < firstPeriod else { continue }
+            guard cellLine == line, position < here else { continue }
             guard case .textInput(let text) = kind else { continue }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }

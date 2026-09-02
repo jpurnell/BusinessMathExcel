@@ -26,15 +26,15 @@ still waits on `TypedModelAuthoring.md` Phase 3; block detection waits on nothin
 
 ## Task 2 — Rule 2: the timeline governs its own block
 
-- [ ] **RED** — a label above the axis heading with one value off the timeline is a **scalar**,
+- [x] **RED** — a label above the axis heading with one value off the timeline is a **scalar**,
       not a series with an anchor and no periods. `Revenue growth` is `0.10`.
-- [ ] **RED** — the anchor column carries no at-close meaning outside the block: `D9` is
+- [x] **RED** — the anchor column carries no at-close meaning outside the block: `D9` is
       `2023 Revenue`'s value, not its at-close figure.
-- [ ] **RED** — inside the block the anchor still means at close: `D61` is still the equity
+- [x] **RED** — inside the block the anchor still means at close: `D61` is still the equity
       cheque, and IRR is still 24.67%. This is the regression that matters most.
-- [ ] **RED** — a scalar whose value is a *formula* stays derived: `Total Purchase Price` is
+- [x] **RED** — a scalar whose value is a *formula* stays derived: `Total Purchase Price` is
       `Entry EBITDA * Purchase Multiple`, not `200`.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 3 — Scalars through materialization
 

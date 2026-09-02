@@ -111,4 +111,13 @@ public enum DiagnosticCode: String, Sendable, Equatable, CaseIterable {
     /// seeding zero produces a model that runs, converges, and is wrong from the
     /// first period on.
     case unseededCarry
+
+    /// A label outside the timeline owning more than one value. Stage 2b.
+    ///
+    /// An assumption is a label with one figure. A label with several is some
+    /// other structure — a header row, or a table further right on the same line
+    /// whose own heading sits on a different row. Taking the first figure would be
+    /// right often enough to be dangerous, so the label is reported and left
+    /// unrecognized instead.
+    case ambiguousAssumption
 }

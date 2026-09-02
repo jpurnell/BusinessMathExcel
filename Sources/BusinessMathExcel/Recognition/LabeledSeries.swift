@@ -79,8 +79,11 @@ public struct LabeledSeries: Sendable, Equatable {
         var series: [LabeledSeries] = []
         var usedNames: Set<String> = []
 
+        // The axis governs the block it heads, not the whole sheet. Above it sit
+        // assumptions whose value columns land in the timeline's columns by nothing
+        // more than where the page was laid out; ``ScalarBlock`` reads those.
         for line in linesHoldingValues(in: grid, orientation: orientation, at: periodPositions)
-        where line != axisLine {
+        where line > axisLine {
             let labelCell = label(in: grid, line: line, before: firstPeriod, orientation: orientation)
             let labelPosition = labelCell.map {
                 orientation == .periodsAcrossColumns ? $0.column : $0.row
@@ -214,7 +217,14 @@ public struct LabeledSeries: Sendable, Equatable {
             : CellRef(column: line, row: position)
     }
 
-    private static func text(of kind: NodeKind?) -> String? {
+    /// The text a cell holds, trimmed, or `nil` when it holds none.
+    ///
+    /// Shared with ``ScalarBlock`` so that "is this cell a label" has one answer
+    /// on a sheet rather than two that drift apart.
+    ///
+    /// - Parameter kind: The cell's kind.
+    /// - Returns: The trimmed text, or `nil`.
+    static func text(of kind: NodeKind?) -> String? {
         switch kind {
         case .textInput(let value), .label(let value):
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
