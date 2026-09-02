@@ -5,6 +5,58 @@ All notable changes to BusinessMathExcel will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `ScalarBlock` and `ScalarAssumption`: a label outside the timeline owning one value is an
+  assumption. A literal becomes an input holding for every period; a formula stays derived, so
+  `Total Purchase Price` remains `Entry EBITDA * Purchase Multiple` rather than `200`.
+- `DataTableBlock`: the rectangle a What-If table occupies. Excel declares the span once, on the
+  master cell, and leaves the rest of the grid holding cached numbers; a two-way table also
+  occupies the input row above it and the input column to its left.
+- `ModelMaterializer.buildResolvable(from:)` and `ResolvableModel`: builds the part of a plan
+  that resolves and returns what it dropped, transitively. Refusal, not repair — nothing is
+  filled in or defaulted, and a duplicate account or unparseable formula still throws, because
+  those are defects in recognition rather than gaps in the sheet.
+- `SheetGrid.namedCells` and `accountName(at:)`; `ExcelRecognizer.recognize(_:options:in:)` takes
+  the workbook, because a named range is workbook-level and cannot be read from a sheet alone.
+- `DiagnosticCode.ambiguousAssumption` and `DiagnosticCode.unresolvedReference`.
+- Named ranges resolve, on **SwiftXLSX 0.8.0** (pin bumped from 0.7.0). A resolved name then
+  takes the cell's own road: pinned or filling across, on the axis or off it.
+- A `SUM` over a cell range reads as the accounts it covers. A range is readable because it stays
+  in one column, not because that column is a period; one running *along* the timeline is refused
+  with a message of its own, since translating it period-locally would drop every period but one.
+
+### Fixed
+- A label swept the whole period axis and claimed values belonging to other labels. Real models
+  put small tables side by side, and on the Wharton `ANSWER KEY` their value columns land in the
+  timeline's columns: `Revenue growth` claimed a sources-and-uses total and was refused as a row
+  that disagreed with itself. A label now owns a value only when no other text cell stands
+  between them. Non-uniform rows fell from 7 to 1.
+- The anchor column was read as *at close* everywhere, including sixteen rows above the timeline
+  where it is just the column the assumptions were typed into.
+- **A reference re-derived its account name from the nearest label**, discarding the
+  disambiguation binding applies when two rows share a heading. `Equity of PE Firm` summed a
+  column containing `Debt` in row 58 and resolved it to the `Debt` *assumption* in row 4 — 60%.
+  It computed 0.6 in every period against a sheet saying 0 and then 240.98: a model that ran,
+  converged, and was wrong. References take the binder's name, and both names survive a collision
+  rather than one being dropped.
+- A row pinned to its own first period — `F33 = $E$33`, the idiom for *set this in year one and
+  hold it* — translated to an account defined as itself, which formed a one-account cycle and
+  failed as underdetermined. It now takes the seed's own definition.
+- A text literal rendered as a bare name, which reads as an account reference and would bind to a
+  real account spelled that way. Refused with a reason: a model of numbers has nowhere to put a
+  word.
+- `CellRef` hashes its `$` markers, so a lookup keyed on a plain cell missed every absolute
+  reference — which is most references to an assumption.
+
+### Measured
+- Wharton `ANSWER KEY`, 2026-09-02: **the sheet materializes, runs, and reproduces 125 of the
+  125 values Excel cached in it**, to 1e-4 relative. Recognition coverage 72% (202 of 279),
+  46 accounts, residue 3, non-uniform rows 1, `unsupportedFormulaNode` 0. IRR 24.67% and MoM 3.01
+  still reproduce.
+- One account is left out and named: `Equity of PE Firm` needs row 58, which holds literals until
+  the final year and then a formula — a terminal event rather than a period series, which a model
+  with one rule per account cannot state.
+
+### Added (Phases 3–4)
 - `LagDecomposition`: splits an Excel formula into a period-local formula and the carries it
   implies, reading `$` as the seam between a reference that fills across (last period) and one
   that is pinned (an assumption).

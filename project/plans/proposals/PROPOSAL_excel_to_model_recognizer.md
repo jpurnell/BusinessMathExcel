@@ -895,7 +895,8 @@ metric, not a kill gate.
 | 3 | Excel | Stage 3 `FormulaTranslator` with **lag decomposition** + Stage 4 assembly + `ModelMaterializer` (renamed from `ModelBuilder`; the name was taken in core). Dynamic references (§3) are **Tier 1 folding only** — an unfoldable `INDIRECT`/`OFFSET` goes to residue rather than blocking the phase | ✅ **Done 2026-09-02.** Golden path reproduces Excel's own 1,000,000 / 1,150,000 / 1,322,500. `ANSWER KEY`: 21 accounts, 3 rollforwards, 12 residue |
 | 4 | Excel | Circular-interest recognition through the cycle solver under `PeriodDriver` | ✅ **Done 2026-09-02. Year-1 interest 11.75** on a cash-swept revolver (beginning-balance accrual gives 12.00); **Wharton IRR 24.67% / MoM 3.01** still reproduce through recognition. The `ANSWER KEY` as a whole does **not** yet materialize — see Phase 5 |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |
-| 5 | Excel | **Block detection** (the measured blocker — see below), then `UnitInference` + `TypedSourceWriter` | `ANSWER KEY` materializes and runs; generated source compiles; wrong-unit cases diagnose rather than guess |
+| 5a | Excel | **Block detection** (the measured blocker) | ✅ **Done 2026-09-02.** `ANSWER KEY` materializes and runs; **125 of 125 values match the sheet's own**. One account dropped and named — see §17.7 |
+| 5b | Excel | `UnitInference` + `TypedSourceWriter` | Generated source compiles; wrong-unit cases diagnose rather than guess |
 | 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
 | 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
 
@@ -1034,3 +1035,57 @@ text. Anything they cannot place still becomes residue with a reason.
 The `ANSWER KEY` **materializes and runs**. That is a step change from "70% recognized" and it
 is the number to report: the sheet either produces a `ModelDefinition` that evaluates over six
 periods, or it names the row that stopped it.
+
+### 17.7 Measured — 2026-09-02
+
+Block detection landed as designed, and the design was incomplete. Rules 1 and 2 did what §17.3
+and §17.4 said they would; three further blockers stood behind them, none of them block
+detection, and each was found by measuring rather than by reasoning:
+
+- **`SUM` over a cell range.** `SUM(E42:E46)` is a sum of accounts read at one moment. A range
+  is readable because it stays in one column, not because that column is a period — the Wharton
+  sources-and-uses totals were working or failing according to whether their block happened to
+  overlap the timeline's columns.
+- **The named range `Circ`.** Unresolvable rather than unsupported: SwiftXLSX parsed
+  `xl/workbook.xml` for defined names and discarded the result twice. Fixed upstream and released
+  as SwiftXLSX 0.8.0.
+- **The IRR sensitivity grid.** A What-If table declares its span on its master cell, and
+  everything else in it is a cached number. Without knowing that, any label on those rows appears
+  to own them — the same collision Rule 1 fixed for series, one block further right.
+
+And one defect the measurement exposed that was older than this phase. A reference re-derived its
+account name from the nearest label, discarding the disambiguation binding applies when two rows
+share a heading. `Equity of PE Firm` summed a column containing `Debt` in row 58 and resolved it
+to the `Debt` **assumption** in row 4 — 60%. It computed 0.6 in every period against a sheet
+saying 0 and then 240.98: a model that ran, converged, and was wrong. References now take the
+name the binder gave the cell.
+
+| | Phases 3–4 | Phase 5 |
+|---|---|---|
+| Recognized cells | 196 (70%) | 202 (72%) |
+| Accounts | 21 | 46 |
+| Residue | 12 | 3 |
+| Non-uniform rows | 7 | 1 |
+| `unsupportedFormulaNode` | 4 | 0 |
+| Materializes | no | **yes** |
+| Values matching the sheet's own | — | **125 of 125** |
+
+Every formula on the `ANSWER KEY` now translates, and every value the model produces matches what
+Excel cached in that cell to 1e-4 relative. The tolerance is relative because the sheet holds both
+a 0.4 margin and a 240 exit value, and it is loose enough to absorb the difference between Excel's
+iteration on the circular block and ours, which is about 5e-6.
+
+**What is left, and why.** One account, `Equity of PE Firm`, is dropped: it needs row 58, `Debt`
+in the exit analysis, which holds literals until the final year and then a formula. That is a
+*terminal event* rather than a period series, and a `ModelDefinition` has one rule per account for
+all periods — the same expressiveness limit that made a seeded row need a rollforward, in a shape
+no rollforward fits. `Exit Value` in row 60 is the same thing with one cell. This is a real limit
+and it is named rather than worked around; the exit block is also where IRR and MoM come from, and
+those still reproduce through a path that reads the row directly.
+
+The `BLANK MODEL` sheet does not run, which is correct: it is the exercise with the answers
+removed, so rows its formulas depend on are genuinely empty.
+
+`ModelMaterializer.buildResolvable(from:)` was added for this. `build(from:)` throws on the first
+hole, which is right when a caller wants a whole model or nothing, and wrong when the question is
+how much of a workbook works. It removes what cannot resolve and returns it — refusal, not repair.

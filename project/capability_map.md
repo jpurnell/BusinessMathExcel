@@ -51,8 +51,8 @@ formula's cached value is never substituted for a formula that could not be tran
 
 ## Workbook Recognition
 
-**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
-**Interfaces:** `ExcelRecognizer.recognize(_:options:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
+**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `ScalarBlock`, `ScalarAssumption`, `DataTableBlock`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
+**Interfaces:** `ExcelRecognizer.recognize(_:options:in:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
 **Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, whether a row computes the same way in every period, and which references reach back a period rather than sideways to an assumption
 **Dependencies:** BusinessMath (`Period`, `PeriodType`)
 
@@ -68,10 +68,18 @@ is pinned (this rate, an assumption); reading it wrong turns an interest rate in
 carries. A row growing off its own prior value keeps its label on the *carried* series, because
 that is where the sheet's printed numbers are — the derived account takes a `Closing` suffix.
 
+A sheet is a stack of blocks, not one grid with one timeline. A label owns a value only when no
+other text cell stands between them, because real models put small tables side by side and their
+value columns land wherever the page was laid out. Outside the axis's own block the anchor column
+carries no *at close* meaning and a label with one value is a scalar assumption. A What-If table
+speaks for its own cells, which the file declares on the table's master cell. Names come from the
+binder rather than being re-derived, so a reference to one of two rows sharing a heading resolves
+to the one meant.
+
 ## Model Materialization
 
-**Key types:** `ModelMaterializer`, `MaterializedModel`, `MaterializationError`
-**Interfaces:** `ModelMaterializer.build(from:)`
+**Key types:** `ModelMaterializer`, `MaterializedModel`, `ResolvableModel`, `MaterializationError`
+**Interfaces:** `ModelMaterializer.build(from:)`, `ModelMaterializer.buildResolvable(from:)`
 **Applications:** Turning a recognized plan into a `ModelDefinition` and its rollforwards, ready to run under `PeriodDriver` — including sheets whose accounts depend on each other within a period
 **Dependencies:** BusinessMath (`ModelDefinition`, `Rollforward`, `PeriodDriver`, `Period`)
 
@@ -84,6 +92,15 @@ Within-period circularity — interest on an average balance, swept against the 
 paying it — is carried through as a cycle and converged by `PeriodDriver`, not broken by timing.
 The distinction is measurable: on a 120 draw at 10%, a correct cyclic solve accrues 11.75 where
 beginning-balance timing gives 12.00. Both run and both converge.
+
+`buildResolvable(from:)` answers a different question — not *is this model whole* but *how much of
+this workbook works*. It removes what cannot resolve and returns it, transitively, so one row that
+cannot be stated as a period rule does not hide an income statement that is sound. Still refusal
+rather than repair: nothing is filled in, and a duplicate account or unparseable formula throws,
+because those are defects in recognition rather than gaps in the sheet.
+
+Measured against the Wharton `ANSWER KEY` on 2026-09-02: the sheet runs and reproduces **125 of
+the 125 values Excel cached in it**.
 
 ## Model Builders
 

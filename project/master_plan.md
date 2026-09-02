@@ -259,6 +259,35 @@ BusinessMathExcel/
       `SUM(H9:H10)` in H11 and is refused. This makes **block detection** Phase 5's first item,
       ahead of `UnitInference`
 
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 5a: block detection (complete)
+- [x] **Rule 1** — a label owns a value only when no other text cell stands between them. Real
+      models put small tables side by side and their value columns land wherever the page was
+      laid out, including in the timeline's columns
+- [x] **Rule 2** — the axis governs the rows at or below its heading line. Outside that block the
+      anchor column carries no at-close meaning, and a label with one value is a **scalar**:
+      a literal holds for every period, a formula stays derived
+- [x] `ScalarBlock`, `DataTableBlock`; `ambiguousAssumption` and `unresolvedReference` diagnostics
+- [x] `SUM` over a cell range — readable because it stays in one column, not because the column
+      is a period. A range running *along* the timeline is refused with a reason
+- [x] Named ranges, via **SwiftXLSX 0.8.0** — `Circ` was unresolvable, not unsupported: the
+      reader parsed `xl/workbook.xml` for defined names and discarded the result twice
+- [x] A What-If table speaks for its own cells. Excel declares the span on the master cell; a
+      two-way table also occupies the input row above and column left
+- [x] A text literal is not an account. `IF(L11=H11,"True",…)` rendered `True` as a bare name,
+      which reads as a reference and would bind to a real account spelled that way
+- [x] **A reference takes the name the binder gave the cell**, not one re-derived from the
+      nearest label. `Equity of PE Firm` resolved row 58's `Debt` to the `Debt` *assumption* in
+      row 4 and computed 60% in every period against a sheet saying 0 and then 240.98
+- [x] `ModelMaterializer.buildResolvable(from:)` — builds what resolves and returns what it
+      dropped. Refusal, not repair
+- [x] **Measured 2026-09-02: the `ANSWER KEY` materializes and runs. 125 of 125 values match
+      what Excel cached, to 1e-4 relative.** Recognition coverage 72% (202 of 279), 46 accounts,
+      residue 3, non-uniform rows 1, `unsupportedFormulaNode` 0
+- [x] One account left out and named: `Equity of PE Firm` needs row 58, which holds literals
+      until the final year and then a formula — a *terminal event* rather than a period series,
+      which a one-rule-per-account model cannot state. IRR 24.67% and MoM 3.01 still reproduce
+
+
 
 ---
 
@@ -282,4 +311,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-02 — recorded recognizer Phases 3 and 4 complete: lag decomposition, `ExcelRecognizer`, `ModelMaterializer`, the golden path against Excel's own numbers, and the circular sweep at 11.75. Recorded the two seeding defects found by measuring rather than by reasoning, and the `unseededCarry` refusal added for the second. Recorded the Wharton measurement after Phases 3–4 and the assumptions-block column collision that stops the sheet materializing, which moves block detection ahead of `UnitInference` in Phase 5. Counts refreshed to 418 tests.
+**Last Updated:** 2026-09-02 — recorded recognizer Phases 3 and 4, then Phase 5a (block detection) complete. The measured result: the Wharton `ANSWER KEY` materializes, runs, and reproduces 125 of 125 of the values Excel cached. Recorded the three blockers Phase 5's design did not predict, the SwiftXLSX 0.8.0 release that named ranges needed, and the older naming defect that made one account run and be wrong. Counts refreshed to 448 tests.

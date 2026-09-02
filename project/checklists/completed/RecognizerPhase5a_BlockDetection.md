@@ -9,6 +9,19 @@ Two defects compound from that, and neither fix is worth anything alone.
 
 **Gate: the `ANSWER KEY` materializes and runs.** Or it names the row that stopped it.
 
+**Met, 2026-09-02.** It materializes, runs, and reproduces **125 of the 125 values Excel cached
+in it**, to 1e-4 relative. One account is left out and named: `Equity of PE Firm` needs row 58,
+which holds literals until the final year and then a formula — a *terminal event* rather than a
+period series, which a model with one rule per account cannot state. IRR 24.67% and MoM 3.01
+still reproduce.
+
+Three blockers stood behind the two rules this checklist was written for, none of them block
+detection and none predicted: a `SUM` over a cell range, the named range `Circ` (which needed
+SwiftXLSX 0.8.0), and a What-If grid swallowing the assumptions beside it. They are recorded as
+Task 2b rather than folded into the tasks that surrounded them. Measuring also exposed an older
+defect: a reference re-derived its account name and resolved `Debt` to an assumption sharing that
+heading, computing 60% where the sheet said 0 — a model that ran, converged, and was wrong.
+
 `UnitInference` and `TypedSourceWriter` follow in a separate checklist. `TypedSourceWriter`
 still waits on `TypedModelAuthoring.md` Phase 3; block detection waits on nothing.
 
@@ -58,29 +71,29 @@ folded silently into another task, because the design did not predict any of it.
 
 ## Task 3 — Scalars through materialization
 
-- [ ] **RED** — a scalar becomes an input holding its value in every period, so a formula
+- [x] **RED** — a scalar becomes an input holding its value in every period, so a formula
       referencing it resolves. `% growth` finds `Revenue growth`.
-- [ ] **RED** — a derived scalar becomes a definition, not an input, and is not mistaken for a
+- [x] **RED** — a derived scalar becomes a definition, not an input, and is not mistaken for a
       period series.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 4 — Measure against Wharton
 
-- [ ] Report recognition coverage, accounts, residue, and **whether the sheet materializes and
+- [x] Report recognition coverage, accounts, residue, and **whether the sheet materializes and
       runs**, alongside the Phase 3–4 figures.
-- [ ] If it runs, check what it produces against the sheet's own cached values and say how far
+- [x] If it runs, check what it produces against the sheet's own cached values and say how far
       it agrees. A model that runs and disagrees is worse than one that refuses.
-- [ ] If it does not run, name the row and why — plainly, not rounded off.
-- [ ] IRR 24.67% and MoM 3.01 must still reproduce.
-- [ ] Record in the proposal's phasing table and `master_plan.md`. Commit.
+- [x] If it does not run, name the row and why — plainly, not rounded off.
+- [x] IRR 24.67% and MoM 3.01 must still reproduce.
+- [x] Record in the proposal's phasing table and `master_plan.md`. Commit.
 
 ---
 
 ## Done when
 
-- [ ] All four tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All four tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all`.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.
