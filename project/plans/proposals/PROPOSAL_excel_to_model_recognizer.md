@@ -898,7 +898,7 @@ metric, not a kill gate.
 | 5a | Excel | **Block detection** (the measured blocker) | ✅ **Done 2026-09-02.** `ANSWER KEY` materializes and runs; **125 of 125 values match the sheet's own**. One account dropped and named — see §17.7 |
 | 5b | Excel | `UnitInference` | ✅ **Done 2026-09-02.** 30 of 46 accounts carry a unit, 0 conflicts; every one of the sheet's 17 formats read correctly — see §18.7 |
 | 5c | Excel | `TypedSourceWriter`, on BusinessMath 2.9.0 | ✅ **Done 2026-09-03.** Emitted source compiles and evaluates to the plan's numbers, proven by a golden file the test target builds. `ANSWER KEY`: 33 typed line items, 10 of 30 definitions checked by the build — see §19.7 |
-| 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
+| 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | ✅ **Done 2026-09-03.** Table read and mapped upstream; **coverage 72% → 85%**. The gate's *recomputed* grid is not met and cannot be: the measured output is a time aggregate over a row this recognizer drops — see §20.2 and §20.6 |
 | 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
 
 Phases 1–2 depend on nothing upstream and produce the measured evidence that shapes everything
@@ -1390,3 +1390,50 @@ The `ANSWER KEY`'s IRR sensitivity table is recognized: both drivers named, both
 read, 25 results in the right orientation, and the measured output identified. Coverage is
 reported with the table's cells now counted, and the recomputation blocker is named rather than
 worked around.
+
+### 20.6 Measured — 2026-09-03
+
+```
+WHARTON sensitivity — ANSWER KEY
+  tables read          1
+  drivers              Multiple (based on 2028 EBITDA) × Revenue growth
+  grid                 5 × 5
+  cells now counted    36
+  measured cell        O5 → C64 = IRR(…)
+```
+
+**Recognition coverage 72% → 85%** (202 → 238 of 279 cells). That is the table's 36 cells,
+exactly. Since Phase 5a they had been excluded from series and scalar binding on purpose — a
+label beside the grid would otherwise claim them, which is what fixed six of the sheet's seven
+non-uniform rows — so excluding them was right and left them uncounted. Reading the table turns
+cells-we-skip into cells-we-understand.
+
+The 125-of-125 agreement is unmoved, which it had to be: if reading a table changed what the
+model computes, the table would be an account after all.
+
+**The remaining 41 cells** are the sheet's own leftovers rather than a recognizer gap: section
+headings, the `KEY NOTES` prose that is not on this sheet, the residue rows already named, and
+the summary block below the timeline — `MOM` and `IRR` in column C, which sit below the axis and
+off the period columns, so neither binder sees them. That last is a real gap and is the same
+shape Rule 2 fixed above the axis; it is recorded here rather than fixed, because what those
+cells hold is a *time aggregate*, and there is nowhere in a period-local model to put one.
+
+**Recomputation is blocked, and the measurement says so rather than rounding it off.** `O5`
+points at `C64 = IRR(D61:I61)`. Two separate obstacles, either of which is sufficient:
+
+1. The measured output is an aggregate over the whole timeline. A `ModelDefinition` is
+   period-local by design — that is what makes a within-period cycle solvable and a rollforward
+   the only way to cross a period — and §3 already refuses a range running along the axis.
+2. `C64` reduces `Equity of PE Firm`, which this recognizer drops: it reads the exit-analysis
+   `Debt` row, literals until the final year and then a formula, which Phase 5a recorded as
+   beyond a model with one rule per account.
+
+Neither is Phase 6's to fix, and a partial recomputation would have had to fake one.
+
+### 20.7 What a summary-metrics layer would need
+
+Recorded for whoever picks it up. Recomputation wants a layer that runs a model over a timeline
+and then *reduces* the result — `IRR`, `NPV`, `MoM`. The existing Wharton IRR test already does
+exactly this by hand: it takes the bound equity series and calls `irr()`, reaching 24.67%. Making
+that a supported path is a phase of its own, and it needs the terminal-row limitation solved
+first, or it has nothing to run on.

@@ -5,6 +5,31 @@ All notable changes to BusinessMathExcel will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `RecognizedSensitivity`: a two-variable What-If table, read. Excel writes one as a single
+  marker on the body's top-left cell — everything that gives it meaning sits around the body and
+  is identified by position, not by any label: values for the row driver above, values for the
+  column driver to the left, and the formula being measured in the corner.
+- `RecognizedSensitivity.analysis()`: maps to BusinessMath's `TwoWayScenarioSensitivityAnalysis`,
+  keeping the orientation that type documents — `results[i][j]` is `inputValues1[i]` against
+  `inputValues2[j]`, so the column driver is driver 1. Getting it backwards transposes a grid
+  silently, so it is pinned by an asymmetric fixture where a transpose cannot pass.
+- `RecognizedModel.sensitivities`: beside the accounts rather than among them. A table is an
+  analysis *of* the model, and a grid of answers is not a rule, so `ModelMaterializer` ignores it.
+- Requires **SwiftXLSX 0.10.0** (pin bumped from 0.9.0) for `write(_:to:cached:style:)` — a data
+  table's body is cached numbers under one marker, and until 0.10.0 no workbook built in code
+  could be made to look like that.
+
+### Measured
+- Wharton `ANSWER KEY`, 2026-09-03: one 5×5 table read, drivers `Multiple (based on 2028 EBITDA)`
+  × `Revenue growth`. **Recognition coverage 72% → 85%** (202 → 238 of 279) — the table's 36
+  cells, exactly, which had been excluded from binding on purpose since Phase 5a. The 125-of-125
+  agreement is unmoved, as it must be.
+- Recomputing the grid is **not** possible and the measurement says why: the measured output is
+  `IRR` over a whole row — an aggregate over the timeline, which a period-local model does not
+  compute — reducing `Equity of PE Firm`, the row already recorded as beyond a model with one
+  rule per account.
+
+### Added (Phase 5c)
 - `RecognizedExpression`: a recognized formula as a tree — account references, numbers, binary
   operators with comparisons distinguished from arithmetic, negation, calls, and the list a cell
   range expands to. `LagDecomposition` builds it and the formula string is **rendered from it**,

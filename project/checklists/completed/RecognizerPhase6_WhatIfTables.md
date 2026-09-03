@@ -38,25 +38,25 @@ recorded as beyond it. §20.2 records both. A partial recomputation would have t
 
 ## Task 3 — Mapping upstream
 
-- [ ] **RED** — `TwoWayScenarioSensitivityAnalysis` is built from a recognized table, with the
+- [x] **RED** — `TwoWayScenarioSensitivityAnalysis` is built from a recognized table, with the
       values in the order that type documents.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 4 — Measure against Wharton
 
-- [ ] Report the recognized table: drivers, vectors, grid shape, measured output.
-- [ ] Report coverage with the table counted, against the 72% it was without.
-- [ ] Confirm the 125-of-125 agreement is unmoved — a table is not an account, so it must not be.
-- [ ] Name the recomputation blocker plainly; do not round it off.
-- [ ] Record in the proposal's phasing table and `master_plan.md`. Commit.
+- [x] Report the recognized table: drivers, vectors, grid shape, measured output.
+- [x] Report coverage with the table counted, against the 72% it was without.
+- [x] Confirm the 125-of-125 agreement is unmoved — a table is not an account, so it must not be.
+- [x] Name the recomputation blocker plainly; do not round it off.
+- [x] Record in the proposal's phasing table and `master_plan.md`. Commit.
 
 ---
 
 ## Done when
 
-- [ ] All four tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All four tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all`.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.

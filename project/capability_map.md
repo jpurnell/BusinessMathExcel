@@ -51,7 +51,7 @@ formula's cached value is never substituted for a formula that could not be tran
 
 ## Workbook Recognition
 
-**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `ScalarBlock`, `ScalarAssumption`, `DataTableBlock`, `UnitInference`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
+**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `ScalarBlock`, `ScalarAssumption`, `DataTableBlock`, `RecognizedSensitivity`, `UnitInference`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
 **Interfaces:** `ExcelRecognizer.recognize(_:options:in:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
 **Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, whether a row computes the same way in every period, and which references reach back a period rather than sideways to an assumption
 **Dependencies:** BusinessMath (`Period`, `PeriodType`)
@@ -75,6 +75,13 @@ carries no *at close* meaning and a label with one value is a scalar assumption.
 speaks for its own cells, which the file declares on the table's master cell. Names come from the
 binder rather than being re-derived, so a reference to one of two rows sharing a heading resolves
 to the one meant.
+
+A **What-If table** is read rather than only located: two drivers, two value vectors, a grid of
+answers, and the formula being measured — which maps to BusinessMath's own
+`TwoWayScenarioSensitivityAnalysis`. It sits beside the accounts, not among them, because a grid
+of answers is not a rule. Reading it is a different claim from being able to recompute it, and
+only the first is made: the measured output on a real sheet is typically an aggregate over the
+whole timeline, which a period-local model does not compute.
 
 A number's **unit** comes from how the sheet presents it, because a format is usually the only
 statement a workbook makes about meaning. The format establishes the dimension, the label may

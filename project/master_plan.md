@@ -320,6 +320,25 @@ BusinessMathExcel/
 - [x] `factor(_:)` for the growth idiom, found by measuring: `Revenue * (1 + [% growth])` is
       `Money × (Ratio + Rate)`, which has no overload — and that refusal is exactly why
       `factor(_:)` exists upstream
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 6: What-If tables (complete)
+- [x] `RecognizedSensitivity` — a two-variable table read, not merely located. Everything that
+      gives one meaning sits around the body and is identified by position: driver values above
+      and to the left, the measured formula in the corner
+- [x] Orientation pinned by an asymmetric fixture, where a transposed reading fails rather than
+      passing by symmetry, and again on the real 5×5 grid
+- [x] Mapped to BusinessMath's `TwoWayScenarioSensitivityAnalysis`, keeping the index order that
+      type documents
+- [x] `RecognizedModel.sensitivities` — beside the accounts, not among them. A grid of answers is
+      not a rule, and `ModelMaterializer` ignores it
+- [x] Needed **SwiftXLSX 0.10.0** (`write(_:to:cached:style:)`), released for it — a data table's
+      body is cached numbers under one marker, and no workbook built in code could look like that
+- [x] **Measured 2026-09-03: coverage 72% → 85%** (202 → 238 of 279), the table's 36 cells
+      exactly. 125-of-125 agreement unmoved
+- [x] **The gate's *recomputed* grid is not met and cannot be.** The measured output is
+      `IRR(D61:I61)` — an aggregate over the timeline, which a period-local model does not compute
+      — reducing `Equity of PE Firm`, the row Phase 5a recorded as beyond one rule per account.
+      Recorded in §20.2 and §20.6 rather than worked around
+
 
 
 
@@ -347,4 +366,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-03 — recorded recognizer Phase 5c: the recognizer carries its expression tree, and `TypedSourceWriter` emits a plan as Swift that compiles and evaluates to the plan's numbers, proven by a golden file the test target builds. Recorded the BusinessMath 2.9.0 pin the phase needed, the measured typed/untyped split on the ANSWER KEY, and the two gaps it exposed — no typed `SUM` upstream, and the growth-factor idiom. Counts refreshed to 508 tests.
+**Last Updated:** 2026-09-03 — recorded recognizer Phases 5c and 6. 5c: the recognizer carries its expression tree and `TypedSourceWriter` emits Swift that compiles and evaluates to the plan's numbers. 6: What-If tables are read and mapped upstream, lifting recognition coverage from 72% to 85%. Recorded the SwiftXLSX 0.9.0 and 0.10.0 releases both phases needed, and that Phase 6's recomputation gate cannot be met — the measured output is a time aggregate over a row the recognizer drops. Counts refreshed to 522 tests.

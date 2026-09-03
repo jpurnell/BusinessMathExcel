@@ -352,6 +352,109 @@ final class WhartonImportMeasurementTests: XCTestCase {
         }
     }
 
+    /// The sheet's IRR sensitivity table, read and mapped upstream.
+    ///
+    /// A 5×5 grid rather than the synthetic 2×3, which matters for orientation: the
+    /// small fixture proves a transpose fails, and this proves the reading is right
+    /// on the shape a real model actually uses. The values are the sheet's own,
+    /// cached by Excel.
+    func testReadsTheSensitivityTable() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook)
+
+        let table = try XCTUnwrap(
+            plan.model.sensitivities.first,
+            "the ANSWER KEY holds one IRR sensitivity table")
+
+        XCTAssertEqual(table.rowDriver, "Revenue growth", "across the top")
+        XCTAssertEqual(
+            table.columnDriver, "Multiple (based on 2028 EBITDA)", "down the side")
+
+        XCTAssertEqual(table.rowValues.count, 5)
+        XCTAssertEqual(table.columnValues, [3, 4, 5, 6, 7], "exit multiples")
+        for (actual, expected) in zip(table.rowValues, [0.06, 0.08, 0.10, 0.12, 0.14]) {
+            XCTAssertEqual(actual, expected, accuracy: 1e-9)
+        }
+
+        XCTAssertEqual(table.results.count, 5, "one row per multiple")
+        XCTAssertEqual(table.results.first?.count, 5, "one column per growth rate")
+
+        // The grid rises in both directions — a higher exit multiple and faster
+        // growth both help a return — so a transposed or reversed reading would
+        // still be monotonic, and only the values themselves settle it.
+        let first = try XCTUnwrap(table.results.first?.first)
+        let last = try XCTUnwrap(table.results.last?.last)
+        XCTAssertEqual(first, -0.013185, accuracy: 1e-5, "3× at 6% growth")
+        XCTAssertEqual(last, 0.420650, accuracy: 1e-5, "7× at 14% growth")
+
+        XCTAssertEqual(
+            table.measuredCell, CellRef("O5"),
+            "the corner cell, which points at the IRR in C64")
+    }
+
+    /// The mapping upstream keeps the orientation the analysis type documents.
+    func testTheSensitivityTableMapsUpstream() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook)
+        let analysis = try XCTUnwrap(plan.model.sensitivities.first).analysis()
+
+        XCTAssertEqual(analysis.inputDriver1, "Multiple (based on 2028 EBITDA)")
+        XCTAssertEqual(analysis.inputValues1, [3, 4, 5, 6, 7])
+        XCTAssertEqual(analysis.inputDriver2, "Revenue growth")
+        XCTAssertEqual(analysis.results.count, 5)
+        XCTAssertEqual(
+            analysis.results[0][0], -0.013185, accuracy: 1e-5,
+            "results[i][j] is inputValues1[i] against inputValues2[j]")
+    }
+
+    /// What the sheet's What-If table contributes, and what still blocks recomputing it.
+    ///
+    /// Reading a table is a different claim from being able to reproduce it. The
+    /// second needs the measured output, and on this sheet that is an aggregate
+    /// over the whole timeline — which is a thing a period-local model does not
+    /// compute, by design. Reported rather than rounded off.
+    func testReportsSensitivityRecognition() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook)
+
+        let table = try XCTUnwrap(plan.model.sensitivities.first)
+        let covered = table.cells.filter { grid.cells[$0] != nil }.count
+
+        // What the measured cell points at, and whether the model can produce it.
+        let measured = grid.formulaASTs[table.measuredCell]
+        var target = "—"
+        if case .cellRef(let reference)? = measured { target = reference.reference }
+        let targetFormula = grid.formulaASTs[CellRef(target)]
+        var aggregate = "—"
+        if case .function(let name, _)? = targetFormula { aggregate = name }
+
+        let resolvable = try ModelMaterializer.buildResolvable(from: plan.model)
+
+        print("""
+            WHARTON sensitivity — ANSWER KEY
+              tables read          \(plan.model.sensitivities.count)
+              drivers              \(table.columnDriver) × \(table.rowDriver)
+              grid                 \(table.results.count) × \(table.rowValues.count)
+              cells now counted    \(covered)
+              measured cell        \(table.measuredCell.reference) → \(target) = \(aggregate)(…)
+              recompute blocked by
+                the output is an aggregate over the timeline, which a period-local
+                model does not compute; and \(target) reduces a row this recognizer
+                drops — \(resolvable.dropped.map(\.label).sorted())
+            """)
+
+        XCTAssertEqual(
+            aggregate, "IRR",
+            "the measured output is an internal rate of return over a whole row")
+        XCTAssertTrue(
+            resolvable.dropped.contains { $0.label == "Equity of PE Firm" },
+            "and that row is the one already recorded as beyond a one-rule-per-account model")
+    }
+
     /// The measurement that matters: does the model agree with the sheet?
     ///
     /// Coverage says how much we can name; materialization says how much we can
