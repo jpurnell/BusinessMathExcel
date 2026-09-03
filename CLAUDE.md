@@ -55,9 +55,11 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
 
 - `SwiftXLSX` — bidirectional .xlsx read/write with FormulaAST. Pinned `exact: "0.2.0"` to
   `github.com/jpurnell/SwiftXLSX`.
-- `BusinessMath` — financial/statistical computation. Pinned `exact: "2.7.0"` to
-  `github.com/jpurnell/BusinessMath`. 2.7.0 is what supplies `ModelDefinition`, `Period`,
-  `PeriodType`, and the cycle solvers the recognizer targets; 2.2.1 had none of them.
+- `BusinessMath` — financial/statistical computation. Pinned `exact: "2.9.0"` to
+  `github.com/jpurnell/BusinessMath`. 2.7.0 first supplied `ModelDefinition`, `Period`,
+  `PeriodType` and the cycle solvers the recognizer targets; 2.8.0 added the function registry
+  and `PeriodDriver`; 2.9.0 adds the typed layer — `ModelUnit`, `LineItem<U>`, `Expr<U>`,
+  `validateUnits()` — which is what `TypedSourceWriter` emits against.
 - `SwiftXLSX` is Foundation-only. `BusinessMath` is not: from 2.7.0 it pulls
   swift-numerics, swift-collections, SwiftDeterminism, swift-crypto, and swift-asn1.
 - Local working copies live at `../../../SwiftXLSX` (i.e. `Development/Swift/SwiftXLSX`, not a
