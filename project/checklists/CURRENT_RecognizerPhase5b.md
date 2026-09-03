@@ -13,10 +13,10 @@ this checklist.
 
 ## Task 1 — Formats reach recognition
 
-- [ ] **RED** — `ModelImporter.ImportResult` carries each cell's number format string.
-- [ ] **RED** — `SheetGrid` carries it, so the stages that interpret can see it.
-- [ ] A workbook with no styles yields no formats and no diagnostics.
-- [ ] Commit.
+- [x] **RED** — `ModelImporter.ImportResult` carries each cell's number format string.
+- [x] **RED** — `SheetGrid` carries it, so the stages that interpret can see it.
+- [x] A workbook with no styles yields no formats and no diagnostics.
+- [x] Commit.
 
 ## Task 2 — Dimension from format
 

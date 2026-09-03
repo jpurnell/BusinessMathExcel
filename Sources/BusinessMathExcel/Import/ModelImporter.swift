@@ -44,6 +44,17 @@ public enum ModelImporter {
         /// file's own record of it is not.
         public let cachedValues: [CellRef: CellValue]
 
+        /// Each cell's number format string, exactly as the file states it.
+        ///
+        /// Carried, not interpreted. A format is frequently the only statement a
+        /// workbook makes about what a number *is* — `0.4` formatted `0%` is a
+        /// proportion, the same `0.4` formatted `"$"#,##0` is money, and the label
+        /// beside it may say neither. Deciding what a format means belongs to
+        /// `Recognition/`; this layer's contract is that it never interprets, and
+        /// `General` is carried through as written rather than dropped for meaning
+        /// nothing.
+        public let numberFormats: [CellRef: String]
+
         /// Each formula cell's AST exactly as the file wrote it.
         ///
         /// ``NodeFormula`` references nodes rather than addresses, which is what
@@ -76,6 +87,7 @@ public enum ModelImporter {
                 cellToNode: [:],
                 sheetCellToNode: [:],
                 cachedValues: [:],
+                numberFormats: [:],
                 formulaASTs: [:],
                 warnings: []
             )
@@ -98,6 +110,7 @@ public enum ModelImporter {
             cellToNode: cellToNode,
             sheetCellToNode: [sheet.name: cellToNode],
             cachedValues: cachedValues(cells),
+            numberFormats: numberFormats(of: sheet),
             formulaASTs: formulaASTs(cells),
             warnings: warnings
         )
@@ -120,6 +133,7 @@ public enum ModelImporter {
         var perSheet: [String: [CellRef: NodeRef]] = [:]
         var cached: [CellRef: CellValue] = [:]
         var asts: [CellRef: FormulaAST] = [:]
+        var formats: [CellRef: String] = [:]
 
         for sheet in workbook.sheets {
             let cells = orderedCells(of: sheet)
@@ -134,6 +148,7 @@ public enum ModelImporter {
             // step with `cellToNode` below.
             cached.merge(cachedValues(cells)) { existing, _ in existing }
             asts.merge(formulaASTs(cells)) { existing, _ in existing }
+            formats.merge(numberFormats(of: sheet)) { existing, _ in existing }
         }
 
         let firstMapping = workbook.sheets.first.flatMap { perSheet[$0.name] } ?? [:]
@@ -142,6 +157,7 @@ public enum ModelImporter {
             cellToNode: firstMapping,
             sheetCellToNode: perSheet,
             cachedValues: cached,
+            numberFormats: formats,
             formulaASTs: asts,
             warnings: warnings
         )
@@ -192,6 +208,7 @@ public enum ModelImporter {
             cellToNode: cellToNode,
             sheetCellToNode: ["": cellToNode],
             cachedValues: cachedValues(cells),
+            numberFormats: [:],
             formulaASTs: formulaASTs(cells),
             warnings: warnings
         )
@@ -309,6 +326,19 @@ public enum ModelImporter {
             cached[identity(CellRef(reference))] = result
         }
         return cached
+    }
+
+    /// Each cell's number format string, keyed by cell identity.
+    ///
+    /// - Parameter sheet: The worksheet.
+    /// - Returns: The formats, including `General` where the file states it.
+    private static func numberFormats(of sheet: Worksheet) -> [CellRef: String] {
+        var formats: [CellRef: String] = [:]
+        for reference in sheet.cellReferences {
+            guard let style = sheet.style(at: reference) else { continue }
+            formats[identity(CellRef(reference))] = style.numberFormat.formatString
+        }
+        return formats
     }
 
     /// Each formula cell's AST as written, keyed by cell identity.
