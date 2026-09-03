@@ -1089,3 +1089,73 @@ removed, so rows its formulas depend on are genuinely empty.
 `ModelMaterializer.buildResolvable(from:)` was added for this. `build(from:)` throws on the first
 hole, which is right when a caller wants a whole model or nothing, and wrong when the question is
 how much of a workbook works. It removes what cannot resolve and returns it — refusal, not repair.
+
+## 18. Phase 5b Design — Unit Inference
+
+Added 2026-09-02. `TypedSourceWriter` stays gated on `TypedModelAuthoring.md` Phase 3; unit
+inference is not, and is written first so the typed writer has something to type with.
+
+### 18.1 What the sheet says, measured before designing
+
+Every format string on the Wharton `ANSWER KEY`, by frequency:
+
+| Cells | Format | Says |
+|---|---|---|
+| 148 | `General` | nothing |
+| 96 | `_(* #,##0.0_);…` | a number, no unit |
+| 57 + 39 + 22 + 6 + 3 | `…[$$-409]…`, `…"$"…` | money |
+| 35 + 25 + 11 | `0%`, `0.0%`, `…#,##0.0%…` | a proportion |
+| 7 | `"Year"\ #` | a period count |
+| 7 + 1 | `0.00"x"`, `_(0.0\x_)…` | a multiple |
+
+Three things follow, and each shapes the design more than any reasoning would have.
+
+**The format is evidence, not proof.** `E36` is `Less: Interest` — money by any reading — and its
+format is the plain `_(* #,##0.0_)` with no currency in it at all. A design keyed on format alone
+would call it unitless, and one keyed on format *first* still must let the label speak.
+
+**Most cells say nothing.** 148 of 279 are `General`. Any design that requires a unit will invent
+most of them.
+
+**Format cannot separate `rate` from `ratio`.** `0.0%` is what `Interest Rate`, `Revenue growth`,
+`EBITDA margin` and `Debt` (as a percentage of purchase price) all carry. The dimension is
+visible; the per-period sense is not.
+
+### 18.2 The rule
+
+Format establishes the **dimension**; the label may sharpen it; neither invents one.
+
+- A format containing a currency symbol — `"$"`, `[$$-409]`, any `[$…]` — is ``UnitKind/money``.
+- A format containing `%` outside a literal is a proportion.
+- A format containing `"x"` or an escaped `\x` is a multiple, which is dimensionless, so
+  ``UnitKind/ratio``.
+- A format naming a period — `"Year"`, `"Yr"` — is ``UnitKind/duration``.
+- Anything else, `General` included, states nothing.
+
+### 18.3 When two units both fit, take the weaker claim
+
+A proportion is a ``UnitKind/ratio`` unless the label says it is per period — `rate`, `yield`,
+`p.a.`, `per annum`, `growth`. This asymmetry is deliberate and is the whole of the judgment
+here: calling an interest rate a `ratio` is *imprecise but true*, since a rate is a proportion;
+calling a margin a `rate` is *false*. Where the evidence supports both, the design takes the claim
+that cannot be wrong.
+
+### 18.4 Silence is a result
+
+An account whose cells state nothing gets `unit == nil` and a
+``DiagnosticCode/unitInferenceFailed`` at `info`. Not a warning — a workbook that formats nothing
+is not defective, and 148 warnings would bury the findings that matter. §15 already settled what
+`nil` means downstream: `TypedSourceWriter` emits an untyped account rather than picking one.
+
+### 18.5 Disagreement within a row is a finding
+
+Cells bound to one account that state *different* dimensions produce
+``DiagnosticCode/unitConflict`` and no unit. A row holding both money and a percentage is either a
+modelling error or a row bound to the wrong cells, and both are worth seeing. This is the one
+place unit inference can catch a defect rather than merely describe one.
+
+### 18.6 Gate
+
+Every `$`-formatted account on the `ANSWER KEY` is money and every `%`-formatted one is a
+proportion; nothing formatted `General` is assigned a unit; and the count of accounts left
+unitless is reported rather than minimised.
