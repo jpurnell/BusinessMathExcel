@@ -18,15 +18,15 @@ recorded as beyond it. §20.2 records both. A partial recomputation would have t
 
 ## Task 1 — Reading the table
 
-- [ ] **RED** — `RecognizedSensitivity` carries the two drivers by **account name**, the two value
+- [x] **RED** — `RecognizedSensitivity` carries the two drivers by **account name**, the two value
       vectors, the results grid, and the cell the measured formula lives in.
-- [ ] **RED** — `results[i][j]` is the value for `inputValues1[i]` and `inputValues2[j]`, matching
+- [x] **RED** — `results[i][j]` is the value for `inputValues1[i]` and `inputValues2[j]`, matching
       `TwoWayScenarioSensitivityAnalysis` upstream. Orientation is the thing to get wrong here, so
       it gets an asymmetric fixture — a 2×3 grid, where a transpose cannot pass.
-- [ ] **RED** — a one-way table is not read as two-way; the file says which via `dt2D`, and
+- [x] **RED** — a one-way table is not read as two-way; the file says which via `dt2D`, and
       guessing would produce a grid with one axis invented.
-- [ ] **RED** — a driver cell the sheet does not name resolves to its address, not to nothing.
-- [ ] Commit.
+- [x] **RED** — a driver cell the sheet does not name resolves to its address, not to nothing.
+- [x] Commit.
 
 ## Task 2 — Into the plan
 
