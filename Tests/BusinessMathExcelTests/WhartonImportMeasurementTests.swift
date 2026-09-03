@@ -272,6 +272,86 @@ final class WhartonImportMeasurementTests: XCTestCase {
         )
     }
 
+    /// What the sheet emits as source, and how much of it is typed.
+    ///
+    /// The two numbers that matter are not "how much source" but how much of it
+    /// the compiler will check. A definition emitted through the string API is a
+    /// definition the build cannot verify — correct, but unchecked — so the split
+    /// is the honest measure of what the typed layer bought on real input.
+    func testReportsEmittedSource() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook).model
+
+        let source = TypedSourceWriter.swiftSource(
+            for: plan, sheetName: "ANSWER KEY", modelName: "AnswerKey")
+        let lines = source.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+
+        let handles = lines.filter { $0.contains("LineItem<") }
+        let definitions = lines.filter { $0.contains("model = model.defining(") }
+        let untyped = definitions.filter { $0.contains("\", as: \"") }
+        let typed = definitions.count - untyped.count
+
+        var byUnit: [String: Int] = [:]
+        for handle in handles {
+            guard let open = handle.range(of: "LineItem<"),
+                  let close = handle.range(of: ">(", range: open.upperBound..<handle.endIndex)
+            else { continue }
+            byUnit[String(handle[open.upperBound..<close.lowerBound]), default: 0] += 1
+        }
+
+        print("""
+            WHARTON emitted source — ANSWER KEY
+              lines                \(lines.count)
+              typed line items     \(handles.count) — \(byUnit.sorted { $0.key < $1.key }
+                    .map { "\($0.key) \($0.value)" }.joined(separator: ", "))
+              definitions          \(definitions.count)
+                checked by build   \(typed)
+                string API         \(untyped.count)
+            """)
+
+        // Reported, never gated — the same reason coverage is. A threshold here
+        // would reward emitting typed source that happens to compile over emitting
+        // the untyped spelling where the sheet genuinely said nothing.
+        XCTAssertGreaterThan(handles.count, 0, "the sheet does state units")
+        XCTAssertEqual(
+            definitions.count, plan.accounts.filter { $0.expression != nil }.count,
+            "every derived account is emitted, typed or not — none is silently dropped")
+    }
+
+    /// The emitted source is valid Swift as far as this package can tell.
+    ///
+    /// Not a compile: that is what `GoldenSourceTests` is for, and it cannot be
+    /// done for a fixture too large to check in. This is the weaker structural
+    /// check that catches the failure a large sheet actually risks — an account
+    /// name that breaks out of its string literal, or two accounts colliding on
+    /// one identifier.
+    func testTheEmittedSourceIsStructurallySound() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook).model
+
+        let source = TypedSourceWriter.swiftSource(
+            for: plan, sheetName: "ANSWER KEY", modelName: "AnswerKey")
+
+        let declared = source.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .compactMap { line -> String? in
+                guard let range = line.range(of: "static let ") else { return nil }
+                let rest = line[range.upperBound...]
+                return rest.split(separator: " ").first.map(String.init)
+            }
+        XCTAssertEqual(
+            declared.count, Set(declared).count,
+            "two accounts sharing a Swift identifier would not compile. Got: "
+                + "\(Dictionary(grouping: declared, by: { $0 }).filter { $0.value.count > 1 }.keys)")
+
+        for line in source.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
+            XCTAssertEqual(
+                line.filter { $0 == "\"" }.count % 2, 0,
+                "an unbalanced quote means a name broke out of its literal: \(line)")
+        }
+    }
+
     /// The measurement that matters: does the model agree with the sheet?
     ///
     /// Coverage says how much we can name; materialization says how much we can

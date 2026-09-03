@@ -300,6 +300,27 @@ BusinessMathExcel/
 - [x] **Measured 2026-09-02: 30 of 46 accounts carry a unit (18 money, 5 rate, 7 ratio), 0
       conflicts, all 17 of the sheet's formats read correctly.** 16 state nothing, which is
       honest: 148 of 279 cells are `General`. The 125-of-125 agreement is unchanged
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 5c: `TypedSourceWriter` (complete)
+- [x] `RecognizedExpression` — the recognizer carries its formula tree and renders the string
+      from it. A rendered formula is lossy and `FormulaEvaluator.Node` is internal upstream, so
+      writing a parser for our own output would have been the fourth instance this session of
+      recovering by inference something known for certain a moment earlier
+- [x] `TypedSourceWriter` — emits an `enum` of static members, not top-level code, so the output
+      compiles into a library or test target rather than only as `main.swift`
+- [x] Typed only when every account read has a known unit, every operation has an overload
+      upstream, and the result's unit matches. Otherwise the string API, which makes no claim
+- [x] **The emitted source compiles**, proven by a golden file the test target builds — a
+      subprocess is refused by the safety checker and `ProcessRunner` is not importable here. A
+      regeneration test stops the golden drifting from what the writer emits
+- [x] The generated model agrees with materializing the plan, compared account by account against
+      the other route rather than against constants
+- [x] **Measured 2026-09-03: 167 lines, 33 typed line items, 10 of 30 definitions checked by the
+      build.** Nothing refused by the algebra — 13 untyped accounts state no unit, 6 are `SUM` or
+      `AVERAGE` with no typed overload upstream, 1 reads a unitless account. 125-of-125 unmoved
+- [x] `factor(_:)` for the growth idiom, found by measuring: `Revenue * (1 + [% growth])` is
+      `Money × (Ratio + Rate)`, which has no overload — and that refusal is exactly why
+      `factor(_:)` exists upstream
+
 
 
 
@@ -326,4 +347,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-02 — recorded recognizer Phases 3 and 4, then 5a (block detection) and 5b (unit inference). The measured results: the Wharton `ANSWER KEY` materializes, runs, and reproduces 125 of 125 of the values Excel cached; 30 of its 46 accounts carry an inferred unit with no conflicts. Recorded the SwiftXLSX 0.8.0 and 0.9.0 releases both phases needed — named ranges and cell styles, each information the reader already had and kept behind its API. Counts refreshed to 471 tests.
+**Last Updated:** 2026-09-03 — recorded recognizer Phase 5c: the recognizer carries its expression tree, and `TypedSourceWriter` emits a plan as Swift that compiles and evaluates to the plan's numbers, proven by a golden file the test target builds. Recorded the BusinessMath 2.9.0 pin the phase needed, the measured typed/untyped split on the ANSWER KEY, and the two gaps it exposed — no typed `SUM` upstream, and the growth-factor idiom. Counts refreshed to 508 tests.

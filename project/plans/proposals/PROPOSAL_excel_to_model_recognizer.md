@@ -897,7 +897,7 @@ metric, not a kill gate.
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |
 | 5a | Excel | **Block detection** (the measured blocker) | ✅ **Done 2026-09-02.** `ANSWER KEY` materializes and runs; **125 of 125 values match the sheet's own**. One account dropped and named — see §17.7 |
 | 5b | Excel | `UnitInference` | ✅ **Done 2026-09-02.** 30 of 46 accounts carry a unit, 0 conflicts; every one of the sheet's 17 formats read correctly — see §18.7 |
-| 5c | Excel | `TypedSourceWriter` (gated on `TypedModelAuthoring.md` Phase 3) | Generated source compiles; wrong-unit cases diagnose rather than guess |
+| 5c | Excel | `TypedSourceWriter`, on BusinessMath 2.9.0 | ✅ **Done 2026-09-03.** Emitted source compiles and evaluates to the plan's numbers, proven by a golden file the test target builds. `ANSWER KEY`: 33 typed line items, 10 of 30 definitions checked by the build — see §19.7 |
 | 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
 | 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
 
@@ -1273,3 +1273,47 @@ named, since that is the one a reader would look at first.
 
 The `ANSWER KEY` emits source that compiles, and evaluating it reproduces the same 125 values the
 plan does. Accounts whose unit is unknown are emitted untyped, and the count of each is reported.
+
+### 19.7 Measured — 2026-09-03
+
+The `ANSWER KEY` emits 167 lines of Swift.
+
+| | |
+|---|---|
+| Typed line items | 33 — Money 20, Rate 5, Ratio 8 |
+| Definitions | 30 |
+| — checked by the build | 10 |
+| — string API | 20 |
+
+The gate is met: emitted source compiles and evaluates to the plan's numbers. That is proven on a
+small fixture rather than on Wharton, because the proof is a **checked-in golden file compiled by
+the test target**, and a 167-line generated file for a workbook that cannot itself be checked in
+would be a fixture nobody could regenerate. `GoldenSourceTests` compiles the writer's output,
+runs it, and compares it account by account against materializing the same plan — then
+regenerates and diffs, so the compiling file cannot drift from what the writer now emits.
+
+**Why twenty definitions are not compiler-checked**, counted rather than estimated:
+
+| Reason | Count |
+|---|---|
+| The account states no unit | 13 |
+| `SUM` — no typed overload upstream | 5 |
+| `AVERAGE` — no typed overload upstream | 1 |
+| Reads an account that states no unit | 1 |
+
+Nothing is refused by the algebra. Every untyped definition has an external cause, and thirteen
+of the twenty are the same one: those rows carry the plain accounting format, which §18 already
+established states nothing. The typed layer is doing what it can with what the sheet said.
+
+**Two findings worth carrying forward.**
+
+`SUM` and `AVERAGE` account for six. BusinessMath's typed layer has `min`, `max` and `abs` and
+nothing else, so a total — which is what a financial model is mostly made of — cannot be written
+typed. A variadic `sum` over same-unit expressions is the obvious addition and belongs upstream in
+a later minor, not here.
+
+The growth-factor idiom was found by measuring. `Revenue Closing = Revenue * (1 + [% growth])` is
+`Money × (Ratio + Rate)`, which has no overload — and that refusal is exactly why `factor(_:)`
+exists upstream. The recognizer renders every growth row in that shape, so recognising it is the
+difference between emitting the commonest line in modelling typed and sending it to the string
+API. Matched narrowly: exactly `1`, exactly a rate on the other side.

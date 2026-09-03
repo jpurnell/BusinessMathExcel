@@ -5,6 +5,33 @@ All notable changes to BusinessMathExcel will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `RecognizedExpression`: a recognized formula as a tree — account references, numbers, binary
+  operators with comparisons distinguished from arithmetic, negation, calls, and the list a cell
+  range expands to. `LagDecomposition` builds it and the formula string is **rendered from it**,
+  so there is one source of truth.
+- `RecognizedAccount.expression`: the same rule the formula string states, before it became text.
+- `TypedSourceWriter.swiftSource(for:sheetName:modelName:)`: emits a plan as Swift source — an
+  `enum` of static members with `definition()` and `run()`, so it compiles into a library or test
+  target rather than only as `main.swift`. Every declaration carries a `// sheet!cell` comment.
+- Requires **BusinessMath 2.9.0** (pin bumped from 2.8.0) for `LineItem`, `Expr` and
+  `validateUnits()`.
+
+### Fixed
+- Renaming an account was textual, so it also rewrote the inside of a longer name containing it —
+  `Debt` within `Debt Service`. It is structural now, which the tree makes possible.
+- `case "\\", "_" where !inLiteral` in `UnitInference` binds the guard to the last pattern only,
+  so a backslash inside a number-format literal set the skip marker and consumed the next
+  character — which can be the quote that closes the literal, running it on to swallow the rest
+  of the format.
+
+### Measured
+- Wharton `ANSWER KEY`, 2026-09-03: 167 lines emitted, 33 typed line items (Money 20, Rate 5,
+  Ratio 8), and 10 of 30 definitions checked by the build. Nothing is refused by the algebra:
+  of the twenty untyped, thirteen are accounts the sheet states no unit for, six are `SUM` or
+  `AVERAGE` — which the typed layer upstream has no overload for — and one reads a unitless
+  account. The 125-of-125 agreement with the sheet's cached values is unchanged.
+
+### Added (Phase 5b)
 - `UnitInference`: what a number *is*, read from how the sheet presents it. The format
   establishes the dimension, the label may sharpen it, and neither invents one. Where two units
   both fit — `0.0%` is what an interest rate and a margin both carry — the weaker claim wins:

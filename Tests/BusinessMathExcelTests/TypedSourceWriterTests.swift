@@ -196,6 +196,43 @@ final class TypedSourceWriterTests: XCTestCase {
         XCTAssertTrue(source.contains("revenue.expr * ratio(1.15)"), "Got:\n\(source)")
     }
 
+    /// `Revenue × (1 + g)` is the commonest line in modelling, and the recognizer
+    /// renders it in exactly this shape. It has no overload — a dimensionless one
+    /// and a per-period rate are not the same dimension — which is why `factor(_:)`
+    /// exists upstream. Recognising the idiom is the difference between emitting it
+    /// typed and sending every growth row to the string API.
+    func testTheGrowthFactorIdiomEmitsAsFactor() {
+        let source = TypedSourceWriter.swiftSource(
+            for: plan([
+                input("Revenue", [1_000], unit: .money, at: "C6"),
+                input("Growth", [0.15], unit: .rate, at: "B2"),
+                account("Grown",
+                        .binary(.multiply, .account("Revenue"),
+                                .binary(.add, .number(1.0), .account("Growth"))),
+                        unit: .money, at: "D6"),
+            ]),
+            sheetName: "Model")
+
+        XCTAssertTrue(
+            source.contains("revenue.expr * factor(growth.expr)"), "Got:\n\(source)")
+    }
+
+    /// Only exactly `1 + rate`. Widening it would emit `factor` for arithmetic
+    /// that means something else.
+    func testAdditionThatIsNotAGrowthFactorIsNotOne() {
+        let source = TypedSourceWriter.swiftSource(
+            for: plan([
+                input("Growth", [0.15], unit: .rate, at: "B2"),
+                input("Premium", [0.02], unit: .rate, at: "B3"),
+                account("Total", .binary(.add, .account("Growth"), .account("Premium")),
+                        unit: .rate, at: "B4"),
+            ]),
+            sheetName: "Model")
+
+        XCTAssertFalse(source.contains("factor("), "Got:\n\(source)")
+        XCTAssertTrue(source.contains("(growth.expr + premium.expr)"))
+    }
+
     // MARK: - A runnable file
 
     func testTheFileIsRunnableRatherThanAFragment() {

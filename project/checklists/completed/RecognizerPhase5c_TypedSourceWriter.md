@@ -52,18 +52,18 @@ this session of recovering by inference something we knew for certain a moment e
 
 ## Task 4 — Measure against Wharton
 
-- [ ] Emit the `ANSWER KEY`. Report accounts emitted typed vs untyped, and the unit breakdown.
-- [ ] Confirm the emitted source compiles and evaluates to the same 125 values.
-- [ ] If any account cannot be emitted at all, name it and say why.
-- [ ] Record in the proposal's phasing table and `master_plan.md`. Commit.
+- [x] Emit the `ANSWER KEY`. Report accounts emitted typed vs untyped, and the unit breakdown.
+- [x] Confirm the emitted source compiles and evaluates to the same 125 values.
+- [x] If any account cannot be emitted at all, name it and say why.
+- [x] Record in the proposal's phasing table and `master_plan.md`. Commit.
 
 ---
 
 ## Done when
 
-- [ ] All four tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All four tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all`.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.

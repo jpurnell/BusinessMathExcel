@@ -85,8 +85,8 @@ defective.
 
 ## Model Materialization
 
-**Key types:** `ModelMaterializer`, `MaterializedModel`, `ResolvableModel`, `MaterializationError`
-**Interfaces:** `ModelMaterializer.build(from:)`, `ModelMaterializer.buildResolvable(from:)`
+**Key types:** `ModelMaterializer`, `MaterializedModel`, `ResolvableModel`, `MaterializationError`, `TypedSourceWriter`
+**Interfaces:** `ModelMaterializer.build(from:)`, `ModelMaterializer.buildResolvable(from:)`, `TypedSourceWriter.swiftSource(for:sheetName:modelName:)`
 **Applications:** Turning a recognized plan into a `ModelDefinition` and its rollforwards, ready to run under `PeriodDriver` — including sheets whose accounts depend on each other within a period
 **Dependencies:** BusinessMath (`ModelDefinition`, `Rollforward`, `PeriodDriver`, `Period`)
 
@@ -108,6 +108,12 @@ because those are defects in recognition rather than gaps in the sheet.
 
 Measured against the Wharton `ANSWER KEY` on 2026-09-02: the sheet runs and reproduces **125 of
 the 125 values Excel cached in it**.
+
+`TypedSourceWriter` emits the plan as Swift a person can read, diff, and have a compiler check. A
+definition goes out typed only when every account it reads has a known unit, every operation has
+an overload upstream, and the result's unit matches — otherwise it goes out through the string
+API, which makes no claim. Emitted source that does not compile is worse than none, so the writer
+never guesses at a unit to reach the typed spelling.
 
 ## Model Builders
 

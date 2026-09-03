@@ -289,6 +289,12 @@ public enum TypedSourceWriter {
             return self.unit(of: operand, units: units)
 
         case .binary(let op, let lhs, let rhs):
+            // `1 + g` is the growth factor, and it has no overload: a dimensionless
+            // one and a per-period rate are not the same dimension. That refusal is
+            // why `factor(_:)` exists upstream, and a growth row renders in exactly
+            // this shape — so the pattern is recognized rather than sent untyped.
+            if op == .add, growthFactorRate(lhs, rhs, units: units) != nil { return .ratio }
+
             guard let left = self.unit(of: lhs, units: units),
                   let right = self.unit(of: rhs, units: units)
             else { return nil }
@@ -307,6 +313,31 @@ public enum TypedSourceWriter {
         case .list, .refused:
             return nil
         }
+    }
+
+    /// The rate side of `1 + rate`, when that is what this addition is.
+    ///
+    /// Exactly `1`, and exactly a rate on the other side. A growth factor is a
+    /// specific idiom, not any addition involving a rate, and widening it would
+    /// start emitting `factor` for arithmetic that means something else.
+    ///
+    /// - Parameters:
+    ///   - lhs: The left operand.
+    ///   - rhs: The right operand.
+    ///   - units: What each account is measured in.
+    /// - Returns: The rate operand, or `nil` if this is not a growth factor.
+    private static func growthFactorRate(
+        _ lhs: RecognizedExpression,
+        _ rhs: RecognizedExpression,
+        units: [String: UnitKind?]
+    ) -> RecognizedExpression? {
+        func isOne(_ expression: RecognizedExpression) -> Bool {
+            if case .number(let value) = expression { return value == 1 }
+            return false
+        }
+        if isOne(lhs), unit(of: rhs, units: units) == .rate { return rhs }
+        if isOne(rhs), unit(of: lhs, units: units) == .rate { return lhs }
+        return nil
     }
 
     /// The unit a binary operation yields, or `nil` where there is no overload.
@@ -361,6 +392,9 @@ public enum TypedSourceWriter {
             return "-\(render(operand, units: units, identifiers: identifiers))"
 
         case .binary(let op, let lhs, let rhs):
+            if op == .add, let rate = growthFactorRate(lhs, rhs, units: units) {
+                return "factor(\(render(rate, units: units, identifiers: identifiers)))"
+            }
             let left = render(lhs, units: units, identifiers: identifiers)
             let right = render(rhs, units: units, identifiers: identifiers)
             return "(\(left) \(op.rawValue) \(right))"
