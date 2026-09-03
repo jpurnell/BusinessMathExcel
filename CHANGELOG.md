@@ -4,6 +4,41 @@ All notable changes to BusinessMathExcel will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-03
+
+**A spreadsheet can be read as a model.** 0.6.0 could read a workbook and say what two of its
+stages meant. This release recovers a runnable model from one: the accounts, the timeline, the
+rules that hold in every period, and the balances that carry between them — then materializes a
+`ModelDefinition`, or emits it as Swift a compiler can check.
+
+Measured on the Wharton LBO Practice Model, a teaching workbook with a published answer key:
+
+| | |
+|---|---|
+| Recognition coverage | **85%** — 238 of 279 populated cells |
+| Accounts recovered | 46 |
+| Values matching the sheet's own | **125 of 125** |
+| Published IRR | **24.67%**, reproduced |
+| Published multiple of money | **3.01×**, reproduced |
+| Emitted Swift | 167 lines, 33 typed line items |
+
+The layering is the design. `Import/` never interprets. `Recognition/` interprets and **never
+throws** — it produces a plan, and anything it cannot express becomes residue carrying the
+reason. `Materialize/` validates and **throws**, because a model built from a plan with a hole in
+it would run and produce numbers.
+
+Every refusal in that middle layer exists because guessing produces a model that runs and is
+wrong: a row computing two ways, a reference reaching two periods back, an opening balance nobody
+stated, one name meaning both a balance and a percentage. **A formula's cached value is never
+substituted for a formula that could not be translated** — the number would be right once, and
+wrong forever after the first input changed.
+
+Needs **BusinessMath 2.9.0** and **SwiftXLSX 0.10.0**, both released for this work. Three
+SwiftXLSX releases came out of it (0.8.0 named ranges, 0.9.0 cell styles, 0.10.0 cached formula
+writes), and all three were the same shape: information the reader already understood, with no
+way for a caller to reach or state it.
+
+
 ### Added
 - `RecognizedSensitivity`: a two-variable What-If table, read. Excel writes one as a single
   marker on the body's top-left cell — everything that gives it meaning sits around the body and

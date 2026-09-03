@@ -17,10 +17,15 @@ a workbook is read into an ``ExcelModel``, and `FormulaMapper` maps recognised
 formulas back onto BusinessMath operations.
 
 ```
-Single-sheet: ExcelModel -> LayoutStrategy          -> ModelExporter     -> .xlsx
+Single-sheet: ExcelModel -> LayoutStrategy           -> ModelExporter      -> .xlsx
 Multi-sheet:  ExcelModel -> MultiSheetLayoutStrategy -> MultiSheetExporter -> .xlsx
-Import:       .xlsx      -> ModelImporter            -> ExcelModel        -> BusinessMath
+Import:       .xlsx      -> ModelImporter            -> ExcelModel         -> BusinessMath
+Recognize:    .xlsx      -> ExcelRecognizer          -> RecognizedModel    -> ModelDefinition
 ```
+
+Importing and recognizing are different jobs. An import gives you every cell and tells you
+nothing about what the sheet *means*; recognition recovers the accounts, the timeline, the rules
+that hold in every period, and the balances that carry between them. See <doc:RecognitionGuide>.
 
 ## Topics
 
@@ -42,3 +47,11 @@ Import:       .xlsx      -> ModelImporter            -> ExcelModel        -> Bus
 
 - ``ModelExporter``
 - ``ModelImporter``
+
+### Recovering a model from a workbook
+
+- <doc:RecognitionGuide>
+- ``ExcelRecognizer``
+- ``RecognizedModel``
+- ``ModelMaterializer``
+- ``TypedSourceWriter``

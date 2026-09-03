@@ -6,6 +6,15 @@ Import is a faithful structural transcription: anything it cannot represent is r
 cell and the construct, and a formula's cached value is never substituted for a formula that could
 not be translated.
 
+**Recognition** goes further, and is a different job. An import gives you every cell and tells you
+nothing about what the sheet *means*; recognition recovers the accounts, the timeline, the rules
+that hold in every period, and the balances that carry between them — then materializes a
+`ModelDefinition` you can run, or emits it as Swift source a compiler can check.
+
+Measured on the Wharton LBO Practice Model, a teaching workbook with a published answer key:
+**85% of populated cells recognized, 46 accounts recovered, and 125 of 125 values matching the
+sheet's own** — with its published IRR of 24.67% and 3.01× multiple of money both reproduced.
+
 ## Requirements
 
 - Swift 6.2+
@@ -117,11 +126,22 @@ try workbook.save(to: URL(filePath: "simulation.xlsx"))
 Single-sheet: ExcelModel -> LayoutStrategy           -> ModelExporter      -> .xlsx
 Multi-sheet:  ExcelModel -> MultiSheetLayoutStrategy -> MultiSheetExporter -> .xlsx
 Import:       .xlsx      -> ModelImporter            -> ExcelModel         -> BusinessMath
+Recognize:    .xlsx      -> ExcelRecognizer          -> RecognizedModel    -> ModelDefinition
+                                                                          -> Swift source
 ```
 
 Export resolves every `NodeFormula` from node references into cell-referenced Excel formulas
 (SUM, AVERAGE, PERCENTILE, PMT, NPV, IRR, ...), so results recalculate when inputs change.
 Import runs the same path backwards.
+
+Recognition is layered by what each layer is allowed to do. `Import/` never interprets.
+`Recognition/` interprets and **never throws** — it produces a plan, and anything it cannot
+express becomes residue carrying the reason. `Materialize/` validates and **throws**, because a
+model built from a plan with a hole in it would run and produce numbers.
+
+That discipline is the point. Each refusal is a specific way an importer can produce a model that
+runs and is wrong: a row that computes two ways, a reference reaching two periods back, an
+opening balance nobody stated, one name meaning both a balance and a percentage.
 
 ## Documentation
 
@@ -129,7 +149,9 @@ Import runs the same path backwards.
 swift package generate-documentation --target BusinessMathExcel
 ```
 
-194 public APIs, 100% documented. 365 tests.
+Start with the **Reading a Spreadsheet** guide, which covers recognition end to end.
+
+100% of public APIs documented. 522 tests.
 
 ## License
 

@@ -899,7 +899,7 @@ metric, not a kill gate.
 | 5b | Excel | `UnitInference` | ✅ **Done 2026-09-02.** 30 of 46 accounts carry a unit, 0 conflicts; every one of the sheet's 17 formats read correctly — see §18.7 |
 | 5c | Excel | `TypedSourceWriter`, on BusinessMath 2.9.0 | ✅ **Done 2026-09-03.** Emitted source compiles and evaluates to the plan's numbers, proven by a golden file the test target builds. `ANSWER KEY`: 33 typed line items, 10 of 30 definitions checked by the build — see §19.7 |
 | 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | ✅ **Done 2026-09-03.** Table read and mapped upstream; **coverage 72% → 85%**. The gate's *recomputed* grid is not met and cannot be: the measured output is a time aggregate over a row this recognizer drops — see §20.2 and §20.6 |
-| 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
+| 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | ✅ **Done 2026-09-03**, released as **0.7.0**. Guide written and indexed; its examples compile and run, which the doc checker enforces |
 
 Phases 1–2 depend on nothing upstream and produce the measured evidence that shapes everything
 after. Phase 6 is last because the What-If table is the one Wharton construct with no obvious

@@ -12,6 +12,12 @@ and Excel workbooks with live, interactive formulas. Models are constructed as
 computational graphs (DAGs) that export to .xlsx with cell-referenced formulas,
 and import back from .xlsx into graph form.
 
+As of **0.7.0** the import direction goes further than transcription: a workbook written by
+somebody else can be *recognized* — its accounts, timeline, period rules and carried balances
+recovered — and then run as a `ModelDefinition` or emitted as Swift source. Measured on the
+Wharton LBO Practice Model: 85% of cells recognized, 46 accounts, and 125 of 125 values matching
+the sheet's own.
+
 ### Target Users
 - **BusinessMath consumers** who need Excel output for financial models, reports, and analysis
 - **Swift developers** who need to generate Excel files with live formulas from any Swift application
@@ -178,14 +184,14 @@ BusinessMathExcel/
 - [x] 121 test force unwraps replaced with `try XCTUnwrap`; zero force unwraps in the repo
 - [x] Full gate green: 40 of 45 checkers, 0 errors, 0 warnings, no overrides
 
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 0
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 0
 - [x] BusinessMath pin bumped 2.2.1 → 2.7.0, which is where `ModelDefinition`, `Period`,
       `PeriodType`, and the cycle solvers live — 2.2.1 had no `Model Definition/` at all
 - [x] No `BusinessMathDSL` reference existed in this repo, so that half of the phase was
       already satisfied
 - [x] No source changes were needed; 293 tests pass unchanged across the bump
 
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 1
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 1
 - [x] `ModelImporter.convertAST` reports every formula node it drops; it previously took no
       warnings parameter at all, so a workbook could import substantially lossy in silence
 - [x] `.cellRange` translates to `NodeFormula.range` — `SUM(D5:D16)`, `NPV(rate, D5:D16)`,
@@ -206,7 +212,7 @@ BusinessMathExcel/
       elements naming their span and drivers, not `.array` cells. Neither reference workbook has
       a single `.array` cell
 
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 2 (complete)
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 2 (complete)
 - [x] Comparison operators in `NodeFormula`, pulled forward from D8; `IF` needed nothing,
       being a function rather than an AST node
 - [x] `Coverage` and `Diagnostic` — the vocabulary the stages report through
@@ -229,7 +235,7 @@ BusinessMathExcel/
       2982 `IF`s across 5011 formulas where Wharton shows one. Representation only: D9 still
       governs what an `IF` *means*, and a timeline-answerable `IF` is still demoted to data.
       See `project/plans/proposals/PROPOSAL_excel_to_model_recognizer.md` §15 Q0.
-### Unreleased — Excel→ModelDefinition Recognizer, Phases 3 and 4 (complete)
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phases 3 and 4 (complete)
 - [x] `LagDecomposition`: a period-local formula plus the carries it implies, with `$` read as
       the seam between "fills across" and "pinned"
 - [x] `RecognizedModel` / `ExcelRecognizer`: recognition never throws and produces a plan;
@@ -259,7 +265,7 @@ BusinessMathExcel/
       `SUM(H9:H10)` in H11 and is refused. This makes **block detection** Phase 5's first item,
       ahead of `UnitInference`
 
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 5a: block detection (complete)
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 5a: block detection (complete)
 - [x] **Rule 1** — a label owns a value only when no other text cell stands between them. Real
       models put small tables side by side and their value columns land wherever the page was
       laid out, including in the timeline's columns
@@ -286,7 +292,7 @@ BusinessMathExcel/
 - [x] One account left out and named: `Equity of PE Firm` needs row 58, which holds literals
       until the final year and then a formula — a *terminal event* rather than a period series,
       which a one-rule-per-account model cannot state. IRR 24.67% and MoM 3.01 still reproduce
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 5b: unit inference (complete)
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 5b: unit inference (complete)
 - [x] Formats carried through `ModelImporter` and `SheetGrid`, never interpreted there. Needs
       **SwiftXLSX 0.9.0** (`Worksheet.style(at:)`) — styles were resolved on read from the start
       and kept where no caller could reach them
@@ -300,7 +306,7 @@ BusinessMathExcel/
 - [x] **Measured 2026-09-02: 30 of 46 accounts carry a unit (18 money, 5 rate, 7 ratio), 0
       conflicts, all 17 of the sheet's formats read correctly.** 16 state nothing, which is
       honest: 148 of 279 cells are `General`. The 125-of-125 agreement is unchanged
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 5c: `TypedSourceWriter` (complete)
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 5c: `TypedSourceWriter` (complete)
 - [x] `RecognizedExpression` — the recognizer carries its formula tree and renders the string
       from it. A rendered formula is lossy and `FormulaEvaluator.Node` is internal upstream, so
       writing a parser for our own output would have been the fourth instance this session of
@@ -320,7 +326,7 @@ BusinessMathExcel/
 - [x] `factor(_:)` for the growth idiom, found by measuring: `Revenue * (1 + [% growth])` is
       `Money × (Ratio + Rate)`, which has no overload — and that refusal is exactly why
       `factor(_:)` exists upstream
-### Unreleased — Excel→ModelDefinition Recognizer, Phase 6: What-If tables (complete)
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 6: What-If tables (complete)
 - [x] `RecognizedSensitivity` — a two-variable table read, not merely located. Everything that
       gives one meaning sits around the body and is identified by position: driver values above
       and to the left, the measured formula in the corner
@@ -348,6 +354,25 @@ BusinessMathExcel/
 
 ## Future Work
 
+### Named by measurement, not speculation
+
+Each of these was found by running the recognizer against a real workbook, and each is recorded
+where it was found rather than guessed at here.
+
+- **A summary-metrics layer.** `IRR`, `NPV` and `MoM` are aggregates over a whole timeline, and a
+  `ModelDefinition` is period-local by design. That is why Phase 6 cannot recompute a sensitivity
+  grid, and why `MOM` and `IRR` on the Wharton sheet are among the cells still uncounted. See
+  proposal §20.7.
+- **Terminal-event rows.** A row holding literals until its final period and then a formula —
+  `Equity of PE Firm` depends on one — cannot be stated by a model with one rule per account. It
+  is the single account the Wharton sheet still drops.
+- **A typed `sum` upstream.** BusinessMath's typed layer has `min`, `max` and `abs`; six of the
+  twenty untyped definitions in emitted source are `SUM` or `AVERAGE`. A total is most of what a
+  financial model is made of.
+- **Rows below the axis, off the period columns.** The same shape Rule 2 fixed above the axis.
+
+### Earlier candidates
+
 - SensitivityModelBuilder — varies one input across a range, records output
 - TornadoModelBuilder — ranked sensitivity analysis with live formulas
 - Cross-sheet formula references in MonteCarloExtension
@@ -366,4 +391,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-03 — recorded recognizer Phases 5c and 6. 5c: the recognizer carries its expression tree and `TypedSourceWriter` emits Swift that compiles and evaluates to the plan's numbers. 6: What-If tables are read and mapped upstream, lifting recognition coverage from 72% to 85%. Recorded the SwiftXLSX 0.9.0 and 0.10.0 releases both phases needed, and that Phase 6's recomputation gate cannot be met — the measured output is a time aggregate over a row the recognizer drops. Counts refreshed to 522 tests.
+**Last Updated:** 2026-09-03 — reconciled for the **0.7.0** release. Phases 0 through 7 of the Excel→ModelDefinition recognizer are recorded as shipped rather than unreleased; Project Overview states what recognition adds to the mission; Future Work now leads with the four gaps measurement named — a summary-metrics layer, terminal-event rows, a typed `sum` upstream, and rows below the axis — each pointing at where it was found. 522 tests, 45/45 checkers.
