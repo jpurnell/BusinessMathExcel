@@ -171,4 +171,75 @@ final class RecognizedSensitivityTests: XCTestCase {
         XCTAssertEqual(analysis.inputValues2, [0.06, 0.08, 0.10])
         XCTAssertEqual(analysis.results[1][2], 23, "second multiple, third growth rate")
     }
+
+    // MARK: - Into the plan
+
+    /// A table reaches the plan, beside the accounts rather than among them.
+    func testARecognizedTableReachesThePlan() throws {
+        let sheet = try XCTUnwrap(self.sheet())
+        let plan = ExcelRecognizer.recognize(sheet)
+
+        let table = try XCTUnwrap(plan.model.sensitivities.first, "no table in the plan")
+        XCTAssertEqual(table.rowDriver, "Growth")
+        XCTAssertEqual(table.columnDriver, "Multiple")
+    }
+
+    /// A grid of answers is not a rule. It is an analysis *of* the model — the
+    /// numbers the model already produced under other assumptions — so nothing in
+    /// it can define an account, and materialization has nothing to do with it.
+    func testATableIsNotAnAccount() throws {
+        let sheet = try XCTUnwrap(self.sheet())
+        let plan = ExcelRecognizer.recognize(sheet)
+
+        XCTAssertFalse(
+            plan.model.accounts.contains { $0.name.contains("Payback") && $0.formula != nil },
+            "the measured formula is read as a cell, not lifted into an account")
+
+        let built = try ModelMaterializer.build(from: plan.model)
+        for name in built.definition.definitions.map(\.name) {
+            XCTAssertFalse(
+                name.hasPrefix("O") || name.hasPrefix("P") || name.hasPrefix("Q"),
+                "no grid cell became a definition. Got: \(name)")
+        }
+    }
+
+    /// The table's cells were excluded from binding on purpose since Phase 5a —
+    /// a label beside the grid would otherwise claim them. Reading the table turns
+    /// them from cells we exclude into cells we understand, which is the whole
+    /// coverage argument for this phase.
+    func testTheTablesCellsCountAsRecognized() throws {
+        let sheet = try XCTUnwrap(self.sheet())
+        let plan = ExcelRecognizer.recognize(sheet)
+
+        let table = try XCTUnwrap(plan.model.sensitivities.first)
+        XCTAssertEqual(
+            table.cells.count, 12,
+            "a 2×3 body, plus the row above and the column left, plus the corner")
+
+        // Every populated cell the table covers is accounted for.
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let populated = table.cells.filter { grid.cells[$0] != nil }
+        XCTAssertEqual(
+            populated.count, 12,
+            "the fixture fills the whole block, so all of it should count")
+        XCTAssertGreaterThanOrEqual(
+            plan.coverage.recognizedCells, populated.count,
+            "coverage counts them")
+    }
+
+    func testASheetWithNoTableHasNoneInThePlan() throws {
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Model")
+        sheet.write("2024", to: "C1")
+        sheet.write("2025", to: "D1")
+        sheet.write("Revenue", to: "A2")
+        sheet.write(100.0, to: "C2")
+        sheet.write(110.0, to: "D2")
+
+        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first))
+        XCTAssertTrue(plan.model.sensitivities.isEmpty)
+        XCTAssertEqual(
+            plan.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue), [],
+            "and a sheet without one is not remarkable")
+    }
 }

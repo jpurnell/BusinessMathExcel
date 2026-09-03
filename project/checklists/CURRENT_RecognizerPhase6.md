@@ -30,11 +30,11 @@ recorded as beyond it. §20.2 records both. A partial recomputation would have t
 
 ## Task 2 — Into the plan
 
-- [ ] **RED** — `RecognizedModel.sensitivities` holds them. A table is an analysis *of* the model,
+- [x] **RED** — `RecognizedModel.sensitivities` holds them. A table is an analysis *of* the model,
       not an account: it sits beside the accounts, and `ModelMaterializer` ignores it.
-- [ ] **RED** — the table's cells count as recognized, so coverage reflects them.
-- [ ] **RED** — a sheet with no table yields none, and no diagnostics.
-- [ ] Commit.
+- [x] **RED** — the table's cells count as recognized, so coverage reflects them.
+- [x] **RED** — a sheet with no table yields none, and no diagnostics.
+- [x] Commit.
 
 ## Task 3 — Mapping upstream
 

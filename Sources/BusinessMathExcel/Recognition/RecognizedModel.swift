@@ -19,6 +19,14 @@ public struct RecognizedModel: Sendable {
     /// Balances that carry from one period into the next.
     public let rollforwards: [LagDecomposition.RecognizedRollforward]
 
+    /// The What-If tables the sheet holds.
+    ///
+    /// Beside the accounts rather than among them, because a table is an analysis
+    /// *of* the model — a grid of answers the model already produced under other
+    /// assumptions — and a grid of answers is not a rule. ``ModelMaterializer``
+    /// ignores them for the same reason.
+    public let sensitivities: [RecognizedSensitivity]
+
     /// What was seen and not understood.
     ///
     /// A row here is **not** an account. It was read, its cells are named, and the
@@ -31,16 +39,19 @@ public struct RecognizedModel: Sendable {
     ///   - periods: The timeline.
     ///   - accounts: The accounts understood.
     ///   - rollforwards: The carries between periods.
+    ///   - sensitivities: The What-If tables read from the sheet.
     ///   - residue: What was not understood.
     public init(
         periods: [Period],
         accounts: [RecognizedAccount],
         rollforwards: [LagDecomposition.RecognizedRollforward],
+        sensitivities: [RecognizedSensitivity] = [],
         residue: [Residue]
     ) {
         self.periods = periods
         self.accounts = accounts
         self.rollforwards = rollforwards
+        self.sensitivities = sensitivities
         self.residue = residue
     }
 }

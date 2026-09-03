@@ -144,11 +144,20 @@ public enum ExcelRecognizer {
             recognized.insert(assumption.valueCell)
         }
 
+        // A What-If table's cells were excluded from binding above, because a label
+        // beside the grid would otherwise claim them. Reading the table is what
+        // turns them from cells deliberately skipped into cells understood.
+        let sensitivities = RecognizedSensitivity.read(in: grid, axis: axis)
+        for table in sensitivities {
+            recognized.formUnion(table.cells.filter { grid.cells[$0] != nil })
+        }
+
         return RecognitionResult(
             model: RecognizedModel(
                 periods: axis.periods,
                 accounts: accounts,
                 rollforwards: rollforwards,
+                sensitivities: sensitivities,
                 residue: residue
             ),
             diagnostics: diagnostics,
