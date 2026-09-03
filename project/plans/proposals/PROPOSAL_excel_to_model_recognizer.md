@@ -1193,3 +1193,83 @@ Sixteen accounts state nothing, which is the honest figure rather than a shortfa
 sheet's 279 cells are formatted `General`, and inventing units for them was never the goal. The
 125-of-125 agreement with the sheet's cached values is unchanged, as it must be — a unit is
 metadata about a number, not a change to it.
+
+## 19. Phase 5c Design — `TypedSourceWriter`
+
+Added 2026-09-03, once **BusinessMath 2.9.0** shipped the layer this emits against: `ModelUnit`,
+`LineItem<U>`, `Expr<U>`, the operator algebra, and `validateUnits()`.
+
+### 19.1 What it is for
+
+A recognized workbook can already be materialized and run. That is the right answer for a tool;
+it is the wrong answer for a person, who wants to *read* what the sheet said, keep it under
+version control, and have a compiler check it. Emitted source is diffable, reviewable, and — the
+point of the typed layer — wrong in ways the build catches.
+
+### 19.2 The problem: a rendered formula is lossy
+
+`RecognizedAccount.formula` is a string in `FormulaEvaluator` grammar: `([Revenue] * [Margin])`.
+To emit `revenue.expr * margin.expr` the writer needs the operator structure back, and the string
+does not carry it. `FormulaEvaluator.Node` is internal to BusinessMath, so it cannot be parsed
+here either.
+
+This is the third time this session the same shape has appeared. Units were lost when `Expr`
+rendered to a string, and had to be carried alongside. Named ranges were parsed by SwiftXLSX and
+discarded before any caller could reach them. Here the structure is built by ``LagDecomposition``
+and thrown away at the moment it becomes text.
+
+Writing a parser for our own output would be the fourth instance of the same mistake: recovering
+by inference something we knew for certain a moment earlier.
+
+**So the recognizer carries the tree.** ``LagDecomposition`` builds a `RecognizedExpression` and
+*renders* the formula string from it. The string stays byte-identical — which the existing 471
+tests, including the 125-of-125 Wharton agreement, are what prove.
+
+### 19.3 Units decide the spelling, and silence is not a unit
+
+§12's amendment stands: an account whose unit was never established emits **untyped**. Since
+`LineItem<U>` has no untyped form, that means the string API:
+
+```swift
+// Typed — the sheet said what this is.
+let revenue = LineItem<Money>("Revenue")            // ANSWER KEY!E30
+let margin  = LineItem<Ratio>("EBITDA margin")      // ANSWER KEY!D10
+
+model = model.defining(ebitda, as: revenue.expr * margin.expr)
+
+// Untyped — the sheet formatted nothing, so nothing is claimed.
+model = model.defining("Total FCF", as: "([EBITDA] - [Less: Taxes])")   // ANSWER KEY!E47
+```
+
+The two mix freely in one model, which is exactly what `1.10-TypedModelAuthoring.md` says the
+string API is for. Sixteen of the `ANSWER KEY`'s 46 accounts state no unit, so this is the common
+case on real input, not a corner.
+
+An expression **mixing** a typed and an untyped operand cannot be written typed either, because
+there is no `Expr` for the untyped side. Those definitions go out untyped whole, rather than
+half-cast into something that would not compile.
+
+### 19.4 What the emitted file must satisfy
+
+Not "looks plausible" — it must **compile against BusinessMath 2.9.0** and evaluate to the same
+numbers the plan does. A generated file that does not compile is worse than none, and one that
+compiles but computes differently is worse still.
+
+The test therefore renders, writes, compiles, and runs. That cannot use `Process` — the safety
+checker refuses an unbounded spawn, correctly, and the same constraint that redirected the
+compile-failure checks in `TypedModelAuthoring` applies here. The check instead compares the
+emitted source against a **checked-in golden file** compiled as part of the test target: if the
+writer's output diverges from the golden, the test fails; the golden itself compiles and runs
+because it is ordinary source in the package.
+
+### 19.5 Provenance is not a comment ornament
+
+Every declaration carries `// <sheet>!<cell>`. On a 46-account sheet, the first question a reader
+asks of any line is *which cell did this come from* — and it is the only way to check the
+recognizer's work against the workbook by hand. Where an account has several cells the anchor is
+named, since that is the one a reader would look at first.
+
+### 19.6 Gate
+
+The `ANSWER KEY` emits source that compiles, and evaluating it reproduces the same 125 values the
+plan does. Accounts whose unit is unknown are emitted untyped, and the count of each is reported.
