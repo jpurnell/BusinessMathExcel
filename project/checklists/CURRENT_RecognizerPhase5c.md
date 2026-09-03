@@ -43,12 +43,12 @@ this session of recovering by inference something we knew for certain a moment e
 
 ## Task 3 — The emitted source compiles and agrees
 
-- [ ] **RED** — a golden file, checked in and compiled as part of the test target, matches the
+- [x] **RED** — a golden file, checked in and compiled as part of the test target, matches the
       writer's output for a small fixture. Divergence fails the test; the golden compiles and runs
       because it is ordinary source in the package.
-- [ ] **RED** — evaluating the golden reproduces the same numbers as materializing the plan.
-- [ ] No `Process`: the safety checker refuses an unbounded spawn, and it is right to.
-- [ ] Commit.
+- [x] **RED** — evaluating the golden reproduces the same numbers as materializing the plan.
+- [x] No `Process`: the safety checker refuses an unbounded spawn, and it is right to.
+- [x] Commit.
 
 ## Task 4 — Measure against Wharton
 

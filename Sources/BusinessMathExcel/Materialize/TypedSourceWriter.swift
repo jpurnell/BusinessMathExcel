@@ -48,12 +48,18 @@ public enum TypedSourceWriter {
     /// - Parameters:
     ///   - model: The recognized plan.
     ///   - sheetName: The worksheet the plan came from, for provenance comments.
-    ///   - modelName: The variable the emitted model is bound to.
+    ///   - modelName: The enum the emitted model is namespaced under.
     /// - Returns: Swift source, ready to compile against BusinessMath.
+    ///
+    /// The file declares an `enum` of static members rather than top-level code.
+    /// Top-level statements are legal only in `main.swift`, so a file of them
+    /// cannot be compiled into a library or a test target — which is where a
+    /// generated model belongs. The namespace also keeps two imported sheets from
+    /// colliding on `periods` or `inputs` when both are compiled together.
     public static func swiftSource(
         for model: RecognizedModel,
         sheetName: String = "Sheet1",
-        modelName: String = "importedModel"
+        modelName: String = "ImportedModel"
     ) -> String {
         // A rollforward's opening account is real — the driver supplies it every
         // period — but nothing in the plan declares it, so it has no unit of its
@@ -76,6 +82,8 @@ public enum TypedSourceWriter {
         }
         let identifiers = identifiers(for: declarable)
 
+        let namespace = typeName(modelName)
+
         var lines: [String] = []
         lines.append("// Generated from \(sheetName) by BusinessMathExcel.")
         lines.append("//")
@@ -86,14 +94,21 @@ public enum TypedSourceWriter {
         lines.append("import BusinessMath")
         lines.append("import Foundation")
         lines.append("")
+        lines.append("/// The model recognized from \(sheetName).")
+        lines.append("enum \(namespace) {")
+        lines.append("")
 
-        lines.append(contentsOf: timeline(model))
-        lines.append(contentsOf: handles(declarable, identifiers: identifiers,
-                                         sheetName: sheetName))
-        lines.append(contentsOf: inputs(model, sheetName: sheetName))
-        lines.append(contentsOf: definitions(model, units: units, identifiers: identifiers,
-                                             sheetName: sheetName, modelName: modelName))
-        lines.append(contentsOf: run(model, modelName: modelName))
+        var body: [String] = []
+        body.append(contentsOf: timeline(model))
+        body.append(contentsOf: handles(declarable, identifiers: identifiers,
+                                        sheetName: sheetName))
+        body.append(contentsOf: inputs(model, sheetName: sheetName))
+        body.append(contentsOf: definitions(model, units: units, identifiers: identifiers,
+                                            sheetName: sheetName))
+        body.append(contentsOf: run(model))
+
+        lines.append(contentsOf: body.map { $0.isEmpty ? "" : "    " + $0 })
+        lines.append("}")
 
         return lines.joined(separator: "\n") + "\n"
     }
@@ -103,7 +118,7 @@ public enum TypedSourceWriter {
     private static func timeline(_ model: RecognizedModel) -> [String] {
         var lines = ["// MARK: - Timeline", ""]
         let periods = model.periods.map { literal(for: $0) }.joined(separator: ",\n    ")
-        lines.append("let periods: [Period] = [\n    \(periods),\n]")
+        lines.append("static let periods: [Period] = [\n    \(periods),\n]")
         lines.append("")
         return lines
     }
@@ -122,7 +137,8 @@ public enum TypedSourceWriter {
                 continue
             }
             lines.append(
-                "let \(identifier) = LineItem<\(swiftUnit(unit))>(\(quoted(account.name)))"
+                "static let \(identifier) = "
+                    + "LineItem<\(swiftUnit(unit))>(\(quoted(account.name)))"
                     + "  \(provenance(account, sheetName: sheetName))")
         }
         lines.append("")
@@ -133,7 +149,9 @@ public enum TypedSourceWriter {
         let supplied = model.accounts.filter { $0.values != nil }
         guard !supplied.isEmpty else { return [] }
 
-        var lines = ["// MARK: - Data", "", "let inputs: [String: TimeSeries<Double>] = ["]
+        var lines = [
+            "// MARK: - Data", "", "static let inputs: [String: TimeSeries<Double>] = [",
+        ]
         for account in supplied {
             guard let values = account.values else { continue }
             let ordered = model.periods.filter { values[$0] != nil }
@@ -153,12 +171,12 @@ public enum TypedSourceWriter {
         _ model: RecognizedModel,
         units: [String: UnitKind?],
         identifiers: [String: String],
-        sheetName: String,
-        modelName: String
+        sheetName: String
     ) -> [String] {
         var lines = ["// MARK: - Definitions", ""]
-        lines.append("var \(modelName) = ModelDefinition<Double>(inputs: inputs)")
-        lines.append("")
+        lines.append("/// The model as the sheet defines it.")
+        lines.append("static func definition() -> ModelDefinition<Double> {")
+        lines.append("    var model = ModelDefinition<Double>(inputs: inputs)")
 
         for account in model.accounts {
             guard let expression = account.expression else { continue }
@@ -168,41 +186,66 @@ public enum TypedSourceWriter {
                let identifier = identifiers[account.name],
                let rendered = typedExpression(
                 expression, expecting: unit, units: units, identifiers: identifiers) {
-                lines.append("\(modelName) = \(modelName).defining(\(identifier), as: \(rendered))")
-                lines.append("    \(mark)")
+                lines.append("    model = model.defining(\(identifier), as: \(rendered))")
+                lines.append("        \(mark)")
             } else {
                 lines.append(
-                    "\(modelName) = \(modelName).defining("
+                    "    model = model.defining("
                         + "\(quoted(account.name)), as: \(quoted(expression.rendered())))")
-                lines.append("    \(mark)")
+                lines.append("        \(mark)")
             }
         }
+        lines.append("    return model")
+        lines.append("}")
         lines.append("")
         return lines
     }
 
-    private static func run(_ model: RecognizedModel, modelName: String) -> [String] {
+    private static func run(_ model: RecognizedModel) -> [String] {
         var lines = ["// MARK: - Running", ""]
-        lines.append("try \(modelName).validateUnits()")
+        lines.append("/// Every account, supplied and derived, over the timeline.")
+        lines.append("static func run() throws -> [String: TimeSeries<Double>] {")
+        lines.append("    let model = definition()")
+        lines.append("    try model.validateUnits()")
 
         guard !model.rollforwards.isEmpty else {
-            lines.append("let results = try \(modelName).solve()")
+            lines.append("    return try model.solve()")
+            lines.append("}")
             return lines
         }
 
         lines.append("")
-        lines.append("let driver = PeriodDriver(")
-        lines.append("    definition: \(modelName),")
-        lines.append("    rollforwards: [")
+        lines.append("    let driver = PeriodDriver(")
+        lines.append("        definition: model,")
+        lines.append("        rollforwards: [")
         for carry in model.rollforwards {
             lines.append(
-                "        Rollforward(opening: \(quoted(carry.opening)), "
+                "            Rollforward(opening: \(quoted(carry.opening)), "
                     + "closing: \(quoted(carry.closing)), seed: \(carry.seed)),")
         }
-        lines.append("    ]")
-        lines.append(")")
-        lines.append("let results = try driver.run(over: periods)")
+        lines.append("        ]")
+        lines.append("    )")
+        lines.append("    return try driver.run(over: periods)")
+        lines.append("}")
         return lines
+    }
+
+    /// A model name as a legal Swift type name.
+    ///
+    /// A name that is already a legal identifier is kept as the caller wrote it,
+    /// with only its first letter raised. Running it through ``camelCased(_:)``
+    /// would flatten the caller's own casing — `GoldenForecast` has no separators
+    /// to split on, so it would come back as one lowercased word.
+    ///
+    /// - Parameter name: The requested name.
+    /// - Returns: The name, as a type name.
+    private static func typeName(_ name: String) -> String {
+        let alreadyLegal = !name.isEmpty
+            && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
+            && !(name.first?.isNumber ?? true)
+        let identifier = alreadyLegal ? name : camelCased(name)
+        guard let first = identifier.first else { return "ImportedModel" }
+        return first.uppercased() + identifier.dropFirst()
     }
 
     // MARK: - Typed expressions

@@ -218,7 +218,12 @@ final class TypedSourceWriterTests: XCTestCase {
         XCTAssertTrue(
             source.contains(#"Rollforward(opening: "Opening", closing: "Closing", seed: 100.0)"#),
             "the carries")
-        XCTAssertTrue(source.contains("try importedModel.validateUnits()"))
+        XCTAssertTrue(source.contains("try model.validateUnits()"))
+        XCTAssertTrue(
+            source.contains("enum ImportedModel {"),
+            "an enum of static members, not top-level code — top-level statements "
+                + "are legal only in main.swift, so a file of them cannot be compiled "
+                + "into the library or test target where a generated model belongs")
     }
 
     /// An opening balance is the closing balance at another moment, so it has the
@@ -279,6 +284,27 @@ final class TypedSourceWriterTests: XCTestCase {
         XCTAssertTrue(
             source.contains("let interest2 ="),
             "two accounts differing only in case are one Swift identifier, and both must exist")
+    }
+
+    /// A model name that is already a legal identifier keeps the caller's casing.
+    ///
+    /// Running it through the account-name path would flatten it: `GoldenForecast`
+    /// has no separators to split on, so it came back as one lowercased word and
+    /// the emitted namespace did not match what the caller asked for.
+    func testAModelNameKeepsItsOwnCasing() {
+        let source = TypedSourceWriter.swiftSource(
+            for: plan([input("Revenue", [1], unit: .money, at: "C6")]),
+            sheetName: "Model", modelName: "GoldenForecast")
+
+        XCTAssertTrue(source.contains("enum GoldenForecast {"), "Got:\n\(source)")
+    }
+
+    func testAModelNameThatIsNotAnIdentifierIsMadeIntoOne() {
+        let source = TypedSourceWriter.swiftSource(
+            for: plan([input("Revenue", [1], unit: .money, at: "C6")]),
+            sheetName: "Model", modelName: "ANSWER KEY")
+
+        XCTAssertTrue(source.contains("enum AnswerKey {"), "Got:\n\(source)")
     }
 
     func testAKeywordIsEscaped() {
