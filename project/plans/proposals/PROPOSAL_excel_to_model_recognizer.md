@@ -1317,3 +1317,76 @@ The growth-factor idiom was found by measuring. `Revenue Closing = Revenue * (1 
 exists upstream. The recognizer renders every growth row in that shape, so recognising it is the
 difference between emitting the commonest line in modelling typed and sending it to the string
 API. Matched narrowly: exactly `1`, exactly a rate on the other side.
+
+## 20. Phase 6 Design — What-If Tables
+
+Added 2026-09-03. ``DataTableBlock`` has known since Phase 5a *where* a What-If table sits,
+because it had to — a label beside one was claiming its cells. This is about reading what it says.
+
+### 20.1 What the sheet declares
+
+Excel writes a two-variable data table as one marker on the body's top-left cell and nothing else:
+
+```
+<c r="P6"><f t="dataTable" ref="P6:T10" dt2D="1" dtr="1" r1="D11" r2="D21"/><v>…</v></c>
+```
+
+Every other cell in the body holds a cached number and no formula at all. Around the body sit the
+things that give it meaning, and the file does not label them — their positions do:
+
+| Where | Holds | On the `ANSWER KEY` |
+|---|---|---|
+| `r1` | The **row input cell** | `D11` — Revenue growth |
+| `r2` | The **column input cell** | `D21` — Multiple (based on 2028 EBITDA) |
+| Row above the body | Values substituted into `r1` | `P5:T5` — 6%, 8%, 10%, 12%, 14% |
+| Column left of the body | Values substituted into `r2` | `O6:O10` — 3×, 4×, 5×, 6×, 7× |
+| Corner, above and left | The formula being measured | `O5` = `C64` |
+| Body | The answers | `P6:T10`, 25 cached numbers |
+
+That is enough to build a ``TwoWayScenarioSensitivityAnalysis``, which BusinessMath already ships
+with exactly this shape: two driver names, two value vectors, and `results[i][j]`.
+
+### 20.2 The gate as written cannot be met, and the reason is worth stating
+
+Phase 6's gate was *"recomputed grid matches Wharton's published IRR sensitivity"*. Recomputing
+means: substitute a pair of driver values, re-run the model, read the measured output. The last
+step is where it stops, twice over.
+
+**The measured output is an aggregate over time.** `O5` points at `C64`, which is
+`IRR(D61:I61)` — an internal rate of return over the equity row's whole timeline. Every formula
+in a `ModelDefinition` is **period-local** by design: that is what makes a cycle solvable within
+a period and a rollforward the only way to cross one. A whole-timeline aggregate is a different
+kind of thing, and §3 already refuses a range running along the axis for exactly this reason.
+
+**And the row it aggregates is one this recognizer drops.** `Equity of PE Firm` reads row 58,
+`Debt` in the exit analysis, which holds literals until the final year and then a formula — the
+terminal-event shape Phase 5a recorded as beyond a model with one rule per account.
+
+Neither is a defect in this phase. Recording both is more useful than a partial recomputation
+that would have to fake one of them.
+
+### 20.3 So what Phase 6 delivers
+
+**Recognition, and the coverage it earns.** The table's 36 cells are currently unrecognized —
+they are deliberately excluded from series and scalar binding, because a label beside the grid
+would otherwise claim them. Reading the table turns those from *cells we exclude* into *cells we
+understand*, which is a real move toward the 100% the gate asks for, and an honest one.
+
+A recognized table is **not** an account. It is an analysis *of* the model, so it sits beside the
+accounts in ``RecognizedModel`` rather than among them, and materialization ignores it. A grid of
+answers is not a rule.
+
+### 20.4 Where recomputation belongs
+
+Not here. It needs a layer that runs a model over a timeline and then reduces the result — IRR,
+NPV, MoM — which is a summary-metrics concern the string grammar deliberately excludes. The
+existing Wharton IRR test already does this by hand: it takes the bound equity series and calls
+`irr()`. Making that a supported path is a phase of its own, and it needs the terminal-row
+limitation solved first or it has nothing to run on.
+
+### 20.5 Gate
+
+The `ANSWER KEY`'s IRR sensitivity table is recognized: both drivers named, both value vectors
+read, 25 results in the right orientation, and the measured output identified. Coverage is
+reported with the table's cells now counted, and the recomputation blocker is named rather than
+worked around.
