@@ -45,6 +45,27 @@ final class UnitInferenceTests: XCTestCase {
         )
     }
 
+    /// A backslash inside a literal must not eat the quote that closes it.
+    ///
+    /// `\` and `_` are both skip markers outside a literal and mean nothing inside
+    /// one. Written as a single `case "\\", "_" where !inLiteral` they did not
+    /// behave alike — the guard binds to the last pattern only — so a backslash in
+    /// a literal consumed the following character, which can be the closing quote.
+    /// The literal then ran on and swallowed the rest of the format.
+    func testABackslashInsideALiteralDoesNotEndItEarly() {
+        // A literal ending in a backslash, then a real percent outside it. Excel
+        // has no `\"` escape — a literal simply ends at the next quote — so the
+        // quote here closes it and `0%` is a proportion.
+        XCTAssertEqual(
+            UnitInference.dimension(of: #""a\"0%"#), .ratio,
+            "the backslash must not consume the quote that closes the literal"
+        )
+        XCTAssertNil(
+            UnitInference.dimension(of: #""100\% owned""#),
+            "and a percent that is only ever inside a literal is still a caption"
+        )
+    }
+
     /// A `%` inside a literal is text, not a unit.
     func testAPercentInsideALiteralIsNotAProportion() {
         XCTAssertNil(UnitInference.dimension(of: "\"100% owned\""))

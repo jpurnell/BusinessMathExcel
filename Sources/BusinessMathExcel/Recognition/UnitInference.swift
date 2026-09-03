@@ -161,9 +161,19 @@ public enum UnitInference {
                 continue
             }
             switch character {
-            case "\"": inLiteral.toggle()
-            case "\\", "_" where !inLiteral: pending = character
-            default: if !inLiteral { shown.append(character) }
+            case "\"":
+                inLiteral.toggle()
+
+            // Both are skip markers, and neither means anything inside a literal.
+            // Written as one `where` clause these do not behave alike: the guard
+            // binds to the last pattern only, so a backslash inside a literal would
+            // set `pending` and then swallow the next character — which can be the
+            // closing quote, ending the literal a character early.
+            case "\\", "_":
+                if !inLiteral { pending = character }
+
+            default:
+                if !inLiteral { shown.append(character) }
             }
         }
         return shown

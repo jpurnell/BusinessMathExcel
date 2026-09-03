@@ -30,16 +30,16 @@ this session of recovering by inference something we knew for certain a moment e
 
 ## Task 2 — Emitting typed source
 
-- [ ] **RED** — an account whose cells stated a unit emits `LineItem<Money>` / `Expr` operators.
-- [ ] **RED** — every declaration carries `// <sheet>!<cell>` provenance, naming the anchor where
+- [x] **RED** — an account whose cells stated a unit emits `LineItem<Money>` / `Expr` operators.
+- [x] **RED** — every declaration carries `// <sheet>!<cell>` provenance, naming the anchor where
       an account has several cells.
-- [ ] **RED** — an account with no unit emits the **string API**, because `LineItem<U>` has no
+- [x] **RED** — an account with no unit emits the **string API**, because `LineItem<U>` has no
       untyped form and picking a unit would be inventing one.
-- [ ] **RED** — an expression mixing a typed and an untyped operand emits untyped *whole*, rather
+- [x] **RED** — an expression mixing a typed and an untyped operand emits untyped *whole*, rather
       than half-cast into something that would not compile.
-- [ ] **RED** — inputs, rollforwards and periods are emitted, so the file is a runnable model
+- [x] **RED** — inputs, rollforwards and periods are emitted, so the file is a runnable model
       rather than a fragment.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 3 — The emitted source compiles and agrees
 
