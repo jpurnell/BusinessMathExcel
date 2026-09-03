@@ -51,7 +51,7 @@ formula's cached value is never substituted for a formula that could not be tran
 
 ## Workbook Recognition
 
-**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `ScalarBlock`, `ScalarAssumption`, `DataTableBlock`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
+**Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `ScalarBlock`, `ScalarAssumption`, `DataTableBlock`, `UnitInference`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
 **Interfaces:** `ExcelRecognizer.recognize(_:options:in:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
 **Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, whether a row computes the same way in every period, and which references reach back a period rather than sideways to an assumption
 **Dependencies:** BusinessMath (`Period`, `PeriodType`)
@@ -75,6 +75,13 @@ carries no *at close* meaning and a label with one value is a scalar assumption.
 speaks for its own cells, which the file declares on the table's master cell. Names come from the
 binder rather than being re-derived, so a reference to one of two rows sharing a heading resolves
 to the one meant.
+
+A number's **unit** comes from how the sheet presents it, because a format is usually the only
+statement a workbook makes about meaning. The format establishes the dimension, the label may
+sharpen it, and neither invents one; where a proportion could be a rate or a ratio, the claim that
+cannot be wrong wins. An account whose cells state nothing carries no unit, reported at `info` —
+most cells in a real workbook are formatted `General`, and a file that formats nothing is not
+defective.
 
 ## Model Materialization
 

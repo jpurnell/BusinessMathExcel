@@ -896,7 +896,8 @@ metric, not a kill gate.
 | 4 | Excel | Circular-interest recognition through the cycle solver under `PeriodDriver` | ✅ **Done 2026-09-02. Year-1 interest 11.75** on a cash-swept revolver (beginning-balance accrual gives 12.00); **Wharton IRR 24.67% / MoM 3.01** still reproduce through recognition. The `ANSWER KEY` as a whole does **not** yet materialize — see Phase 5 |
 | — | — | **Upstream gate:** `TypedModelAuthoring.md` Phase 3 (`Account`/`Expr`) | Typed layer green |
 | 5a | Excel | **Block detection** (the measured blocker) | ✅ **Done 2026-09-02.** `ANSWER KEY` materializes and runs; **125 of 125 values match the sheet's own**. One account dropped and named — see §17.7 |
-| 5b | Excel | `UnitInference` + `TypedSourceWriter` | Generated source compiles; wrong-unit cases diagnose rather than guess |
+| 5b | Excel | `UnitInference` | ✅ **Done 2026-09-02.** 30 of 46 accounts carry a unit, 0 conflicts; every one of the sheet's 17 formats read correctly — see §18.7 |
+| 5c | Excel | `TypedSourceWriter` (gated on `TypedModelAuthoring.md` Phase 3) | Generated source compiles; wrong-unit cases diagnose rather than guess |
 | 6 | Excel | Data-table recognition via `_DATATABLE` markers (**not** `.array` cells — see §3 correction) → `TwoWayScenarioSensitivityAnalysis` | Recomputed grid matches Wharton's published IRR sensitivity; **100% coverage** |
 | 7 | Excel | `RecognitionGuide.md`, README, CHANGELOG, master plan reconciliation | Quality gate 0/0 |
 
@@ -1159,3 +1160,36 @@ place unit inference can catch a defect rather than merely describe one.
 Every `$`-formatted account on the `ANSWER KEY` is money and every `%`-formatted one is a
 proportion; nothing formatted `General` is assigned a unit; and the count of accounts left
 unitless is reported rather than minimised.
+
+### 18.7 Measured — 2026-09-02
+
+| | `ANSWER KEY` |
+|---|---|
+| Accounts carrying a unit | 30 of 46 |
+| — money | 18 |
+| — rate | 5 |
+| — ratio | 7 |
+| Stating nothing | 16 |
+| Conflicts | 0 |
+
+Every one of the sheet's 17 distinct formats is read correctly: each currency form is money, each
+genuine percent a proportion, both multiple forms a ratio, the year header a duration, and
+`General`, the date, the hidden format and the two width-padded plain formats state nothing.
+
+Two things the design did not anticipate, both found by running it:
+
+**`_` is a width placeholder, not a character.** `#,##0_)_%` displays no percentage — the `%` is
+padding. 39 cells carry a currency format padded that way and would have read as rows
+contradicting themselves; 7 more are plain numbers that would have read as proportions. Excel's
+format grammar has two skip markers, `\` which shows the next character and `_` which shows a
+space as wide as it, and only reading both alike gets these right.
+
+**The at-close cell is evidence.** `Purchase Price` in row 28 carries a plain number format in
+every period and a currency format in its at-close cell — which is the sheet's only statement
+about what the row is. Inference now reads the anchor along with the periods; without it the
+account came out unitless while its own cells said money.
+
+Sixteen accounts state nothing, which is the honest figure rather than a shortfall: 148 of the
+sheet's 279 cells are formatted `General`, and inventing units for them was never the goal. The
+125-of-125 agreement with the sheet's cached values is unchanged, as it must be — a unit is
+metadata about a number, not a change to it.

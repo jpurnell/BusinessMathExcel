@@ -225,6 +225,53 @@ final class WhartonImportMeasurementTests: XCTestCase {
         }
     }
 
+    /// What the sheet says its numbers are.
+    ///
+    /// The gate from §18.6: every `$`-formatted account is money, every genuine
+    /// `%` one is a proportion, nothing formatted `General` is given a unit, and
+    /// the count left unitless is reported rather than minimised.
+    func testReportsInferredUnits() throws {
+        let workbook = try fixture()
+        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
+        let plan = ExcelRecognizer.recognize(sheet, in: workbook)
+
+        var byUnit: [String: Int] = [:]
+        var wrong: [String] = []
+        for account in plan.model.accounts {
+            byUnit[account.unit?.rawValue ?? "—", default: 0] += 1
+
+            // Every cell's own dimension, checked against the account's.
+            let stated = Set(
+                account.provenance.compactMap {
+                    UnitInference.dimension(of: grid.numberFormats[$0])
+                })
+            guard stated.count == 1, let only = stated.first else { continue }
+            let expected = only == .ratio && account.unit == .rate ? UnitKind.rate : only
+            if account.unit != expected {
+                wrong.append("\(account.name): cells say \(only), account says "
+                    + "\(account.unit.map { "\($0)" } ?? "nothing")")
+            }
+        }
+
+        print("""
+            WHARTON units — ANSWER KEY
+              accounts by unit   \(byUnit.sorted { $0.key < $1.key }
+                    .map { "\($0.key) \($0.value)" }.joined(separator: ", "))
+              conflicts          \(plan.diagnostics.filter { $0.code == .unitConflict }.count)
+              stating nothing    \(plan.diagnostics.filter { $0.code == .unitInferenceFailed }.count)
+            """)
+
+        XCTAssertEqual(
+            wrong, [],
+            "an account whose cells all state one dimension must carry it"
+        )
+        XCTAssertGreaterThan(
+            plan.model.accounts.filter { $0.unit != nil }.count, 20,
+            "and the sheet does state units, so something must have been read"
+        )
+    }
+
     /// The measurement that matters: does the model agree with the sheet?
     ///
     /// Coverage says how much we can name; materialization says how much we can

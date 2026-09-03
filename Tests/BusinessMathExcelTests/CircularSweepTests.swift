@@ -74,7 +74,10 @@ final class CircularSweepTests: XCTestCase {
     func testTheSweepIsRecognizedAsExactlyOneCycle() throws {
         let sheet = try XCTUnwrap(revolver(openingDebt: drawnDown))
         let plan = ExcelRecognizer.recognize(sheet)
-        XCTAssertEqual(plan.diagnostics.map(\.code.rawValue), [])
+        // Info notes are not problems; a fixture with no number formats reports
+        // that unit inference found none.
+        XCTAssertEqual(
+            plan.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue), [])
 
         let report = try ModelMaterializer.build(from: plan.model).definition.dependencyReport()
         XCTAssertEqual(report.cycles.count, 1, "one circle, not one per account in it")

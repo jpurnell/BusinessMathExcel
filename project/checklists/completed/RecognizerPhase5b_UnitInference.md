@@ -36,21 +36,21 @@ this checklist.
 
 ## Task 4 — Through the recognizer, and measured
 
-- [ ] **RED** — `RecognizedAccount.unit` is populated; an account whose cells state nothing gets
+- [x] **RED** — `RecognizedAccount.unit` is populated; an account whose cells state nothing gets
       `nil` and `unitInferenceFailed` at `info`, not `warning`.
-- [ ] Report on Wharton: accounts by unit, and how many are unitless.
-- [ ] Check every `$`-formatted account came out money and every `%` one a proportion. If any did
+- [x] Report on Wharton: accounts by unit, and how many are unitless.
+- [x] Check every `$`-formatted account came out money and every `%` one a proportion. If any did
       not, name it.
-- [ ] The 125-of-125 agreement must not move.
-- [ ] Record in the proposal's phasing table and `master_plan.md`. Commit.
+- [x] The 125-of-125 agreement must not move.
+- [x] Record in the proposal's phasing table and `master_plan.md`. Commit.
 
 ---
 
 ## Done when
 
-- [ ] All four tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All four tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all`.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.

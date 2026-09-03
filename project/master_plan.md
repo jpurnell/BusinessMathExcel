@@ -286,6 +286,21 @@ BusinessMathExcel/
 - [x] One account left out and named: `Equity of PE Firm` needs row 58, which holds literals
       until the final year and then a formula — a *terminal event* rather than a period series,
       which a one-rule-per-account model cannot state. IRR 24.67% and MoM 3.01 still reproduce
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 5b: unit inference (complete)
+- [x] Formats carried through `ModelImporter` and `SheetGrid`, never interpreted there. Needs
+      **SwiftXLSX 0.9.0** (`Worksheet.style(at:)`) — styles were resolved on read from the start
+      and kept where no caller could reach them
+- [x] `UnitInference`: format establishes the dimension, label may sharpen it, neither invents
+      one. A proportion is a `ratio` unless the label says per period, because calling a rate a
+      ratio is imprecise but true and calling a margin a rate is false
+- [x] `_` is a width placeholder, not a character: `#,##0_)_%` displays no percentage. 39 cells
+      would have read as rows contradicting themselves and 7 more as proportions
+- [x] The at-close cell is evidence — sometimes a row's only cell formatted as money
+- [x] `unitInferenceFailed` at **info**, `unitConflict` at warning
+- [x] **Measured 2026-09-02: 30 of 46 accounts carry a unit (18 money, 5 rate, 7 ratio), 0
+      conflicts, all 17 of the sheet's formats read correctly.** 16 state nothing, which is
+      honest: 148 of 279 cells are `General`. The 125-of-125 agreement is unchanged
+
 
 
 
@@ -311,4 +326,4 @@ BusinessMathExcel/
 
 ---
 
-**Last Updated:** 2026-09-02 — recorded recognizer Phases 3 and 4, then Phase 5a (block detection) complete. The measured result: the Wharton `ANSWER KEY` materializes, runs, and reproduces 125 of 125 of the values Excel cached. Recorded the three blockers Phase 5's design did not predict, the SwiftXLSX 0.8.0 release that named ranges needed, and the older naming defect that made one account run and be wrong. Counts refreshed to 448 tests.
+**Last Updated:** 2026-09-02 — recorded recognizer Phases 3 and 4, then 5a (block detection) and 5b (unit inference). The measured results: the Wharton `ANSWER KEY` materializes, runs, and reproduces 125 of 125 of the values Excel cached; 30 of its 46 accounts carry an inferred unit with no conflicts. Recorded the SwiftXLSX 0.8.0 and 0.9.0 releases both phases needed — named ranges and cell styles, each information the reader already had and kept behind its API. Counts refreshed to 471 tests.

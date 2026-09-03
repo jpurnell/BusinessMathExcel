@@ -117,4 +117,89 @@ final class UnitInferenceTests: XCTestCase {
         XCTAssertNil(inferred.unit)
         XCTAssertTrue(inferred.conflicted.isEmpty, "silence is not a conflict")
     }
+
+    // MARK: - Through the recognizer
+
+    private func recognized(_ build: (Worksheet) -> Void) -> RecognitionResult {
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Model")
+        sheet.write("2024", to: "C1")
+        sheet.write("2025", to: "D1")
+        sheet.write("2026", to: "E1")
+        build(sheet)
+        guard let first = workbook.sheets.first else {
+            preconditionFailure("the fixture always has a sheet")
+        }
+        return ExcelRecognizer.recognize(first)
+    }
+
+    func testAnAccountCarriesTheUnitItsCellsState() throws {
+        let plan = recognized { sheet in
+            sheet.write("Revenue", to: "A2")
+            for column in ["C", "D", "E"] {
+                sheet.write(
+                    100.0, to: "\(column)2", style: .general.with(numberFormat: .currency))
+            }
+        }
+
+        let revenue = try XCTUnwrap(plan.model.accounts.first { $0.name == "Revenue" })
+        XCTAssertEqual(revenue.unit, .money)
+    }
+
+    func testAnAccountStatingNothingIsReportedButNotWarnedAbout() throws {
+        let plan = recognized { sheet in
+            sheet.write("Revenue", to: "A2")
+            for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
+        }
+
+        let revenue = try XCTUnwrap(plan.model.accounts.first { $0.name == "Revenue" })
+        XCTAssertNil(revenue.unit)
+
+        let reported = try XCTUnwrap(
+            plan.diagnostics.first { $0.code == .unitInferenceFailed },
+            "Got: \(plan.diagnostics.map(\.code.rawValue))"
+        )
+        XCTAssertEqual(
+            reported.severity, .info,
+            "a workbook that formats nothing is not defective, and a hundred "
+                + "warnings would bury the findings that matter"
+        )
+    }
+
+    func testAnAccountWhoseCellsDisagreeReportsTheConflict() throws {
+        let plan = recognized { sheet in
+            sheet.write("Debt", to: "A2")
+            sheet.write(100.0, to: "C2", style: .general.with(numberFormat: .currency))
+            sheet.write(0.6, to: "D2", style: .general.with(numberFormat: .percent))
+            sheet.write(100.0, to: "E2", style: .general.with(numberFormat: .currency))
+        }
+
+        let debt = try XCTUnwrap(plan.model.accounts.first { $0.name == "Debt" })
+        XCTAssertNil(debt.unit, "no unit is chosen from two that disagree")
+        XCTAssertEqual(
+            plan.diagnostics.filter { $0.code == .unitConflict }.count, 1,
+            "Got: \(plan.diagnostics.map(\.code.rawValue))"
+        )
+    }
+
+    func testAnAssumptionCarriesItsUnitToo() throws {
+        // Its own sheet: an assumption must sit *above* the timeline, so the
+        // shared fixture's year row on row 1 leaves nowhere to put one.
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Model")
+        sheet.write("Interest Rate", to: "A2")
+        sheet.write(0.1, to: "B2", style: .general.with(numberFormat: .percent))
+        sheet.write("2024", to: "C5")
+        sheet.write("2025", to: "D5")
+        sheet.write("2026", to: "E5")
+        sheet.write("Charge", to: "A6")
+        for column in ["C", "D", "E"] { sheet.write(10.0, to: "\(column)6") }
+        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first))
+
+        let rate = try XCTUnwrap(
+            plan.model.accounts.first { $0.name == "Interest Rate" },
+            "Got: \(plan.model.accounts.map(\.name))"
+        )
+        XCTAssertEqual(rate.unit, .rate, "a proportion the label calls a rate")
+    }
 }

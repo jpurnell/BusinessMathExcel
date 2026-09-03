@@ -38,8 +38,11 @@ final class GoldenPathTests: XCTestCase {
         let sheet = try XCTUnwrap(validationTrace())
         let recognition = ExcelRecognizer.recognize(sheet)
 
+        // Notes are not problems. A hand-built fixture carries no number formats,
+        // so unit inference reports that it found none — which is a fact about the
+        // fixture, not a finding about the row.
         XCTAssertEqual(
-            recognition.diagnostics.map(\.code.rawValue), [],
+            recognition.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue), [],
             "a three-cell growth row is the simplest thing this recognizer handles"
         )
         XCTAssertTrue(

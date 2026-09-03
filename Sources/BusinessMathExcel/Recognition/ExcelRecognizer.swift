@@ -128,7 +128,9 @@ public enum ExcelRecognizer {
         diagnostics.append(contentsOf: scalarDiagnostics)
 
         for assumption in assumptions {
-            guard let account = translate(assumption, in: grid, axis: axis, imported: imported)
+            guard let account = translate(
+                assumption, in: grid, axis: axis, imported: imported,
+                diagnostics: &diagnostics)
             else {
                 residue.append(
                     Residue(
@@ -204,9 +206,13 @@ public enum ExcelRecognizer {
         _ assumption: ScalarAssumption,
         in grid: SheetGrid,
         axis: PeriodAxis,
-        imported: ModelImporter.ImportResult
+        imported: ModelImporter.ImportResult,
+        diagnostics: inout [Diagnostic]
     ) -> RecognizedAccount? {
         let provenance = [assumption.labelCell, assumption.valueCell]
+        let stated = unit(
+            of: [assumption.valueCell], label: assumption.name, in: grid,
+            diagnostics: &diagnostics)
 
         if grid.formulaASTs[assumption.valueCell] != nil {
             guard let split = LagDecomposition.decompose(
@@ -214,13 +220,61 @@ public enum ExcelRecognizer {
                 split.diagnostics.isEmpty
             else { return nil }
             return RecognizedAccount(
-                name: assumption.name, formula: split.formula, provenance: provenance)
+                name: assumption.name, formula: split.formula, unit: stated,
+                provenance: provenance)
         }
 
         guard case .input(let value)? = grid.cells[assumption.valueCell] else { return nil }
         var values: [Period: Double] = [:]
         for period in axis.periods { values[period] = value }
-        return RecognizedAccount(name: assumption.name, values: values, provenance: provenance)
+        return RecognizedAccount(
+            name: assumption.name, values: values, unit: stated, provenance: provenance)
+    }
+
+    /// The unit an account's cells state, reporting silence and disagreement.
+    ///
+    /// The at-close cell counts. It holds one of the account's own figures — an
+    /// opening balance, an equity cheque — and on the Wharton `ANSWER KEY` it is
+    /// sometimes the only cell in the row formatted as money, the periods beside
+    /// it carrying a plain number format. Leaving it out discards the sheet's only
+    /// statement about what the row is.
+    ///
+    /// - Parameters:
+    ///   - cells: The cells the account was read from.
+    ///   - label: The account's name.
+    ///   - grid: The sheet's topology, holding each cell's format.
+    ///   - diagnostics: Findings collected so far.
+    /// - Returns: The unit, or `nil` when the cells stated none or disagreed.
+    private static func unit(
+        of cells: [CellRef],
+        label: String,
+        in grid: SheetGrid,
+        diagnostics: inout [Diagnostic]
+    ) -> UnitKind? {
+        let inferred = UnitInference.infer(
+            formats: cells.map { grid.numberFormats[$0] }, label: label)
+
+        if !inferred.conflicted.isEmpty {
+            diagnostics.append(
+                Diagnostic(
+                    severity: .warning, code: .unitConflict, cell: cells.first,
+                    message: "\"\(label)\" is formatted as "
+                        + "\(inferred.conflicted.map(\.rawValue).sorted().joined(separator: " and "))"
+                        + " in different periods, so no unit is taken from either. A row "
+                        + "holding two dimensions is a modelling error or a row bound to the "
+                        + "wrong cells"))
+            return nil
+        }
+
+        if inferred.unit == nil {
+            diagnostics.append(
+                Diagnostic(
+                    severity: .info, code: .unitInferenceFailed, cell: cells.first,
+                    message: "\"\(label)\" states no unit: none of its cells carry a number "
+                        + "format that says what the figures are. Reported rather than "
+                        + "guessed, and a workbook that formats nothing is not defective"))
+        }
+        return inferred.unit
     }
 
     /// Turns one bound series into an account, or into residue.
@@ -263,7 +317,9 @@ public enum ExcelRecognizer {
             }
             guard !values.isEmpty else { return nil }
             return RecognizedAccount(
-                name: entry.name, values: values, provenance: provenance)
+                name: entry.name, values: values,
+                unit: unit(of: provenance, label: entry.name, in: grid, diagnostics: &diagnostics),
+                provenance: provenance)
         }
 
         guard let split = LagDecomposition.decompose(
@@ -285,6 +341,7 @@ public enum ExcelRecognizer {
         return RecognizedAccount(
             name: split.definedAccount ?? entry.name,
             formula: split.formula,
+            unit: unit(of: provenance, label: entry.name, in: grid, diagnostics: &diagnostics),
             provenance: provenance
         )
     }

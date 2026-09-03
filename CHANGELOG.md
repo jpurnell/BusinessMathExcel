@@ -5,6 +5,26 @@ All notable changes to BusinessMathExcel will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `UnitInference`: what a number *is*, read from how the sheet presents it. The format
+  establishes the dimension, the label may sharpen it, and neither invents one. Where two units
+  both fit — `0.0%` is what an interest rate and a margin both carry — the weaker claim wins:
+  calling a rate a `ratio` is imprecise but true, calling a margin a `rate` is false.
+- `ImportResult.numberFormats` and `SheetGrid.numberFormats`: each cell's format string as the
+  file states it, carried and never interpreted. `General` is carried through as written.
+- `RecognizedAccount.unit` is populated. An account whose cells state nothing gets `nil` and
+  `unitInferenceFailed` at **info**, not warning: a workbook that formats nothing is not
+  defective. Cells stating different dimensions give no unit and `unitConflict` at warning,
+  which is the one place unit inference can catch a defect rather than describe one.
+- Needs **SwiftXLSX 0.9.0** (`Worksheet.style(at:)`), pin bumped from 0.8.0. Styles had been
+  resolved on read since the reader was written and kept where no caller could reach them.
+
+### Measured
+- Wharton `ANSWER KEY`, 2026-09-02: 30 of 46 accounts carry a unit — 18 money, 5 rate, 7 ratio —
+  with **0 conflicts**. Sixteen state nothing, which is the honest figure rather than a
+  shortfall: 148 of the sheet's 279 cells are formatted `General`. All 17 distinct formats read
+  correctly. The 125-of-125 agreement is unchanged, as it must be.
+
+### Added (Phase 5a)
 - `ScalarBlock` and `ScalarAssumption`: a label outside the timeline owning one value is an
   assumption. A literal becomes an input holding for every period; a formula stays derived, so
   `Total Purchase Price` remains `Entry EBITDA * Purchase Multiple` rather than `200`.
