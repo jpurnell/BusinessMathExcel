@@ -20,19 +20,19 @@ this checklist.
 
 ## Task 2 — Dimension from format
 
-- [ ] **RED** — `"$"#,##0` and `[$$-409]* #,##0.0` are money; `0.0%` is a proportion;
+- [x] **RED** — `"$"#,##0` and `[$$-409]* #,##0.0` are money; `0.0%` is a proportion;
       `0.00"x"` is a multiple, hence `ratio`; `"Year"\ #` is duration; `General` is nothing.
-- [ ] **RED** — a `%` inside a literal — `"100% owned"` — is not a proportion.
-- [ ] Commit.
+- [x] **RED** — a `%` inside a literal — `"100% owned"` — is not a proportion.
+- [x] Commit.
 
 ## Task 3 — The label sharpens, and never invents
 
-- [ ] **RED** — a proportion labelled `Interest Rate` is `rate`; one labelled `EBITDA margin` is
+- [x] **RED** — a proportion labelled `Interest Rate` is `rate`; one labelled `EBITDA margin` is
       `ratio`; one labelled `Debt` is `ratio`, because where both fit the weaker claim wins.
-- [ ] **RED** — a label alone, with no format, gives **no** unit. The label is a modifier of
+- [x] **RED** — a label alone, with no format, gives **no** unit. The label is a modifier of
       evidence, not evidence.
-- [ ] **RED** — cells in one account stating different dimensions give `unitConflict` and no unit.
-- [ ] Commit.
+- [x] **RED** — cells in one account stating different dimensions give `unitConflict` and no unit.
+- [x] Commit.
 
 ## Task 4 — Through the recognizer, and measured
 
