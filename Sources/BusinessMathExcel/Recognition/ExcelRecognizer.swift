@@ -220,7 +220,7 @@ public enum ExcelRecognizer {
                 split.diagnostics.isEmpty
             else { return nil }
             return RecognizedAccount(
-                name: assumption.name, formula: split.formula, unit: stated,
+                name: assumption.name, expression: split.expression, unit: stated,
                 provenance: provenance)
         }
 
@@ -340,7 +340,7 @@ public enum ExcelRecognizer {
 
         return RecognizedAccount(
             name: split.definedAccount ?? entry.name,
-            formula: split.formula,
+            expression: split.expression,
             unit: unit(of: provenance, label: entry.name, in: grid, diagnostics: &diagnostics),
             provenance: provenance
         )

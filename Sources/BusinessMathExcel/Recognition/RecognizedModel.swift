@@ -58,6 +58,14 @@ public struct RecognizedAccount: Sendable, Equatable {
     /// model that disagrees with itself, and `ModelDefinition` refuses it.
     public let formula: String?
 
+    /// The formula as a tree, when this account has one.
+    ///
+    /// The same rule the formula string states, before it became text. A consumer
+    /// that needs the shape — emitting typed Swift source, say — reads this rather
+    /// than parsing the string back, which is recovering by inference something
+    /// the recognizer knew for certain.
+    public let expression: RecognizedExpression?
+
     /// The literal values, when this account is supplied.
     public let values: [Period: Double]?
 
@@ -76,19 +84,45 @@ public struct RecognizedAccount: Sendable, Equatable {
     /// - Parameters:
     ///   - name: The account's name.
     ///   - formula: The formula, when derived.
+    ///   - expression: The same formula as a tree, when the caller has one.
     ///   - values: The literals, when supplied.
     ///   - unit: The inferred unit, if any.
     ///   - provenance: The cells it came from.
     public init(
         name: String,
         formula: String? = nil,
+        expression: RecognizedExpression? = nil,
         values: [Period: Double]? = nil,
         unit: UnitKind? = nil,
         provenance: [CellRef]
     ) {
         self.name = name
         self.formula = formula
+        self.expression = expression
         self.values = values
+        self.unit = unit
+        self.provenance = provenance
+    }
+
+    /// Creates a derived account from its expression.
+    ///
+    /// The formula string is rendered from the tree, so the two cannot disagree.
+    ///
+    /// - Parameters:
+    ///   - name: The account name.
+    ///   - expression: The rule.
+    ///   - unit: The unit its cells stated, if any.
+    ///   - provenance: The cells it was read from.
+    public init(
+        name: String,
+        expression: RecognizedExpression,
+        unit: UnitKind? = nil,
+        provenance: [CellRef]
+    ) {
+        self.name = name
+        self.formula = expression.rendered()
+        self.expression = expression
+        self.values = nil
         self.unit = unit
         self.provenance = provenance
     }

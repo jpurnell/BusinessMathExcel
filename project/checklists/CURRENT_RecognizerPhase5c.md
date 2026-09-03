@@ -19,14 +19,14 @@ A rendered formula is lossy, and `FormulaEvaluator.Node` is internal upstream, s
 cannot be recovered by parsing. Writing a parser for our own output would be the fourth instance
 this session of recovering by inference something we knew for certain a moment earlier.
 
-- [ ] **RED** — `RecognizedExpression` covers what `LagDecomposition` builds: account reference,
+- [x] **RED** — `RecognizedExpression` covers what `LagDecomposition` builds: account reference,
       number, binary operator, comparison, function call, negation.
-- [ ] **RED** — the formula string is *rendered from the tree*, and every existing formula test
+- [x] **RED** — the formula string is *rendered from the tree*, and every existing formula test
       still passes unchanged. That equivalence is the whole safety argument for the refactor, so
       it is not a new test — it is the 471 that already exist.
-- [ ] **RED** — `RecognizedAccount` carries the tree alongside its formula.
-- [ ] The Wharton 125-of-125 agreement is unmoved.
-- [ ] Commit.
+- [x] **RED** — `RecognizedAccount` carries the tree alongside its formula.
+- [x] The Wharton 125-of-125 agreement is unmoved.
+- [x] Commit.
 
 ## Task 2 — Emitting typed source
 

@@ -27,9 +27,19 @@ public enum LagDecomposition {
     /// One cell's formula, split into what stays and what carries.
     public struct Split: Sendable {
 
-        /// The period-local formula, in `FormulaEvaluator` grammar, with cell
-        /// references replaced by account names.
-        public let formula: String
+        /// The period-local formula as a tree, with cell references replaced by
+        /// account names.
+        ///
+        /// The tree is what the translator builds; ``formula`` is rendered from
+        /// it. Keeping the structure means a consumer that needs it back — a
+        /// source writer emitting typed Swift, say — does not have to recover it
+        /// by parsing text this package itself just wrote.
+        public let expression: RecognizedExpression
+
+        /// The period-local formula, in `FormulaEvaluator` grammar.
+        ///
+        /// Rendered from ``expression``, so the two cannot drift.
+        public var formula: String { expression.rendered() }
 
         /// The account this formula actually defines, when it is not the one the
         /// row is labelled with.
@@ -111,7 +121,7 @@ public enum LagDecomposition {
         var diagnostics: [Diagnostic] = []
         var definedAccount: String?
         let ownAccount = accountName(for: cell, in: grid, axis: axis)
-        let formula = rewrite(
+        let expression = rewrite(
             ast,
             definedAt: cell,
             grid: grid,
@@ -130,19 +140,19 @@ public enum LagDecomposition {
         // periods, say — also renders as the row's own name, and that rendering is
         // a neutral placeholder standing in for a formula we would not translate,
         // not a claim that the row is held flat.
-        if formula == quoted(ownAccount), diagnostics.isEmpty,
+        if expression == .account(ownAccount), diagnostics.isEmpty,
            let seed = seedCell(forRowDefining: cell, in: grid, axis: axis), seed != cell {
             if grid.formulaASTs[seed] != nil,
                let held = decompose(cell: seed, in: grid, axis: axis) {
                 return Split(
-                    formula: held.formula,
+                    expression: held.expression,
                     definedAccount: nil,
                     rollforwards: held.rollforwards,
                     diagnostics: held.diagnostics)
             }
             if let value = seedValue(at: seed, in: grid) {
                 return Split(
-                    formula: "\(value)", definedAccount: nil,
+                    expression: .number(value), definedAccount: nil,
                     rollforwards: [], diagnostics: [])
             }
         }
@@ -163,10 +173,13 @@ public enum LagDecomposition {
         }
 
         return Split(
-            formula: definedAccount == nil
-                ? formula
-                : formula.replacingOccurrences(
-                    of: quoted("\(ownAccount) Opening"), with: quoted(ownAccount)),
+            // Renaming in the tree rather than in the rendered text. A string
+            // replacement would also rewrite an account that merely *contains*
+            // the name, and it could not tell an account reference from a
+            // coincidence inside another one.
+            expression: definedAccount == nil
+                ? expression
+                : expression.renaming("\(ownAccount) Opening", to: ownAccount),
             definedAccount: definedAccount,
             rollforwards: rollforwards,
             diagnostics: diagnostics
@@ -183,8 +196,8 @@ public enum LagDecomposition {
         axis: PeriodAxis,
         rollforwards: inout [RecognizedRollforward],
         diagnostics: inout [Diagnostic]
-    ) -> String {
-        func each(_ operands: FormulaAST...) -> [String] {
+    ) -> RecognizedExpression {
+        func each(_ operands: FormulaAST...) -> [RecognizedExpression] {
             operands.map {
                 rewrite(
                     $0, definedAt: cell, grid: grid, axis: axis,
@@ -199,7 +212,7 @@ public enum LagDecomposition {
                 rollforwards: &rollforwards, diagnostics: &diagnostics)
 
         case .number(let value):
-            return "\(value)"
+            return .number(value)
 
         case .text(let value):
             // A word is not an account. Rendering it as a name produced a formula
@@ -212,29 +225,29 @@ public enum LagDecomposition {
                     message: "\(cell.reference) contains the text \"\(value)\". A model of "
                         + "numbers has nowhere to put a word, and naming an account after it "
                         + "would be a reference the sheet never wrote"))
-            return "0"
+            return .refused
 
         case .bool(let value):
-            return value ? "1" : "0"
+            return .number(value ? 1 : 0)
 
         case .add(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) + \(parts[1]))"
+            return .binary(.add, parts[0], parts[1])
 
         case .subtract(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) - \(parts[1]))"
+            return .binary(.subtract, parts[0], parts[1])
 
         case .multiply(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) * \(parts[1]))"
+            return .binary(.multiply, parts[0], parts[1])
 
         case .divide(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) / \(parts[1]))"
+            return .binary(.divide, parts[0], parts[1])
 
         case .negate(let expr):
-            return "(-\(each(expr)[0]))"
+            return .negated(each(expr)[0])
 
         case .power(let lhs, let rhs):
             // No exponent operator in the grammar, and no `POWER` registered
@@ -245,31 +258,31 @@ public enum LagDecomposition {
                     message: "\(cell.reference) raises to a power, which the formula grammar "
                         + "has no operator for"))
             _ = each(lhs, rhs)
-            return "0"
+            return .refused
 
         case .greaterThan(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) > \(parts[1]))"
+            return .binary(.greaterThan, parts[0], parts[1])
 
         case .lessThan(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) < \(parts[1]))"
+            return .binary(.lessThan, parts[0], parts[1])
 
         case .greaterOrEqual(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) >= \(parts[1]))"
+            return .binary(.greaterOrEqual, parts[0], parts[1])
 
         case .lessOrEqual(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) <= \(parts[1]))"
+            return .binary(.lessOrEqual, parts[0], parts[1])
 
         case .equal(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) = \(parts[1]))"
+            return .binary(.equal, parts[0], parts[1])
 
         case .notEqual(let lhs, let rhs):
             let parts = each(lhs, rhs)
-            return "(\(parts[0]) <> \(parts[1]))"
+            return .binary(.notEqual, parts[0], parts[1])
 
         case .function(let name, let arguments):
             let upper = name.uppercased()
@@ -288,9 +301,9 @@ public enum LagDecomposition {
                         message: "\(cell.reference) calls '\(upper)', which the formula "
                             + "evaluator has no entry for; the cell goes to residue and its "
                             + "cached value is not used in its place"))
-                return "0"
+                return .refused
             }
-            return "\(upper)(\(rendered.joined(separator: ", ")))"
+            return .call(upper, rendered)
 
         case .cellRange(let range):
             return rewrite(range: range, definedAt: cell, grid: grid, axis: axis,
@@ -312,7 +325,7 @@ public enum LagDecomposition {
                             + "at another sheet, a range, or an expression; whichever it is, "
                             + "resolving it to a guess would build the model off the wrong "
                             + "number"))
-                return "0"
+                return .refused
             }
             return name(
                 of: target, definedAt: cell, grid: grid, axis: axis,
@@ -323,7 +336,7 @@ public enum LagDecomposition {
                 Diagnostic(
                     severity: .error, code: .unsupportedFormulaNode, cell: cell,
                     message: "\(cell.reference) uses a construct the translator cannot express"))
-            return "0"
+            return .refused
         }
     }
 
@@ -358,8 +371,10 @@ public enum LagDecomposition {
         grid: SheetGrid,
         axis: PeriodAxis,
         diagnostics: inout [Diagnostic]
-    ) -> String {
-        guard let orientation = grid.orientation else { return refuse(range, at: cell, &diagnostics) }
+    ) -> RecognizedExpression {
+        guard let orientation = grid.orientation else {
+            return refuse(range, at: cell, &diagnostics)
+        }
 
         let from = orientation == .periodsAcrossColumns ? range.start.column : range.start.row
         let to = orientation == .periodsAcrossColumns ? range.end.column : range.end.row
@@ -371,7 +386,7 @@ public enum LagDecomposition {
                         + "\(range.end.reference), which runs along the timeline rather than "
                         + "down one period. That is an aggregate over time, and translating "
                         + "it period-locally would silently drop every period but one"))
-            return "0"
+            return .refused
         }
         let lineFrom = orientation == .periodsAcrossColumns ? range.start.row : range.start.column
         let lineTo = orientation == .periodsAcrossColumns ? range.end.row : range.end.column
@@ -382,23 +397,23 @@ public enum LagDecomposition {
                     : CellRef(column: line, row: from)
             }
             .filter { grid.cells[$0] != nil }
-            .map { quoted(accountName(for: $0, in: grid, axis: axis)) }
+            .map { RecognizedExpression.account(accountName(for: $0, in: grid, axis: axis)) }
 
         guard !names.isEmpty else { return refuse(range, at: cell, &diagnostics) }
-        return names.joined(separator: ", ")
+        return .list(names)
     }
 
     /// Reports a range the translator cannot place and yields a neutral rendering.
     private static func refuse(
         _ range: CellRange, at cell: CellRef, _ diagnostics: inout [Diagnostic]
-    ) -> String {
+    ) -> RecognizedExpression {
         diagnostics.append(
             Diagnostic(
                 severity: .error, code: .unsupportedFormulaNode, cell: cell,
                 message: "\(cell.reference) reads \(range.start.reference):"
                     + "\(range.end.reference), which the translator cannot place on the "
                     + "period axis"))
-        return "0"
+        return .refused
     }
 
     /// Records a carry and returns the opening account to read in its place.
@@ -483,21 +498,6 @@ public enum LagDecomposition {
         return nil
     }
 
-    /// An account name as the grammar must receive it.
-    ///
-    /// A bare name is left bare; anything else is bracketed. The evaluator reads
-    /// `&`, `/` and spaces as operators and separators, so `Sales & Marketing`
-    /// reaches it as three tokens and fails — and `A/P` would silently become a
-    /// division. The bracketed form is the grammar's own escape for exactly this.
-    ///
-    /// - Parameter name: The account name.
-    /// - Returns: The name, bracketed if it needs to be.
-    private static func quoted(_ name: String) -> String {
-        let isBare = !name.isEmpty
-            && name.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
-            && !(name.first?.isNumber ?? true)
-        return isBare ? name : "[\(name)]"
-    }
 
     /// The account name a reference resolves to, recording a carry when it reaches
     /// back one period.
@@ -508,10 +508,10 @@ public enum LagDecomposition {
         axis: PeriodAxis,
         rollforwards: inout [RecognizedRollforward],
         diagnostics: inout [Diagnostic]
-    ) -> String {
+    ) -> RecognizedExpression {
         let account = accountName(for: reference, in: grid, axis: axis)
 
-        guard let orientation = grid.orientation else { return quoted(account) }
+        guard let orientation = grid.orientation else { return .account(account) }
         let positions = Set(
             axis.sources.map { orientation == .periodsAcrossColumns ? $0.column : $0.row })
 
@@ -527,7 +527,7 @@ public enum LagDecomposition {
         let pinned = orientation == .periodsAcrossColumns
             ? reference.absoluteColumn
             : reference.absoluteRow
-        guard !pinned else { return quoted(account) }
+        guard !pinned else { return .account(account) }
 
         // The at-close column is the period before the first one. A first-period
         // formula reaching into it is a carry whose seed sits there — which is
@@ -537,7 +537,7 @@ public enum LagDecomposition {
         if let anchor = axis.anchor,
            there == anchor.position,
            here == positions.min() {
-            return quoted(
+            return .account(
                 carry(
                     to: account, definedAt: cell, seededFrom: reference, in: grid,
                     axis: axis, into: &rollforwards, diagnostics: &diagnostics))
@@ -546,16 +546,16 @@ public enum LagDecomposition {
         // A reference off the period axis is a scalar: an assumption that holds
         // for every period rather than a value belonging to one.
         guard positions.contains(there), positions.contains(here) else {
-            return quoted(account)
+            return .account(account)
         }
 
         let lag = here - there
         switch lag {
         case 0:
-            return quoted(account)
+            return .account(account)
 
         case 1:
-            return quoted(
+            return .account(
                 carry(
                     to: account, definedAt: cell, seededFrom: reference, in: grid,
                     axis: axis, into: &rollforwards, diagnostics: &diagnostics))
@@ -569,7 +569,7 @@ public enum LagDecomposition {
                         + "rollforward carries exactly one period, and treating this as one "
                         + "would produce a model that runs and is wrong by \(abs(lag) - 1) "
                         + "period(s)"))
-            return quoted(account)
+            return .account(account)
         }
     }
 
