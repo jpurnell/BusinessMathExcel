@@ -20,3 +20,29 @@ Tests that need it skip when it is absent, so the suite stays green without it.
 **Why this workbook.** Its published results — IRR 24.67%, MoM 3.01 — are reproduced
 independently by orcaset's `examples/paper-lbo`, giving a second source for the
 numbers. `ANSWER KEY!C64` carries the cached IRR, so the file identifies itself.
+
+## The corpus
+
+`Wharton-LBO-Practice-Model.xlsx` is a **fixture**: every recognition rule was measured against
+it. 85% coverage there says how well the rules fit the file they were fitted to — which is worth
+knowing, and is not evidence of generality. The first unseen workbook tried against it recovered
+18%.
+
+`CorpusMeasurementTests` is the **control**. Point it at directories of real workbooks and it
+reports what recognition and the dependency graph each recover:
+
+```
+BUSINESSMATHEXCEL_CORPUS="/path/one:/path/two" swift test --filter Corpus
+```
+
+Unset, every test in it skips. Nothing in the corpus is checked in: it is teaching material and
+employer files, read locally and never committed. Point the variable at your own workbooks — the
+measurement is about whichever files you have, not about a particular set.
+
+It takes a couple of minutes over a large corpus, which is the other reason it is opt-in.
+
+**What it asserts, and what it only reports.** It asserts one thing: a sheet holding formulas
+yields a dependency graph. That is the claim the graph projection rests on — *what does this cell
+read* is answerable from any sheet, without first deciding what kind of model it is. Everything
+else is printed, deliberately: a coverage threshold here would be tuned to whatever corpus is
+configured, and the fixture already demonstrates where that leads.
