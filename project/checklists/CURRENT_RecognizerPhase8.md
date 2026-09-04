@@ -38,12 +38,12 @@ model, and the Wharton 125-of-125 does not move.**
 
 ## Task 3 — A reference crossing a sheet
 
-- [ ] **RED** — `.sheetRef` resolves to the account it names on the other sheet, rather than being
+- [x] **RED** — `.sheetRef` resolves to the account it names on the other sheet, rather than being
       refused as a construct the translator cannot express.
-- [ ] **RED** — a reference to a sheet not in the model is still refused, with the sheet named.
-- [ ] **RED** — the `X - Data` → `X - Input+Calc` shape is recovered on a fixture built to that
+- [x] **RED** — a reference to a sheet not in the model is still refused, with the sheet named.
+- [x] **RED** — the `X - Data` → `X - Input+Calc` shape is recovered on a fixture built to that
       convention: the calculation sheet's accounts read the data sheet's.
-- [ ] Commit.
+- [x] Commit.
 
 ## Task 4 — Measure
 

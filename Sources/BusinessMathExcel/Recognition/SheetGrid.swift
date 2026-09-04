@@ -86,6 +86,19 @@ public struct SheetGrid: Sendable {
     /// carried rather than recomputed.
     public var accountNames: [CellRef: String] = [:]
 
+    /// What accounts other sheets call their cells, by sheet name.
+    ///
+    /// A model that separates data from calculation puts the two on different
+    /// sheets, so the calculation sheet's formulas reach off it for almost every
+    /// operand. Resolving those needs the other sheet's binding, which is why
+    /// ``ExcelRecognizer/recognize(_:options:)-(Workbook,_)`` binds every sheet
+    /// before translating any of them.
+    ///
+    /// Empty when a sheet is recognized on its own, in which case a reference off
+    /// it is refused — there is nothing to resolve against, and guessing would
+    /// invent an account.
+    public var foreignAccountNames: [String: [CellRef: String]] = [:]
+
     /// What the binder called a cell, ignoring its `$` markers.
     ///
     /// A ``CellRef`` carries whether each half was pinned, and hashes it, so

@@ -51,12 +51,32 @@ public enum ExcelRecognizer {
         _ workbook: Workbook,
         options: RecognizerOptions = RecognizerOptions()
     ) -> RecognitionResult {
+        // Pass one: bind every sheet's names, translating nothing. Binding needs
+        // only cells and an axis, so it cannot depend on another sheet — which is
+        // what makes two passes terminate rather than chase each other.
+        var namesBySheet: [String: [CellRef: String]] = [:]
+        for sheet in workbook.sheets {
+            let bound = recognize(sheet, options: options, in: workbook, foreignNames: [:])
+            guard !bound.model.periods.isEmpty else { continue }
+            var names: [CellRef: String] = [:]
+            for account in bound.model.accounts {
+                for cell in account.provenance {
+                    names[CellRef(column: cell.column, row: cell.row)] = account.name
+                }
+            }
+            namesBySheet[sheet.name] = names
+        }
+
+        // Pass two: translate, now able to resolve a reference onto another sheet.
         var perSheet: [RecognitionResult] = []
         var populated = 0
         var recognized = 0
 
         for sheet in workbook.sheets {
-            let result = recognize(sheet, options: options, in: workbook)
+            var foreign = namesBySheet
+            foreign.removeValue(forKey: sheet.name)
+            let result = recognize(
+                sheet, options: options, in: workbook, foreignNames: foreign)
             populated += result.coverage.populatedCells
             recognized += result.coverage.recognizedCells
             guard !result.model.periods.isEmpty else { continue }
@@ -65,14 +85,28 @@ public enum ExcelRecognizer {
 
         var diagnostics = perSheet.flatMap(\.diagnostics)
 
-        // A name is only qualified where it would otherwise mean two things.
+        // A name is qualified where it would otherwise mean two things, and also
+        // where something off-sheet reads it — a cross-sheet reference always names
+        // the qualified form, so the account has to answer to it.
         var sheetsByName: [String: Set<String>] = [:]
         for result in perSheet {
             for account in result.model.accounts {
                 sheetsByName[account.name, default: []].insert(account.sheet ?? "")
             }
         }
-        let contested = Set(sheetsByName.filter { $0.value.count > 1 }.keys)
+        var contested = Set(sheetsByName.filter { $0.value.count > 1 }.keys)
+
+        var readFromElsewhere: Set<String> = []
+        for result in perSheet {
+            for account in result.model.accounts {
+                for read in account.expression?.accounts ?? [] {
+                    guard let bang = read.firstIndex(of: "!") else { continue }
+                    readFromElsewhere.insert(String(read[read.index(after: bang)...]))
+                }
+            }
+        }
+        contested.formUnion(
+            sheetsByName.keys.filter { readFromElsewhere.contains($0) })
 
         var accounts: [RecognizedAccount] = []
         var rollforwards: [LagDecomposition.RecognizedRollforward] = []
@@ -85,14 +119,16 @@ public enum ExcelRecognizer {
                     accounts.append(account)
                     continue
                 }
-                diagnostics.append(
-                    Diagnostic(
-                        severity: .warning, code: .duplicateAccountName,
-                        cell: account.provenance.first,
-                        message: "\"\(account.name)\" is defined on more than one sheet, so "
-                            + "both are qualified by the sheet they came from. Left bare, one "
-                            + "account would mean two things and whichever a reference found "
-                            + "first would decide the answer"))
+                if (sheetsByName[account.name]?.count ?? 0) > 1 {
+                    diagnostics.append(
+                        Diagnostic(
+                            severity: .warning, code: .duplicateAccountName,
+                            cell: account.provenance.first,
+                            message: "\"\(account.name)\" is defined on more than one sheet, so "
+                                + "both are qualified by the sheet they came from. Left bare, one "
+                                + "account would mean two things and whichever a reference found "
+                                + "first would decide the answer"))
+                }
                 accounts.append(account.renamed(to: "\(sheet)!\(account.name)"))
             }
             rollforwards.append(contentsOf: result.model.rollforwards)
@@ -133,11 +169,30 @@ public enum ExcelRecognizer {
         options: RecognizerOptions = RecognizerOptions(),
         in workbook: Workbook? = nil
     ) -> RecognitionResult {
+        recognize(sheet, options: options, in: workbook, foreignNames: [:])
+    }
+
+    /// Recognizes one worksheet, able to resolve references onto named sheets.
+    ///
+    /// - Parameters:
+    ///   - sheet: The worksheet to read.
+    ///   - options: Recognizer options.
+    ///   - workbook: The book the sheet came from, for named ranges.
+    ///   - foreignNames: What other sheets call their cells. Empty when a sheet is
+    ///     read alone, in which case a reference off it is refused.
+    /// - Returns: The plan, the diagnostics, and the coverage.
+    static func recognize(
+        _ sheet: Worksheet,
+        options: RecognizerOptions,
+        in workbook: Workbook?,
+        foreignNames: [String: [CellRef: String]]
+    ) -> RecognitionResult {
         let sheetName = sheet.name
         let imported = ModelImporter.importSheet(sheet)
         var grid = SheetGrid.build(
             from: imported, options: options,
             namedCells: namedCells(from: workbook, for: sheet))
+        grid.foreignAccountNames = foreignNames
         var diagnostics = grid.diagnostics
 
         let (axis, axisDiagnostics) = PeriodAxis.build(from: grid, options: options)

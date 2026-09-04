@@ -331,7 +331,30 @@ public enum LagDecomposition {
                 of: target, definedAt: cell, grid: grid, axis: axis,
                 rollforwards: &rollforwards, diagnostics: &diagnostics)
 
-        case .sheetRef, .error, .concatenate:
+        case .sheetRef(let reference):
+            // A model that separates data from calculation reaches off the sheet
+            // for almost every operand, so refusing these leaves such a workbook as
+            // a set of disconnected arithmetic islands. The name is always
+            // qualified: a reference has to name one account, and the bare form
+            // would stop meaning this sheet's the moment another grew the same row.
+            let target = CellRef(
+                column: reference.range.start.column, row: reference.range.start.row)
+            guard let names = grid.foreignAccountNames[reference.sheetName],
+                  let account = names[target]
+            else {
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .error, code: .crossSheetReference, cell: cell,
+                        message: "\(cell.reference) reads "
+                            + "\(reference.sheetName)!\(reference.range.start.reference), which "
+                            + "this model does not hold — the sheet is absent, outside the "
+                            + "recognized set, or has no account at that cell. Resolving it to "
+                            + "anything would invent one"))
+                return .refused
+            }
+            return .account("\(reference.sheetName)!\(account)")
+
+        case .error, .concatenate:
             diagnostics.append(
                 Diagnostic(
                     severity: .error, code: .unsupportedFormulaNode, cell: cell,

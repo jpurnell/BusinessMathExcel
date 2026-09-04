@@ -160,4 +160,121 @@ final class WorkbookRecognitionTests: XCTestCase {
             plan.coverage.recognizedCells, plan.coverage.populatedCells,
             "and it is not recognized, so coverage says so")
     }
+
+    // MARK: - A reference crossing a sheet
+
+    /// The convention a large media model applies metric by metric: a `- Data`
+    /// sheet holding figures, and an `- Input+Calc` sheet whose formulas read it.
+    private func dataAndCalc() -> Workbook {
+        let workbook = Workbook()
+
+        let data = workbook.addSheet(name: "Cost - Data")
+        for (column, year) in zip(["C", "D", "E"], ["2024", "2025", "2026"]) {
+            data.write(year, to: "\(column)1")
+        }
+        data.write("Spend", to: "A2")
+        for (column, value) in zip(["C", "D", "E"], [100.0, 110.0, 120.0]) {
+            data.write(value, to: "\(column)2")
+        }
+
+        let calc = workbook.addSheet(name: "Cost - Input+Calc")
+        for (column, year) in zip(["C", "D", "E"], ["2024", "2025", "2026"]) {
+            calc.write(year, to: "\(column)1")
+        }
+        calc.write("Uplift", to: "A2")
+        for column in ["C", "D", "E"] { calc.write(1.2, to: "\(column)2") }
+        calc.write("Adjusted Spend", to: "A3")
+        for column in ["C", "D", "E"] {
+            calc.write(
+                FormulaAST.multiply(
+                    .sheetRef(SheetReference(sheet: "Cost - Data", cell: CellRef("\(column)2"))),
+                    .cellRef(CellRef("\(column)2"))),
+                to: "\(column)3")
+        }
+        return workbook
+    }
+
+    /// Without this the calculation sheet recovers nothing: every formula on it
+    /// reaches off the sheet, and an unresolvable reference sends the whole row to
+    /// residue. A hundred sheets of that is a hundred disconnected islands.
+    func testAReferenceToAnotherSheetResolves() throws {
+        let plan = ExcelRecognizer.recognize(dataAndCalc())
+
+        let adjusted = try XCTUnwrap(
+            plan.model.accounts.first { $0.name.hasSuffix("Adjusted Spend") },
+            "Got: \(plan.model.accounts.map(\.name))")
+
+        XCTAssertEqual(
+            adjusted.formula, "([Cost - Data!Spend] * Uplift)",
+            "the foreign account by its qualified name, the local one bare")
+    }
+
+    /// An account something off-sheet reads is qualified, whether or not its name
+    /// collides — a reference has to name one account, and `Spend` alone would
+    /// stop meaning `Cost - Data`'s the moment another sheet grew one.
+    func testAnExternallyReferencedAccountIsQualified() throws {
+        let plan = ExcelRecognizer.recognize(dataAndCalc())
+
+        XCTAssertTrue(
+            plan.model.accounts.contains { $0.name == "Cost - Data!Spend" },
+            "Got: \(plan.model.accounts.map(\.name))")
+        XCTAssertTrue(
+            plan.model.accounts.contains { $0.name == "Uplift" },
+            "and an account nothing off-sheet reads stays bare")
+    }
+
+    /// The model runs across the sheet boundary.
+    func testTheCrossSheetModelMaterializesAndRuns() throws {
+        let plan = ExcelRecognizer.recognize(dataAndCalc())
+        let built = try ModelMaterializer.build(from: plan.model)
+        let results = try built.definition.solve()
+
+        let adjusted = try XCTUnwrap(results["Cost - Input+Calc!Adjusted Spend"]
+            ?? results["Adjusted Spend"])
+        XCTAssertEqual(adjusted[Period.year(2024)] ?? .nan, 120, accuracy: 1e-9)
+        XCTAssertEqual(adjusted[Period.year(2026)] ?? .nan, 144, accuracy: 1e-9)
+    }
+
+    /// A reference to a sheet the model does not hold is still refused, and says
+    /// which sheet — a missing page is a fact worth reporting, not a zero.
+    func testAReferenceToASheetOutsideTheModelIsRefused() throws {
+        let workbook = Workbook()
+        let sheet = workbook.addSheet(name: "Calc")
+        for (column, year) in zip(["C", "D", "E"], ["2024", "2025", "2026"]) {
+            sheet.write(year, to: "\(column)1")
+        }
+        sheet.write("Reads Away", to: "A2")
+        // Filled across, so the row is uniform and reaches the cross-sheet check
+        // rather than being refused as disagreeing with itself first.
+        for column in ["C", "D", "E"] {
+            sheet.write(
+                FormulaAST.sheetRef(
+                    SheetReference(sheet: "Absent", cell: CellRef("\(column)9"))),
+                to: "\(column)2")
+        }
+
+        let plan = ExcelRecognizer.recognize(workbook)
+
+        XCTAssertTrue(
+            plan.model.residue.contains { $0.label == "Reads Away" },
+            "Got residue: \(plan.model.residue.map(\.label))")
+        let reported = plan.diagnostics.first { $0.code == .crossSheetReference }
+        XCTAssertNotNil(reported, "Got: \(plan.diagnostics.map(\.code.rawValue))")
+        XCTAssertTrue(
+            reported?.message.contains("Absent") ?? false,
+            "the sheet is named. Got: \(reported?.message ?? "")")
+    }
+
+    /// Recognizing one sheet alone still refuses a reference off it — there is
+    /// nothing to resolve against, and guessing would invent an account.
+    func testASheetReadAloneStillRefusesAForeignReference() throws {
+        let workbook = dataAndCalc()
+        let calc = try XCTUnwrap(workbook.sheets.first { $0.name == "Cost - Input+Calc" })
+
+        let plan = ExcelRecognizer.recognize(calc, in: workbook)
+
+        XCTAssertTrue(
+            plan.model.residue.contains { $0.label == "Adjusted Spend" },
+            "Got: \(plan.model.residue.map(\.label))")
+    }
 }

@@ -206,7 +206,14 @@ public struct FormulaUniformity: Sendable {
             return "range(\(address(of: range.start, from: cell))"
                 + ":\(address(of: range.end, from: cell)))"
         case .sheetRef(let reference):
-            return "sheet(\(reference.sheetName)!\(reference.range.reference))"
+            // Relative to the referring cell, exactly as a same-sheet reference is.
+            // A cross-sheet reference fills across like any other, so rendering its
+            // absolute address made every cell in the row a different shape — and a
+            // row that disagrees with itself is refused. On a model that keeps its
+            // data on one sheet and its arithmetic on another, that is every row.
+            return "sheet(\(reference.sheetName)!"
+                + "\(address(of: reference.range.start, from: cell))"
+                + ":\(address(of: reference.range.end, from: cell)))"
         case .namedRange(let name):
             return "name(\(name))"
         case .number(let value):
