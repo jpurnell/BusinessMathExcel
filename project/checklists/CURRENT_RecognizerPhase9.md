@@ -32,12 +32,31 @@ L–O.
 - [x] **RED** — the span the most runs agree on is the derived axis, with the count reported as
       the evidence for it.
 - [x] **RED** — one run agreeing with itself is not evidence; below a floor, nothing is derived.
-- [ ] **RED** — `PeriodAxis` uses it only when header detection finds nothing. Where a header axis
+- [x] **RED** — `PeriodAxis` uses it only when header detection finds nothing. Where a header axis
       exists it is kept, because it is what a reader would do and it carries Wharton.
-- [ ] **RED** — when both exist and disagree, the header axis is kept and the difference is
+- [x] **RED** — when both exist and disagree, the header axis is kept and the difference is
       **reported**. Asserting the shape answer in general would be a guess, and on credit sheet
       `A` the two disagree in a way worth seeing.
-- [ ] Commit.
+- [x] Commit.
+
+**Settled while building, against the sheets rather than in the abstract:**
+
+- **Ordinal periods, counted from one.** A derived axis has no headings, so it synthesises
+  positions rather than reading whatever text sits above the span. From one, not zero:
+  `Period.year(0)` does not survive Foundation's Gregorian era boundary and comes back equal to
+  `Period.year(1)`, which would collapse the first two periods of every derived axis into one.
+  Proposal §22.3.
+- **`axisLine` for a derived axis is the line above the first agreeing run** — the boundary later
+  stages read the sheet against. It costs that one line, which may hold figures rather than
+  headings and becomes residue. Measure the cost in Task 3.
+- **Disagreement means the shape span reaches *outside* the heading span**, not merely differs
+  from it. The first rule reported any difference and immediately fired on the Wharton ANSWER KEY:
+  headings across 5–10, seventeen runs agreeing on 5–9, because the exit year is computed its own
+  way. A run span inside the heading span is the same timeline with an end of its own — that is
+  corroboration, not contradiction.
+- **A tie derives nothing**, and **headings that read equally well both ways are not rescued** by
+  shape evidence. Both are the same refusal: a sheet that made two claims and was not believed is
+  not settled by quietly consulting a third source.
 
 ## Task 3 — Measure
 

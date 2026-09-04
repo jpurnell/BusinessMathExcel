@@ -33,11 +33,27 @@ public struct PeriodAxis: Sendable, Equatable {
     ///
     /// Always the same length as ``periods``: every period names the cell it was
     /// read from, so a recognition result can be traced back to the sheet.
+    ///
+    /// On a derived axis there is no cell a period was read from, so these are the
+    /// cells at each position on the axis line — the sheet coordinates the period
+    /// occupies rather than the heading it was named by.
     public let sources: [CellRef]
 
     /// The granularity of the recovered periods. Always `.annual` — see the type's
     /// discussion.
+    ///
+    /// On a derived axis this is the granularity of the *encoding*, not a claim
+    /// about the sheet: ordinal positions have no duration, and `Period` has no
+    /// case that says so. ``provenance`` is what distinguishes them.
     public let granularity: PeriodType
+
+    /// How the axis was established — read from headings, or derived from the
+    /// sheet's own arithmetic.
+    ///
+    /// Worth asking before reading ``periods``. A heading axis carries the years
+    /// the sheet named. A derived axis carries positions, and nothing inside a
+    /// `Period` says which of the two it is holding.
+    public let provenance: SheetGrid.AxisProvenance
 
     /// The column immediately before the timeline, when it holds values belonging
     /// to a series rather than to any period.
@@ -101,6 +117,33 @@ public struct PeriodAxis: Sendable, Equatable {
     ) -> (axis: PeriodAxis?, diagnostics: [Diagnostic]) {
         guard !grid.axisCells.isEmpty else { return (nil, []) }
 
+        // A derived axis has no headings — that is its premise — so its periods are
+        // ordinal: position 1, 2, 3, in span order, asserting sequence and nothing
+        // else. The structure of a model is mechanical and logical; its labels are
+        // arbitrary and human. Reading whatever text happened to sit above the span
+        // would make a structural finding depend on the arbitrary part, and would
+        // fail in exactly the cases this path exists to serve.
+        //
+        // Counted from one rather than zero, and not as a matter of taste.
+        // `Period.year(0)` does not survive Foundation's Gregorian era boundary: it
+        // comes back equal to `Period.year(1)`, which would silently collapse the
+        // first two periods of every derived axis into one.
+        //
+        // No anchor either. The anchor rule reads a heading beside the timeline,
+        // which is the one thing a derived axis is defined by not having.
+        if case .shapeRuns(let agreeing)? = grid.axisProvenance {
+            return (
+                PeriodAxis(
+                    periods: (1...grid.axisCells.count).map { Period.year($0) },
+                    sources: grid.axisCells,
+                    granularity: .annual,
+                    provenance: .shapeRuns(agreeing: agreeing),
+                    anchor: nil
+                ),
+                []
+            )
+        }
+
         var periods: [Period] = []
         for cell in grid.axisCells {
             guard let kind = grid.cells[cell],
@@ -124,6 +167,7 @@ public struct PeriodAxis: Sendable, Equatable {
                 periods: periods,
                 sources: grid.axisCells,
                 granularity: .annual,
+                provenance: .headings,
                 anchor: anchor(before: grid.axisCells, in: grid)
             ),
             []

@@ -121,6 +121,16 @@ public enum DiagnosticCode: String, Sendable, Equatable, CaseIterable {
     /// unrecognized instead.
     case ambiguousAssumption
 
+    /// The axis a sheet's arithmetic implies is not the one its headings do.
+    ///
+    /// The heading axis is kept — it is what a reader would do, and it is right
+    /// whenever it works. But header detection does not always fail quietly: on one
+    /// credit model it found five year-like values down a column and read the whole
+    /// sheet sideways while sixteen filled rows agreed on a span across. Resolving
+    /// the difference in favour of the shape runs would be right there and a guess
+    /// in general, so the difference is named and left for a reader to settle.
+    case derivedAxisDiffers
+
     /// An account whose formula names something the model does not define.
     ///
     /// Reported by ``ModelMaterializer/buildResolvable(from:)`` for each account

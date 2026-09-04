@@ -48,6 +48,25 @@ public struct SheetGrid: Sendable {
         case periodsDownRows
     }
 
+    /// How the axis was established.
+    ///
+    /// Header detection is what a reader would do and is right whenever it works,
+    /// so it is tried first and kept where it succeeds. Shape runs are the
+    /// fallback: on most real sheets there is no heading row the detector can read,
+    /// and a timeline leaves a second trace in the arithmetic itself.
+    ///
+    /// Which of the two answered matters downstream, because the periods differ in
+    /// kind. A heading axis carries the years the sheet named; a derived axis
+    /// carries positions, and nothing inside a `Period` says which it is holding.
+    public enum AxisProvenance: Sendable, Equatable {
+
+        /// Read from a row or column of period headings.
+        case headings
+
+        /// Derived from the span the given number of shape runs agreed on.
+        case shapeRuns(agreeing: Int)
+    }
+
     /// Every populated cell, by position.
     public let cells: [CellRef: NodeKind]
 
@@ -144,7 +163,14 @@ public struct SheetGrid: Sendable {
 
     /// The heading cells forming the axis, in period order. Empty when there is
     /// no axis.
+    ///
+    /// For a derived axis these are the cells of the line immediately above the
+    /// span — the boundary between the assumptions above and the series below.
+    /// They are positions rather than headings, and may hold nothing at all.
     public let axisCells: [CellRef]
+
+    /// How the axis was established, or `nil` when there is no axis.
+    public let axisProvenance: AxisProvenance?
 
     /// What could not be established, and why.
     public let diagnostics: [Diagnostic]
@@ -195,80 +221,182 @@ public struct SheetGrid: Sendable {
         let rowRun = longestRun(in: cells, cached: cached, along: .row)
         let columnRun = longestRun(in: cells, cached: cached, along: .column)
 
+        // The header answer first: it is what a reader would do, and it is right
+        // whenever it works. An explicit orientation is honoured even where it finds
+        // no headings — a caller who states the direction is taken at their word,
+        // and that is not something shape evidence should override.
+        var orientation: Orientation?
+        var axisLine: Int?
+        var axisCells: [CellRef] = []
+        var provenance: AxisProvenance?
+        var headingsReadBothWays = false
+
         switch options.orientation {
         case .periodsAcrossColumns:
-            return SheetGrid(
-                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsAcrossColumns,
-                axisLine: rowRun?.line, axisCells: rowRun?.cells ?? [], diagnostics: diagnostics)
+            orientation = .periodsAcrossColumns
+            axisLine = rowRun?.line
+            axisCells = rowRun?.cells ?? []
 
         case .periodsDownRows:
-            return SheetGrid(
-                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsDownRows,
-                axisLine: columnRun?.line, axisCells: columnRun?.cells ?? [],
-                diagnostics: diagnostics)
+            orientation = .periodsDownRows
+            axisLine = columnRun?.line
+            axisCells = columnRun?.cells ?? []
 
         case .auto:
-            break
-        }
+            switch (rowRun, columnRun) {
+            case (nil, nil):
+                break
 
-        switch (rowRun, columnRun) {
-        case (nil, nil):
+            case (let row?, nil):
+                orientation = .periodsAcrossColumns
+                axisLine = row.line
+                axisCells = row.cells
+
+            case (nil, let column?):
+                orientation = .periodsDownRows
+                axisLine = column.line
+                axisCells = column.cells
+
+            case (let row?, let column?):
+                if row.cells.count > column.cells.count {
+                    orientation = .periodsAcrossColumns
+                    axisLine = row.line
+                    axisCells = row.cells
+                } else if column.cells.count > row.cells.count {
+                    orientation = .periodsDownRows
+                    axisLine = column.line
+                    axisCells = column.cells
+                } else {
+                    headingsReadBothWays = true
+                    diagnostics.append(
+                        Diagnostic(
+                            severity: .error, code: .ambiguousOrientation,
+                            message: "Row \(row.line) and column \(column.line) each hold "
+                                + "\(row.cells.count) period headings; the sheet reads equally "
+                                + "well both ways, so no direction was chosen"))
+                }
+            }
+        }
+        if !axisCells.isEmpty { provenance = .headings }
+
+        // What the sheet's own arithmetic says, which is a separate question. It is
+        // asked either way: as the fallback where the headings said nothing, and as
+        // the check where they said something.
+        let runs = ShapeRun.find(in: result.formulaASTs)
+        let consensus = ShapeRun.consensus(among: runs)
+
+        if axisCells.isEmpty {
+            // Headings that read equally well both ways made two claims and were not
+            // believed. That is a different situation from a sheet that made none,
+            // and settling it from a third source would be the resolving-rather-than-
+            // reporting this phase refuses everywhere else.
+            if !headingsReadBothWays, let consensus,
+               orientation.map({ $0 == consensus.orientation }) ?? true,
+               let derived = derivedAxis(from: consensus, among: runs) {
+                orientation = consensus.orientation
+                axisLine = derived.line
+                axisCells = derived.cells
+                provenance = .shapeRuns(agreeing: consensus.agreeing)
+            } else if options.orientation == .auto, !headingsReadBothWays {
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .error, code: .noPeriodAxis,
+                        message: "No row or column holds two or more consecutive, advancing "
+                            + "period headings, and no span of the sheet's formulas is agreed "
+                            + "on by enough filled rows to derive one"))
+            }
+        } else if let consensus, let orientation,
+                  disagrees(consensus, with: axisCells, along: orientation) {
             diagnostics.append(
                 Diagnostic(
-                    severity: .error, code: .noPeriodAxis,
-                    message: "No row or column holds two or more consecutive, advancing "
-                        + "period headings"))
-            return SheetGrid(
-                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: nil, axisLine: nil, axisCells: [],
-                diagnostics: diagnostics)
-
-        case (let row?, nil):
-            return SheetGrid(
-                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsAcrossColumns,
-                axisLine: row.line, axisCells: row.cells, diagnostics: diagnostics)
-
-        case (nil, let column?):
-            return SheetGrid(
-                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsDownRows,
-                axisLine: column.line, axisCells: column.cells, diagnostics: diagnostics)
-
-        case (let row?, let column?):
-            if row.cells.count > column.cells.count {
-                return SheetGrid(
-                    cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsAcrossColumns,
-                    axisLine: row.line, axisCells: row.cells, diagnostics: diagnostics)
-            }
-            if column.cells.count > row.cells.count {
-                return SheetGrid(
-                    cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: .periodsDownRows,
-                    axisLine: column.line, axisCells: column.cells, diagnostics: diagnostics)
-            }
-            diagnostics.append(
-                Diagnostic(
-                    severity: .error, code: .ambiguousOrientation,
-                    message: "Row \(row.line) and column \(column.line) each hold "
-                        + "\(row.cells.count) period headings; the sheet reads equally well "
-                        + "both ways, so no direction was chosen"))
-            return SheetGrid(
-                cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs, numberFormats: result.numberFormats,
-                namedCells: namedCells,
-                nodeToCell: nodeToCell, bounds: bounds, orientation: nil, axisLine: nil, axisCells: [],
-                diagnostics: diagnostics)
+                    severity: .warning, code: .derivedAxisDiffers,
+                    message: "The headings put the timeline at "
+                        + "\(span(of: axisCells, along: orientation)) "
+                        + "\(direction(orientation)), while \(consensus.agreeing) runs of like "
+                        + "formulas agree on \(consensus.positions.lowerBound)..."
+                        + "\(consensus.positions.upperBound) "
+                        + "\(direction(consensus.orientation)). The headings were kept"))
         }
+
+        return SheetGrid(
+            cells: cells, cachedValues: cached, formulaASTs: result.formulaASTs,
+            numberFormats: result.numberFormats, namedCells: namedCells,
+            nodeToCell: nodeToCell, bounds: bounds, orientation: orientation,
+            axisLine: axisLine, axisCells: axisCells, axisProvenance: provenance,
+            diagnostics: diagnostics)
+    }
+
+    /// The axis a consensus span implies, placed on the line above it.
+    ///
+    /// The line matters as much as the span. ``axisLine`` is the boundary every
+    /// later stage reads the sheet against — assumptions above it, series below —
+    /// and the first agreeing run is the first series, so the boundary sits directly
+    /// above it.
+    ///
+    /// That costs the boundary line itself, which on a derived sheet may hold real
+    /// figures rather than headings: it is scanned by neither stage and becomes
+    /// residue. One line, and it buys an axis on a sheet that would otherwise have
+    /// none.
+    ///
+    /// - Parameters:
+    ///   - consensus: The span the runs agreed on.
+    ///   - runs: Every run on the sheet, to find which of them agreed.
+    /// - Returns: The line and its cells, or `nil` when the span starts at the top
+    ///   of the sheet and there is no line above it to put the axis on.
+    private static func derivedAxis(
+        from consensus: ShapeRun.Consensus, among runs: [ShapeRun]
+    ) -> (line: Int, cells: [CellRef])? {
+        let agreeing = runs.filter {
+            $0.positions == consensus.positions && $0.orientation == consensus.orientation
+        }
+        guard let firstLine = agreeing.map(\.line).min() else { return nil }
+
+        let line = firstLine - 1
+        guard line >= 1 else { return nil }
+
+        let cells = consensus.positions.map { position in
+            consensus.orientation == .periodsAcrossColumns
+                ? CellRef(column: position, row: line)
+                : CellRef(column: line, row: position)
+        }
+        return (line, cells)
+    }
+
+    /// `across` or `down`, for a message a reader has to make sense of.
+    private static func direction(_ orientation: Orientation) -> String {
+        orientation == .periodsAcrossColumns ? "across" : "down"
+    }
+
+    /// The span a set of axis cells covers, along the axis direction.
+    private static func span(of axisCells: [CellRef], along orientation: Orientation) -> String {
+        let positions = axisCells.map { orientation == .periodsAcrossColumns ? $0.column : $0.row }
+        guard let low = positions.min(), let high = positions.max() else { return "nothing" }
+        return "\(low)...\(high)"
+    }
+
+    /// Whether the arithmetic and the headings name different timelines.
+    ///
+    /// Direction counts as a difference. A span of columns and a span of rows are
+    /// different findings even where the integers coincide — and that case is not
+    /// hypothetical: it is how one credit model reads its own sheet.
+    ///
+    /// **Narrower than inequality, and measurement is why.** The first rule written
+    /// here reported any difference in span, and the first sheet it ran on was the
+    /// Wharton ANSWER KEY: headings across columns 5–10, seventeen runs agreeing on
+    /// 5–9. Nothing is wrong there. The sheet's last year is computed differently
+    /// from the five before it — an exit, a terminal value — so the filled rule
+    /// stops one column short of the timeline it belongs to.
+    ///
+    /// A run span *inside* the heading span is the same timeline with an end
+    /// computed its own way, which is corroboration rather than contradiction. Only
+    /// a span reaching outside the headings is evidence they found the wrong thing.
+    private static func disagrees(
+        _ consensus: ShapeRun.Consensus, with axisCells: [CellRef], along orientation: Orientation
+    ) -> Bool {
+        guard consensus.orientation == orientation else { return true }
+        let positions = axisCells.map { orientation == .periodsAcrossColumns ? $0.column : $0.row }
+        guard let low = positions.min(), let high = positions.max() else { return true }
+        return consensus.positions.lowerBound < low || consensus.positions.upperBound > high
     }
 
     // MARK: - Private

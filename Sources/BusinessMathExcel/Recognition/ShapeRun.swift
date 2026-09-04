@@ -63,10 +63,25 @@ public struct ShapeRun: Sendable, Equatable {
     public static func find(
         in grid: SheetGrid, minimumLength: Int = ShapeRun.minimumLength
     ) -> [ShapeRun] {
+        find(in: grid.formulaASTs, minimumLength: minimumLength)
+    }
+
+    /// Every run among a set of formulas, across rows and down columns.
+    ///
+    /// The formulas are all a run needs, which is what lets ``SheetGrid`` derive an
+    /// axis while it is still building itself — before there is a grid to pass.
+    ///
+    /// - Parameters:
+    ///   - formulaASTs: The sheet's formulas, by cell.
+    ///   - minimumLength: The shortest run to report.
+    /// - Returns: The runs, unordered.
+    public static func find(
+        in formulaASTs: [CellRef: FormulaAST], minimumLength: Int = ShapeRun.minimumLength
+    ) -> [ShapeRun] {
         var acrossRows: [Int: [(position: Int, shape: String)]] = [:]
         var downColumns: [Int: [(position: Int, shape: String)]] = [:]
 
-        for (cell, ast) in grid.formulaASTs {
+        for (cell, ast) in formulaASTs {
             let shape = FormulaUniformity.canonicalShape(of: ast, at: cell)
             acrossRows[cell.row, default: []].append((cell.column, shape))
             downColumns[cell.column, default: []].append((cell.row, shape))
