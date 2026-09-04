@@ -24,6 +24,27 @@ maximal runs of adjacent cells sharing one R1C1 shape. Task 2 turns those runs i
 
 Then Task 3 measures across all three corpora and closes the phase.
 
+### Orientation for Task 2
+
+- `PeriodAxis.build(from:options:)` returns `(axis: PeriodAxis?, diagnostics: [Diagnostic])` and
+  **bails on line 102**: `guard !grid.axisCells.isEmpty else { return (nil, []) }`. That guard is
+  where a derived axis slots in — `grid.axisCells` empty is exactly "header detection found
+  nothing".
+- `SheetGrid` carries `axisCells`, `axisLine` and `orientation`, all set by `SheetGrid.build`.
+  A derived axis has to supply the same three, so the stages after it need no change.
+- `ShapeRun.find(in:minimumLength:)` returns runs with `line`, `positions: ClosedRange<Int>`,
+  `orientation` and `shape`. Vote on `positions` — on the measured sheets the winning span had 6
+  agreeing runs (Kelly's) and 16 (credit sheet `A`).
+- Diagnostic codes already exist for both cases: `noPeriodAxis` when nothing is derived either,
+  and `ambiguousOrientation` reads naturally for a header/shape disagreement. Check whether
+  `ambiguousOrientation` is already used for something else before reusing it; if it is, add a
+  new case rather than overloading one — the enum's doc comment says renaming a case is a
+  breaking change because the raw values cross the MCP boundary.
+- A derived axis still needs `Period` values. Header detection reads them from the heading cells;
+  a derived one has no headings, so it will have to synthesise a timeline (index periods) or read
+  whatever sits above the span. **This is the open design question of Task 2** and is not yet
+  settled — decide it against the corpora, not in the abstract.
+
 ---
 
 ## Why this direction
