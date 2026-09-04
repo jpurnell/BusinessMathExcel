@@ -155,4 +155,74 @@ final class ShapeRunTests: XCTestCase {
         }
         XCTAssertTrue(ShapeRun.find(in: grid).isEmpty)
     }
+
+    // MARK: - The span the runs agree on
+
+    private func run(
+        line: Int, _ positions: ClosedRange<Int>,
+        _ orientation: SheetGrid.Orientation = .periodsAcrossColumns,
+        shape: String = "RC[-1]*2"
+    ) -> ShapeRun {
+        ShapeRun(line: line, positions: positions, orientation: orientation, shape: shape)
+    }
+
+    /// The timeline is the span the sheet's own arithmetic asserts most often.
+    ///
+    /// The count matters as much as the span. It is the evidence, and a caller
+    /// weighing a derived axis against a header one needs to see how much of the
+    /// sheet stood behind it.
+    func testTheSpanTheMostRunsAgreeOnIsTheAxis() {
+        let runs = [
+            run(line: 5, 3...6),
+            run(line: 6, 3...6),
+            run(line: 7, 3...6),
+            run(line: 9, 10...14, shape: "SUM(RC[-3]:RC[-1])"),
+        ]
+
+        let consensus = ShapeRun.consensus(among: runs)
+        XCTAssertEqual(consensus?.positions, 3...6)
+        XCTAssertEqual(consensus?.orientation, .periodsAcrossColumns)
+        XCTAssertEqual(consensus?.agreeing, 3, "three rows stood behind it")
+    }
+
+    /// One run agreeing with itself is not evidence of anything.
+    func testASingleRunDerivesNothing() {
+        XCTAssertNil(ShapeRun.consensus(among: [run(line: 5, 3...6)]))
+    }
+
+    /// The floor is the same argument as ``ShapeRun/minimumLength``, applied to
+    /// rows instead of cells: two is a coincidence, three is a rule.
+    func testTwoAgreeingRunsAreBelowTheFloor() {
+        let runs = [run(line: 5, 3...6), run(line: 6, 3...6)]
+        XCTAssertNil(ShapeRun.consensus(among: runs))
+    }
+
+    /// A tie is the sheet declining to name one timeline, and guessing between two
+    /// equally-supported spans would be exactly the assertion this phase refuses to
+    /// make elsewhere.
+    func testTwoEquallySupportedSpansDeriveNothing() {
+        let runs = [
+            run(line: 5, 3...6), run(line: 6, 3...6), run(line: 7, 3...6),
+            run(line: 20, 10...14), run(line: 21, 10...14), run(line: 22, 10...14),
+        ]
+        XCTAssertNil(ShapeRun.consensus(among: runs))
+    }
+
+    /// A span of columns and a span of rows are different findings even when the
+    /// integers coincide, so they are counted apart.
+    func testOrientationIsPartOfWhatRunsAgreeOn() {
+        let runs = [
+            run(line: 5, 3...6), run(line: 6, 3...6), run(line: 7, 3...6),
+            run(line: 40, 3...6, .periodsDownRows),
+            run(line: 41, 3...6, .periodsDownRows),
+        ]
+
+        let consensus = ShapeRun.consensus(among: runs)
+        XCTAssertEqual(consensus?.orientation, .periodsAcrossColumns)
+        XCTAssertEqual(consensus?.agreeing, 3, "the two down-column runs are a separate tally")
+    }
+
+    func testNoRunsDeriveNothing() {
+        XCTAssertNil(ShapeRun.consensus(among: []))
+    }
 }

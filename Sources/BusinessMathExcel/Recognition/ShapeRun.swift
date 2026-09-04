@@ -112,3 +112,93 @@ public struct ShapeRun: Sendable, Equatable {
         return runs
     }
 }
+
+// MARK: - What the runs agree on
+
+extension ShapeRun {
+
+    /// The span a sheet's own arithmetic asserts most often.
+    ///
+    /// A single run is one row's habit. A span that many runs independently agree
+    /// on is a claim the sheet makes about its own shape, and the number agreeing
+    /// is the strength of the claim — which is why ``agreeing`` is carried rather
+    /// than discarded once the winner is known. A caller weighing a derived axis
+    /// against a header one needs to see how much of the sheet stood behind it.
+    public struct Consensus: Sendable, Equatable {
+
+        /// The columns the agreeing runs span, or the rows when they run downward.
+        public let positions: ClosedRange<Int>
+
+        /// Which way the agreeing runs run.
+        public let orientation: SheetGrid.Orientation
+
+        /// How many runs agreed on this exact span.
+        public let agreeing: Int
+
+        /// How many cells the span covers — the number of periods it would yield.
+        public var length: Int { positions.count }
+
+        /// Creates a consensus span.
+        ///
+        /// - Parameters:
+        ///   - positions: The span the runs agreed on.
+        ///   - orientation: Which way they run.
+        ///   - agreeing: How many runs agreed.
+        public init(positions: ClosedRange<Int>, orientation: SheetGrid.Orientation, agreeing: Int) {
+            self.positions = positions
+            self.orientation = orientation
+            self.agreeing = agreeing
+        }
+    }
+
+    /// The fewest agreeing runs that can assert a timeline.
+    ///
+    /// The same argument as ``minimumLength``, applied to rows instead of cells.
+    /// One run agreeing with itself is not evidence; two rows computing alike is
+    /// as easily a pair as a pattern. Three is the point at which a filled rule
+    /// is the simpler explanation.
+    ///
+    /// Far below what the reference sheets produce — the winning spans measured six
+    /// agreeing runs on Kelly's Roast Beef and sixteen on the credit model's sheet
+    /// `A` — so the floor screens noise without reaching the cases it exists for.
+    public static let minimumAgreement = 3
+
+    /// The span the most runs agree on, when one span does.
+    ///
+    /// Agreement is exact: two runs agree when they cover the same positions in the
+    /// same direction. A span of columns and a span of rows are different findings
+    /// even where the integers coincide, so they are tallied apart.
+    ///
+    /// Returns `nil` in the two cases where the sheet has not named a timeline:
+    /// when no span reaches ``minimumAgreement``, and when two spans are supported
+    /// equally. A tie is the sheet declining to choose, and choosing for it would
+    /// be the same guess this phase refuses to make when a derived axis and a
+    /// header axis disagree.
+    ///
+    /// - Parameters:
+    ///   - runs: The runs found on one sheet, in any order.
+    ///   - minimumAgreement: The fewest agreeing runs that can win.
+    /// - Returns: The winning span with its evidence, or `nil`.
+    public static func consensus(
+        among runs: [ShapeRun], minimumAgreement: Int = ShapeRun.minimumAgreement
+    ) -> Consensus? {
+        struct Span: Hashable {
+            let positions: ClosedRange<Int>
+            let orientation: SheetGrid.Orientation
+        }
+
+        var tally: [Span: Int] = [:]
+        for run in runs {
+            tally[Span(positions: run.positions, orientation: run.orientation), default: 0] += 1
+        }
+
+        guard let best = tally.max(by: { $0.value < $1.value }) else { return nil }
+        guard best.value >= minimumAgreement else { return nil }
+        guard tally.values.filter({ $0 == best.value }).count == 1 else { return nil }
+
+        return Consensus(
+            positions: best.key.positions,
+            orientation: best.key.orientation,
+            agreeing: best.value)
+    }
+}

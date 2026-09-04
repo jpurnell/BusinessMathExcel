@@ -4,6 +4,26 @@ All notable changes to BusinessMathExcel will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `ShapeRun.consensus(among:minimumAgreement:)` — the span a sheet's own arithmetic asserts most
+  often, carrying the count of agreeing runs as the evidence for it. Agreement is exact and
+  orientation is part of it: a span of columns and a span of rows are separate tallies even where
+  the integers coincide. Nothing is derived below three agreeing runs, and nothing is derived when
+  two spans are supported equally — a tie is the sheet declining to name a timeline, and choosing
+  for it would be a guess.
+- `SheetGrid.Orientation` now conforms to `Hashable` (additive; it was already `Equatable`).
+
+### Decided
+
+- **A derived axis carries ordinal periods, not names.** The structure of a model is mechanical;
+  its labels are arbitrary. A span four columns wide that sixteen rows compute alike *is* four
+  periods in order, whether the cells above it read `2024 2025 2026 2027`, `FYE LTM Proj`, or
+  nothing at all — so a derived axis synthesises positions rather than reading whatever text
+  happens to sit above the span. Reading the labels would make a structural finding depend on the
+  arbitrary part, and would fail in exactly the cases the work exists to serve. Recorded as
+  proposal §22.3.
+
 ## [0.7.0] - 2026-09-03
 
 **A spreadsheet can be read as a model.** 0.6.0 could read a workbook and say what two of its

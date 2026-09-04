@@ -39,7 +39,7 @@ import SwiftXLSX
 public struct SheetGrid: Sendable {
 
     /// Which way the time axis runs.
-    public enum Orientation: Sendable, Equatable {
+    public enum Orientation: Sendable, Hashable {
 
         /// Periods run left to right along a row.
         case periodsAcrossColumns

@@ -29,9 +29,9 @@ L–O.
 
 ## Task 2 — Deriving the axis
 
-- [ ] **RED** — the span the most runs agree on is the derived axis, with the count reported as
+- [x] **RED** — the span the most runs agree on is the derived axis, with the count reported as
       the evidence for it.
-- [ ] **RED** — one run agreeing with itself is not evidence; below a floor, nothing is derived.
+- [x] **RED** — one run agreeing with itself is not evidence; below a floor, nothing is derived.
 - [ ] **RED** — `PeriodAxis` uses it only when header detection finds nothing. Where a header axis
       exists it is kept, because it is what a reader would do and it carries Wharton.
 - [ ] **RED** — when both exist and disagree, the header axis is kept and the difference is

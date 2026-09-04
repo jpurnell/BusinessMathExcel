@@ -1534,7 +1534,35 @@ year-like values down column A and read the whole sheet sideways. Sixteen rows a
 span is not merely another candidate; it is better evidence, and evidence of a kind the header
 row cannot supply.
 
-### 22.3 Where this goes, and where it does not
+### 22.3 A derived axis has no names, and does not need them
+
+Header detection reads its periods from the heading cells. A derived axis has no headings — that
+is its premise — so the `Period` values have to come from somewhere else. Two options were open:
+synthesise a timeline from the span's own ordering, or read whatever text happens to sit above the
+span and try to make periods of it.
+
+**Synthesise.** The structure of a model — its parameters, its decisions, and the functions
+connecting them to its objective — is mechanical and logical. Its labels are arbitrary and human.
+A span of four columns that sixteen rows compute alike *is* four periods in order, and that is so
+whether the cells above them read `2024 2025 2026 2027`, `FYE FYE LTM Proj`, or nothing at all.
+Reading the labels would make a structural finding depend on the arbitrary part, and would fail in
+exactly the cases this phase exists to serve.
+
+So a derived axis carries **ordinal periods**: position 0, 1, 2, …, in span order. They assert
+sequence and nothing more — no calendar, no granularity, no start date.
+
+BusinessMath's `Period` has no ordinal case; it is date-backed, and the nearest honest encoding is
+`Period.year(0)`, `.year(1)`, …, whose labels read `0`, `1`, `2` — which is, not coincidentally,
+the convention the teaching models in the corpus already use for their own columns. The encoding
+is lossy in one direction: nothing inside a `Period` says "this is an index, not a year." So
+``PeriodAxis`` records **how it was built**, and a caller that needs to know asks the axis rather
+than inspecting the periods.
+
+Naming the periods is a later problem, and a smaller one: a labelling pass can attach names to an
+axis that already exists. Deriving the structure first and naming it second is the order that
+works. The reverse is what fails on 60 of 77 workbooks.
+
+### 22.4 Where this goes, and where it does not
 
 **Not a replacement.** Header detection is right when it works, it is what a reader would do, and
 it carries the Wharton 125-of-125. Shape runs are the *fallback and the check*: used when no
@@ -1549,7 +1577,7 @@ own left neighbour into a carry, and reducing cell-level cycles to model-level o
 to its 1 — is the projection proper. This phase derives the axis; the projection is what the axis
 then makes possible.
 
-### 22.4 Gate
+### 22.5 Gate
 
 An axis is derived on sheets where header detection finds none, measured across all three
 corpora. Wharton's 125-of-125 does not move, and where header detection already succeeds nothing
