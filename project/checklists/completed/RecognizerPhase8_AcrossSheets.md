@@ -47,19 +47,19 @@ model, and the Wharton 125-of-125 does not move.**
 
 ## Task 4 — Measure
 
-- [ ] Wharton: 125-of-125 unmoved, coverage unmoved. This is the regression bar.
-- [ ] Corpus: how many workbooks now recognize across sheets that did not.
-- [ ] The media model: does it recognize as one model, and how long does it take? 347 seconds to
+- [x] Wharton: 125-of-125 unmoved, coverage unmoved. This is the regression bar.
+- [x] Corpus: how many workbooks now recognize across sheets that did not.
+- [x] The media model: does it recognize as one model, and how long does it take? 347 seconds to
       build its graph is already a standing problem; record whether this makes it worse.
-- [ ] Record in the proposal and `master_plan.md`. Commit.
+- [x] Record in the proposal and `master_plan.md`. Commit.
 
 ---
 
 ## Done when
 
-- [ ] All four tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All four tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all`.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.

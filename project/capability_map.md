@@ -52,7 +52,7 @@ formula's cached value is never substituted for a formula that could not be tran
 ## Workbook Recognition
 
 **Key types:** `SheetGrid`, `PeriodAxis`, `LabeledSeries`, `ScalarBlock`, `ScalarAssumption`, `DataTableBlock`, `RecognizedSensitivity`, `UnitInference`, `FormulaUniformity`, `LagDecomposition`, `RecognizedModel`, `ExcelRecognizer`, `PeriodHeader`, `Coverage`, `Diagnostic`, `DiagnosticCode`, `RecognizerOptions`
-**Interfaces:** `ExcelRecognizer.recognize(_:options:in:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
+**Interfaces:** `ExcelRecognizer.recognize(_:options:in:)`, `ExcelRecognizer.recognize(_ workbook:options:)`, `SheetGrid.build(from:options:)`, `PeriodAxis.build(from:options:)`, `LabeledSeries.bind(in:axis:)`, `FormulaUniformity.assess(_:in:)`, `LagDecomposition.decompose(cell:in:axis:)`
 **Applications:** Working out what a spreadsheet *means* rather than what it contains — where its timeline runs, which label owns which row, whether a row computes the same way in every period, and which references reach back a period rather than sideways to an assumption
 **Dependencies:** BusinessMath (`Period`, `PeriodType`)
 
@@ -75,6 +75,12 @@ carries no *at close* meaning and a label with one value is a scalar assumption.
 speaks for its own cells, which the file declares on the table's master cell. Names come from the
 binder rather than being re-derived, so a reference to one of two rows sharing a heading resolves
 to the one meant.
+
+A model **spans sheets**. Serious workbooks separate concerns — data on one sheet, the
+calculations reading it on another — so recognition runs over a workbook, resolving references
+across sheets in two passes: bind every sheet's names, then translate with the others in hand. A
+name is qualified `Sheet!Name` only where it would otherwise mean two things, or where something
+off-sheet reads it; every account records its sheet regardless, because provenance is not naming.
 
 A **What-If table** is read rather than only located: two drivers, two value vectors, a grid of
 answers, and the formula being measured — which maps to BusinessMath's own

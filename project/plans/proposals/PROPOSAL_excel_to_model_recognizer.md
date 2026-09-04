@@ -1437,3 +1437,66 @@ and then *reduces* the result — `IRR`, `NPV`, `MoM`. The existing Wharton IRR 
 exactly this by hand: it takes the bound equity series and calls `irr()`, reaching 24.67%. Making
 that a supported path is a phase of its own, and it needs the terminal-row limitation solved
 first, or it has nothing to run on.
+
+## 21. Phase 8 — A model spans sheets
+
+Added 2026-09-04. Serious models separate concerns by sheet. A 104-sheet media model measured for
+this work pairs every metric — `Paid Cost - Data` holding figures, `Paid Cost - Input+Calc`
+holding the formulas that read them — and routes the lot into a `Division Quarterly`
+consolidation. Cross-sheet references were **0.78% of its 8.4M edges and carried its entire
+architecture**: lose them and the workbook is 104 disconnected arithmetic islands.
+
+### 21.1 What shipped
+
+**An account knows its sheet.** ``RecognizedAccount/sheet`` is provenance, always recorded. A
+`CellRef` carries no sheet, so without it an account read from a workbook could not be traced
+back to the page it came from.
+
+**A workbook is recognized as one model.** ``ExcelRecognizer/recognize(_:options:)-(Workbook,_)``
+reads every sheet that has a timeline. A name is qualified `Sheet!Name` only where two sheets
+would otherwise contribute the same one — and then on both sides, because qualifying only the
+second would make which sheet keeps the bare name depend on the order tabs happen to sit in.
+
+**A reference crossing a sheet resolves**, in two passes: bind every sheet's names, then
+translate with the others in hand. It terminates because binding does not depend on formulas. A
+reference to a sheet the model does not hold is still refused, and names the sheet.
+
+### 21.2 What it exposed
+
+`FormulaUniformity` canonicalises a same-sheet reference *relative* to the cell holding it, which
+is what lets a row filled across read as one rule. It rendered a cross-sheet reference at its
+**absolute** address. So every cross-sheet row looked like as many different formulas as it had
+columns and was refused as disagreeing with itself — on a model that separates data from
+calculation, that is every row. It would have defeated this phase silently.
+
+### 21.3 Measured — 2026-09-04
+
+| | |
+|---|---|
+| Wharton, 3 sheets | 72 accounts, 46 qualified; **125-of-125 unmoved** |
+| Credit model, 18 sheets | 326 accounts, **all 326 qualified** |
+| Media model, 104 sheets | 34 accounts from 568,203 cells — **0.03%** |
+
+The credit model qualifying every name is informative rather than alarming: its five `Scenario`
+sheets are near-identical copies, so every name collides, and the naming reports the workbook's
+shape.
+
+The media model is the honest result. It engages the cross-sheet path **zero times** — not
+because the path is broken, but because 100 of its 104 sheets never get a timeline, so there is
+nothing to translate. Coverage over a workbook is also lower than over a sheet by construction,
+because prose pages now sit in the denominator rather than being dropped from it.
+
+### 21.4 What this settles
+
+Three independent measurements now say the same thing:
+
+- 60 of 77 corpus workbooks have no timeline the recognizer can find
+- 12 of 18 credit-model sheets pick the wrong one
+- 100 of 104 media-model sheets get none
+
+and in every one of those cases a dependency graph builds without complaint. **Improving what
+happens after "find the timeline" cannot help a model where that precondition fails.** Phase 8
+was worth doing — cross-sheet models are unreadable without it, and the uniformity defect it
+found would have bitten anything that touched a cross-sheet row — but it is the last phase that
+can be built on the current ordering. The axis has to become a *finding* of the graph rather than
+a precondition of reading one.

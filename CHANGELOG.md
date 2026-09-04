@@ -40,6 +40,38 @@ way for a caller to reach or state it.
 
 
 ### Added
+- `ExcelRecognizer.recognize(_ workbook:)`: reads every sheet with a timeline into one model.
+  Serious models separate concerns by sheet — data on one, the calculations reading it on another
+  — and a sheet at a time cannot see that.
+- `RecognizedAccount.sheet`: where an account was read from. Provenance, not naming; a `CellRef`
+  carries no sheet, so without it an account could not be traced back to its page.
+- A name is qualified `Sheet!Name` only where two sheets would otherwise contribute the same one,
+  and then on both sides — qualifying only the second would make which sheet keeps the bare name
+  depend on the order tabs sit in.
+- Cross-sheet references resolve, in two passes: bind every sheet's names, then translate with
+  the others in hand. An account something off-sheet reads is qualified whether or not its name
+  collides, because a reference has to name one account. A reference to a sheet the model does
+  not hold is refused, and names the sheet.
+- `SheetGrid.foreignAccountNames`, and `DiagnosticCode.crossSheetReference` now used rather than
+  reserved.
+
+### Fixed
+- `FormulaUniformity` canonicalised a same-sheet reference relative to the cell holding it — which
+  is what lets a row filled across read as one rule — but rendered a cross-sheet reference at its
+  absolute address. Every cross-sheet row therefore looked like as many different formulas as it
+  had columns and was refused as disagreeing with itself. On a model that separates data from
+  calculation, that is every row.
+
+### Measured
+- Wharton, 3 sheets: 72 accounts, 46 qualified, **125-of-125 unmoved**.
+- Credit model, 18 sheets: 326 accounts, all 326 qualified — its five `Scenario` sheets are
+  near-identical copies, so every name collides and the naming reports the workbook's shape.
+- Media model, 104 sheets: 34 accounts from 568,203 cells (0.03%), engaging the cross-sheet path
+  zero times — because 100 of its 104 sheets never get a timeline, so there is nothing to
+  translate. Improving what happens *after* "find the timeline" cannot help a model where that
+  precondition fails.
+
+### Added (Phase 6)
 - `RecognizedSensitivity`: a two-variable What-If table, read. Excel writes one as a single
   marker on the body's top-left cell — everything that gives it meaning sits around the body and
   is identified by position, not by any label: values for the row driver above, values for the
