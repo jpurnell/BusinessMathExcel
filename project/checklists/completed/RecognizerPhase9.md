@@ -60,18 +60,33 @@ L–O.
 
 ## Task 3 — Measure
 
-- [ ] Wharton: 125-of-125 unmoved, coverage unmoved. The regression bar.
-- [ ] Corpus: how many of the 60 workbooks without a timeline now have one.
-- [ ] Credit model and media model: coverage before and after.
-- [ ] Record in the proposal and `master_plan.md`. Commit.
+- [x] Wharton: 125-of-125 unmoved, coverage unmoved. The regression bar. **279 cells, 238
+      recognized (85%), 125 agreeing / 0 disagreeing.**
+- [x] Corpus: how many of the 60 workbooks without a timeline now have one. **37 of them.**
+      Workbooks with a timeline 19 → 56 of 79; sheets with an axis 67 → 297 of 674; accounts
+      recovered **839 → 4,894**.
+- [x] Credit model and media model: coverage before and after. **Credit 17 → 18 of 18 sheets,
+      accounts unchanged at 326, and 12 sheets report the disagreement — the same twelve §21.4
+      had already identified by another route. Media 13 → 74 of 104 sheets, accounts 34 → 40.**
+- [x] Record in the proposal and `master_plan.md`. Commit.
+
+The before column is a real run of the same test at `8f354c8` in a throwaway worktree, not a
+figure quoted from the handoff — the accounts baseline had never been recorded, and §22.6 exists
+to keep such numbers honest.
+
+**What it also said.** The media model gained sixty-one timelines and six accounts, so the axis
+was never what stood in its way; 377 of 674 sheets still return zero because `ExcelRecognizer`
+bails to an empty model without one; and the dependency graph recovers 781,867 nodes from the same
+files, unchanged, because it never depended on any of this. Recorded as §22.6 and §22.7, and the
+reorientation that follows from it as **§23**.
 
 ---
 
 ## Done when
 
-- [ ] All three tasks green, committed individually.
-- [ ] `swift build && swift test` clean.
-- [ ] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
+- [x] All three tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings**, counted rather than read off the verdict line, and
       run with `--check all`.
-- [ ] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
-- [ ] Move this file to `project/checklists/completed/`.
+- [x] CHANGELOG; `master_plan.md` reconciled; capability map reviewed.
+- [x] Move this file to `project/checklists/completed/`.

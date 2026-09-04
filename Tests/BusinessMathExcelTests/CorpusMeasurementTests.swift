@@ -38,6 +38,9 @@ final class CorpusMeasurementTests: XCTestCase {
         let cells: Int
         let formulas: Int
         let sheetsWithAxis: Int
+        let sheetsFromHeadings: Int
+        let sheetsFromShapeRuns: Int
+        let sheetsDisagreeing: Int
         let accounts: Int
         let graphNodes: Int
     }
@@ -80,17 +83,28 @@ final class CorpusMeasurementTests: XCTestCase {
         }
 
         var cells = 0, formulas = 0, withAxis = 0, accounts = 0, nodes = 0
+        var fromHeadings = 0, fromShapeRuns = 0, disagreeing = 0
         for sheet in workbook.sheets {
             let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
             cells += grid.populatedCells
             formulas += grid.formulaASTs.count
             if grid.orientation != nil { withAxis += 1 }
+            switch grid.axisProvenance {
+            case .headings: fromHeadings += 1
+            case .shapeRuns: fromShapeRuns += 1
+            case nil: break
+            }
+            if grid.diagnostics.contains(where: { $0.code == .derivedAxisDiffers }) {
+                disagreeing += 1
+            }
             accounts += ExcelRecognizer.recognize(sheet, in: workbook).model.accounts.count
             nodes += DependencyGraph(sheet: sheet, including: isQuantity).allCells.count
         }
         return Reading(
             name: name, sheets: workbook.sheets.count, cells: cells, formulas: formulas,
-            sheetsWithAxis: withAxis, accounts: accounts, graphNodes: nodes)
+            sheetsWithAxis: withAxis, sheetsFromHeadings: fromHeadings,
+            sheetsFromShapeRuns: fromShapeRuns, sheetsDisagreeing: disagreeing,
+            accounts: accounts, graphNodes: nodes)
     }
 
     // MARK: - The measurement
@@ -117,6 +131,11 @@ final class CorpusMeasurementTests: XCTestCase {
         let formulas = readings.reduce(0) { $0 + $1.formulas }
         let accounts = readings.reduce(0) { $0 + $1.accounts }
         let nodes = readings.reduce(0) { $0 + $1.graphNodes }
+        let sheets = readings.reduce(0) { $0 + $1.sheets }
+        let headingSheets = readings.reduce(0) { $0 + $1.sheetsFromHeadings }
+        let derivedSheets = readings.reduce(0) { $0 + $1.sheetsFromShapeRuns }
+        let disagreeingSheets = readings.reduce(0) { $0 + $1.sheetsDisagreeing }
+        let derivedOnly = readings.filter { $0.sheetsFromHeadings == 0 && $0.sheetsFromShapeRuns > 0 }
 
         print("""
             CORPUS
@@ -126,6 +145,13 @@ final class CorpusMeasurementTests: XCTestCase {
 
               workbooks with a recognizable timeline   \(withAxis.count)
               workbooks without one                    \(readings.count - withAxis.count)
+              workbooks whose only timeline is derived \(derivedOnly.count)
+
+              sheets                                   \(sheets)
+              sheets with an axis read from headings   \(headingSheets)
+              sheets with an axis derived from shape   \(derivedSheets)
+              sheets with no axis at all               \(sheets - headingSheets - derivedSheets)
+              sheets whose headings and formulas differ \(disagreeingSheets)
 
               accounts recovered by recognition        \(accounts)
               nodes recovered by the dependency graph  \(nodes)
@@ -134,7 +160,9 @@ final class CorpusMeasurementTests: XCTestCase {
         for reading in readings.sorted(by: { $0.cells > $1.cells }).prefix(8) {
             print("""
                 CORPUS   \(reading.name) — \(reading.sheets) sheets, \(reading.cells) cells, \
-                \(reading.formulas) formulas, axis on \(reading.sheetsWithAxis), \
+                \(reading.formulas) formulas, axis on \(reading.sheetsWithAxis) \
+                (\(reading.sheetsFromHeadings) read, \(reading.sheetsFromShapeRuns) derived, \
+                \(reading.sheetsDisagreeing) disagreeing), \
                 \(reading.accounts) accounts, \(reading.graphNodes) graph nodes
                 """)
         }

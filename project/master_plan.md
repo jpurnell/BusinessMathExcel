@@ -350,9 +350,62 @@ BusinessMathExcel/
 
 
 
+### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 8: a model spans sheets (complete)
+- [x] Accounts carry their sheet; a workbook is recognized as one model, with names qualified
+      only where they would otherwise mean two things
+- [x] Cross-sheet references resolve in two passes — names settled everywhere before any formula
+      is translated, because a translation reads those answers and cannot be revised later
+- [x] Exposed and fixed a `FormulaUniformity` defect: a cross-sheet reference canonicalised
+      absolutely, so every row holding one was refused as disagreeing with itself
+- [x] Needed **SwiftXLSX 0.11.0** (scoped dependency graph) and **0.11.1** (a `$` marker is not a
+      different cell), both released for it
+- [x] **A corpus, so generality is measured rather than assumed** — 77 workbooks nobody wrote for
+      us, read from configured paths, never committed
+- [x] **Measured 2026-09-04:** 60 of 77 corpus workbooks, 12 of 18 credit-model sheets and most of
+      one 104-sheet media model have no timeline the recognizer can find, while a dependency graph
+      builds on all of them. Proposal §21.4: the last phase buildable on the old ordering
+
+### Unreleased — Excel→ModelDefinition Recognizer, Phase 9: the axis is a finding (complete)
+- [x] `ShapeRun` — maximal runs of adjacent cells sharing one R1C1 shape, across rows and down
+      columns. A rule filled across a row is the same formula in every column, which is a fact
+      about the formulas rather than the labels above them
+- [x] `ShapeRun.consensus(among:)` — the span the most runs agree on, carrying the agreeing count
+      as its evidence. Nothing derived below three agreeing runs, and nothing derived on a tie
+- [x] `SheetGrid.AxisProvenance` — an axis is read from headings or derived from shape runs, and
+      which one answered is recorded, because the periods differ in kind
+- [x] **A derived axis carries ordinal periods, not names.** The structure of a model is
+      mechanical; its labels are arbitrary. Counted from one, because `Period.year(0)` does not
+      survive Foundation's Gregorian era boundary and returns equal to `Period.year(1)`
+- [x] `DiagnosticCode.derivedAxisDiffers` — the header axis is kept and the difference reported.
+      Narrowed to *reaches outside the heading span* after the first rule fired on Wharton, where
+      the exit year is simply computed its own way
+- [x] **Measured 2026-09-04, before and after, both run:** workbooks with a timeline 19 → **56 of
+      79**; sheets with an axis 67 → **297 of 674**; accounts recovered **839 → 4,894**. Wharton
+      unmoved at 85% coverage and 125-of-125. The disagreement rule names exactly the 12 credit
+      sheets §21.4 had identified by a different route
+- [x] **And found the ceiling.** The media model gained 61 timelines and 6 accounts, so the axis
+      was never what stood in its way; 377 of 674 sheets still return zero. Proposal §22.6, §22.7
+
 ---
 
 ## Future Work
+
+### The reorientation — proposal §23
+
+Recognition is an *interpreter*: it asks whether a sheet is a financial model with a timeline and
+accounts, and returns nothing when the answer is no. The goal is a **translator** — take an
+arbitrary spreadsheet, model the relationships between its cells as a graph, hold that graph as
+the intermediate structure, and re-emit both a working spreadsheet and Swift that can be enhanced
+or used elsewhere. Decoration (labels, colours, headings) is a separate concern for later.
+
+The substrate exists: SwiftXLSX's `DependencyGraph` answers every structural question the goal
+needs and builds on all 674 corpus sheets, against recognition's 297. Most of the recognizer is
+reused, reordered — `ShapeRun` becomes graph compression rather than a precondition, and
+recognition becomes an optional enrichment pass over a graph that already exists.
+
+It also makes a gate possible that cannot be fitted to a corpus: **read any workbook → graph →
+re-emit → the formulas evaluate to what the original evaluated to.** Checkable on files nobody has
+seen. See §23.7 for the four questions still open.
 
 ### Named by measurement, not speculation
 
@@ -391,4 +444,4 @@ where it was found rather than guessed at here.
 
 ---
 
-**Last Updated:** 2026-09-04 — recorded recognizer Phase 8: a model spans sheets. Accounts carry their sheet, a workbook is recognized as one model with names qualified only where they would otherwise mean two things, and cross-sheet references resolve in two passes. Recorded the `FormulaUniformity` defect it exposed — a cross-sheet reference canonicalised absolutely, so every such row was refused as disagreeing with itself — and the measurement that settles the next direction: 60 of 77 corpus workbooks, 12 of 18 credit-model sheets and 100 of 104 media-model sheets have no timeline the recognizer can find, while a dependency graph builds on all of them. Counts refreshed to 538 tests.
+**Last Updated:** 2026-09-04 — recorded recognizer Phases 8 and 9, the second of which had never been entered here at all. Phase 8: a model spans sheets, cross-sheet references resolve in two passes, and a 77-workbook corpus was added so generality is measured rather than assumed. Phase 9: the axis became a finding rather than a precondition — derived from the spans a sheet's own formulas agree on, carrying ordinal periods because structure is mechanical and labels are arbitrary. Measured before and after, both run rather than quoted: workbooks with a timeline 19 → 56 of 79, sheets with an axis 67 → 297 of 674, accounts recovered 839 → 4,894, Wharton unmoved at 85% and 125-of-125. The same measurement found the ceiling — 377 sheets still return zero, and one media model gained 61 timelines and 6 accounts — which is why **§23 reorients the work around the graph as the artifact rather than the fallback**. Counts refreshed to 558 tests, 45/45 checkers, 0/0.

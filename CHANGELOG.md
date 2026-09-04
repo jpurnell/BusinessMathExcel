@@ -14,6 +14,24 @@ All notable changes to BusinessMathExcel will be documented in this file.
   for it would be a guess.
 - `SheetGrid.Orientation` now conforms to `Hashable` (additive; it was already `Equatable`).
 
+### Measured
+
+- **Phase 9, before and after, both run** — the "before" is the same test at `8f354c8` in a
+  throwaway worktree, not a figure quoted from a handoff. Across 79 workbooks (819,941 cells):
+  workbooks with a recognizable timeline **19 → 56**, sheets with an axis **67 → 297 of 674**,
+  accounts recovered by recognition **839 → 4,894**. Header detection recovers exactly what it did
+  before — 67 sheets, unchanged — so nothing that already worked was disturbed. 37 workbooks have
+  a timeline only because one was derived.
+- `Securitization Team 2013` went from 0 sheets with an axis to 23, and from 0 accounts to 1,224.
+- The disagreement rule fires on **12 of the credit model's 18 sheets** — the same twelve an
+  earlier, independent measurement had recorded as picking the wrong axis.
+- Wharton unmoved: 279 populated cells, 238 recognized (**85%**), **125 values agreeing, 0
+  disagreeing**, published IRR 24.67% and MoM 3.01× still reproduced.
+- **And the ceiling.** The media model gained 61 timelines and 6 accounts, so the axis was never
+  what stood in its way; 377 of 674 sheets still return zero, because `ExcelRecognizer` bails to
+  an empty model without one. Recorded as proposal §22.6–§22.7, and the reorientation that follows
+  as §23.
+
 ### Decided
 
 - **A derived axis carries ordinal periods, not names.** The structure of a model is mechanical;

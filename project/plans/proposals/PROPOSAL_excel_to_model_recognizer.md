@@ -1582,3 +1582,201 @@ then makes possible.
 An axis is derived on sheets where header detection finds none, measured across all three
 corpora. Wharton's 125-of-125 does not move, and where header detection already succeeds nothing
 changes.
+
+### 22.6 Measured — 2026-09-04
+
+Before and after are both measured, not quoted. The *before* column is a run of the same test at
+`8f354c8`, the commit preceding Task 2, in a throwaway worktree — because the figure that mattered
+most here (accounts recovered) had never been recorded for the corpus, and asserting a baseline
+from memory is the thing this section exists to avoid.
+
+79 workbooks — the 77-workbook corpus plus the credit and media models — 819,941 cells, 549,059
+formulas.
+
+| | Before (`8f354c8`) | After |
+|---|---|---|
+| Workbooks with a recognizable timeline | 19 of 79 | **56 of 79** |
+| Sheets with an axis | 67 of 674 | **297 of 674** |
+| — read from headings | 67 | 67 |
+| — derived from shape runs | — | **230** |
+| **Accounts recovered by recognition** | **839** | **4,894** |
+| Nodes recovered by the dependency graph | 781,867 | 781,867 |
+
+Header detection recovers exactly what it recovered before: 67 sheets, unchanged, which is the
+half of the gate that says nothing already working was disturbed. Everything above that is new,
+and **37 workbooks have a timeline only because one was derived** — header detection finds nothing
+in them at all.
+
+Per workbook, where the change is easiest to see:
+
+| Workbook | Sheets with an axis | Accounts |
+|---|---|---|
+| Securitization Team 2013 | 0 → **23** of 27 | 0 → **1,224** |
+| Long Acre S1TJ | 1 → **9** of 14 | 0 → **434** |
+| Long Acre Team 2013 | 1 → **12** of 20 | 1 → **83** |
+| Small Hydro S1TJ | 5 → **7** of 11 | 170 → **184** |
+| Credit model | 17 → **18** of 18 | 326 → 326 |
+| Media model | 13 → **74** of 104 | 34 → **40** |
+
+**The disagreement rule finds exactly the sheets already known to be wrong.** 12 of the credit
+model's 18 sheets report ``DiagnosticCode/derivedAxisDiffers`` — and §21.4 had independently
+recorded, from a different measurement, that *12 of 18 credit-model sheets pick the wrong one*.
+Two counts arrived at the same twelve by different routes. Across all 79 workbooks the rule fires
+on 24 sheets, so it is naming a specific defect rather than complaining everywhere.
+
+Wharton is unmoved: 279 populated cells, 238 recognized, **85%**; **125 values agreeing, 0
+disagreeing**; published IRR 24.67% and MoM 3.01× still reproduce.
+
+#### What the measurement also says, and it is not flattering
+
+**The media model barely moved: 34 → 40 accounts, against 13 → 74 sheets with an axis.** Sixty-one
+sheets gained a timeline and contributed six accounts between them. Whatever prevents that
+workbook from being read, it was never the axis — so the premise this phase was built on, that
+finding the timeline is the thing standing in the way, holds for the teaching corpus and fails
+here.
+
+The comparison in the last row of the first table is the other half of it. The dependency graph
+recovers 781,867 nodes from the same files, and that number did not change, because it never
+depended on any of this. After Phase 9, **377 of 674 sheets still return exactly zero** from
+``ExcelRecognizer``, which bails to an empty model when no axis is found.
+
+A correction to §21.3 while the numbers are in hand: that section reported the media model getting
+no timeline on 100 of 104 sheets. Measured directly at `8f354c8` by `grid.orientation != nil`, the
+figure is 13 sheets with an axis and 91 without. The earlier number was probably counting sheets
+that produced a *model* rather than sheets that found an axis; the two are different questions and
+the text did not distinguish them.
+
+### 22.7 What this settles
+
+Phase 9 did what it set out to do, and the gate is met: an axis is derived where headings find
+none, nothing that already worked was disturbed, and the Wharton bar did not move. Deriving
+structure from arithmetic rather than from labels recovered **5.8× more model** from the same
+files — 839 accounts to 4,894 — which is the strongest evidence yet for the principle behind it.
+
+It also found the ceiling. Recognition is an *interpreter*: it asks whether a sheet is a financial
+model with a timeline and accounts, and returns nothing when the answer is no. Improving the
+question does not change the shape of the failure — 377 sheets, and one 568,203-cell workbook that
+gained sixty-one timelines and six accounts. §23 is where that goes.
+
+---
+
+## 23. Reorientation — the graph is the artifact, not the fallback
+
+Added 2026-09-04, immediately after Phase 9 closed. It is a change of goal rather than a next
+phase, and the sections above are left standing: they record what was built and why, including
+the parts this supersedes.
+
+### 23.1 The goal, stated plainly
+
+Take an **arbitrary** spreadsheet. Model the relationships between its cells — references and
+formulas — as a graph. Hold that graph as the intermediate structure. From it, re-emit a working
+spreadsheet, and emit Swift the compiler can check, so the model can be enhanced or used in some
+other application.
+
+Not necessarily with the same decoration. Labels, colours, headings and layout are a separate
+concern and may come later; they are not what makes the thing a model.
+
+### 23.2 Two different programs, and we built the other one
+
+| | Interpreter (built) | Translator (wanted) |
+|---|---|---|
+| Question | "Is this a financial model?" | "What does each cell read?" |
+| Input | Sheets that fit the schema | Any sheet |
+| On not understanding | Returns nothing | Cannot arise — every formula has a dependency set |
+| Failure mode | Fails closed, silently sized | None; fidelity is checkable |
+
+`ExcelRecognizer` asks the first question. The gate is one line:
+
+```swift
+guard let axis else {
+    return RecognitionResult(model: RecognizedModel(periods: [], accounts: [], ...),
+                             coverage: Coverage(..., recognizedCells: 0))
+}
+```
+
+No timeline, no output at all. Phase 9 raised that ceiling substantially — 839 accounts to 4,894 —
+and did not remove it: **377 of 674 sheets still return zero**, and the dependency graph builds on
+all 674.
+
+### 23.3 The substrate already exists
+
+`DependencyGraph` ships in SwiftXLSX and answers every structural question the goal needs:
+`allCells`, `evaluationOrder`, `inputs`, `outputs`, `precedents(of:)`, `dependents(of:)`,
+`allDependents(of:)`, `isAcyclic`, `cycles`. It is constructible from a sheet or a whole workbook,
+with an optional filter for what counts as a quantity.
+
+It has been in the corpus measurement all along, as the column recognition is compared against,
+with a comment saying exactly what the comparison was for:
+
+> The comparison that matters is the last two columns: how much a pipeline that begins by looking
+> for a timeline recovers, against how much a dependency graph recovers from the same files.
+
+781,867 nodes against 4,894 accounts. The measurement was reported for four phases before its
+implication was acted on.
+
+### 23.4 Where this work fitted itself to the available data
+
+Worth naming precisely, because "fits the corpus" is a criticism that is easy to make vaguely and
+useful only when it is specific:
+
+- ``PeriodAxis`` recognizes **annual periods only**, and says why: *chosen from the reference
+  workbooks rather than from imagination*. Defensible as scope. Still a shape read off two files.
+- The ``DiagnosticCode/derivedAxisDiffers`` rule was written as "any difference in span," fired
+  immediately on the Wharton fixture, and was narrowed to "reaches outside the heading span"
+  **because the fixture complained** (§22.3). The narrower rule is better — but a corpus selected
+  it, not an argument.
+- ``ShapeRun/minimumAgreement`` is 3 because the two sheets measured beforehand produced 6 and 16.
+
+Each is a local judgement made honestly. The problem is not any one of them; it is that the
+*schema* — periods × accounts, one rule per account, balances carried between periods — is itself
+read off financial models, and an arbitrary spreadsheet is not one. No improvement to axis
+detection reaches that, which is precisely what the media model demonstrated: sixty-one new
+timelines, six new accounts.
+
+### 23.5 What survives, repositioned
+
+Most of it, in a different place in the order:
+
+- **`Import/` never interprets.** Already the correct layer, already separated, unchanged.
+- **Cross-sheet reference resolution** (Phase 8) is a prerequisite for a whole-workbook graph, and
+  is done.
+- **``ShapeRun`` and its consensus** become **graph compression** rather than a precondition.
+  Sixteen cells sharing one R1C1 shape are one relationship instantiated sixteen times, and that
+  is what makes emitted Swift tractable for a 568,203-cell workbook. The same code; a different
+  job.
+- **`ExcelModel`** — the outbound DAG of `InputNode`/`FormulaNode`/`OutputNode` — is already the
+  shape an inbound graph should meet. The round trip closes there.
+- **Recognition entire** becomes an **optional enrichment pass over a graph that already exists**:
+  a naming and typing layer, not the gate that must be passed to get anything at all.
+
+### 23.6 The gate this makes possible
+
+The current gate is coverage on the Wharton fixture. It is a corpus-fitted number, and §22.6 is a
+long argument about how hard it is to keep such a number honest.
+
+A **round-trip gate cannot be fitted**: read any workbook → build the graph → re-emit → the
+formulas evaluate to what the original evaluated to. It is checkable on files nobody has seen,
+including files that do not exist yet. That is the difference between *fits the available data*
+and *is correct*, and it is the strongest reason to make the change.
+
+### 23.7 Open questions, to be settled against files rather than in the abstract
+
+1. **Node granularity.** Cell-level is faithful and gives 568,203 nodes for one workbook.
+   Compression is not cosmetic — it decides whether emitted Swift is usable. Does it live in the
+   graph, or in a projection over it?
+2. **What round-trip identity means.** Formulas and computed values, explicitly not decoration.
+   Worth writing as a contract before building to it.
+3. **Cycles.** Wharton holds 39 at cell level. A faithful graph must *represent* them;
+   recognition currently refuses them. That is a posture change, not a feature.
+4. **What emitted Swift looks like** when it comes from an arbitrary graph rather than a
+   `ModelDefinition` — and what of the typed layer (§19) still applies when there are no units to
+   infer.
+
+### 23.8 What this does not claim
+
+That the recognizer was a mistake. It produced the measurements that located its own ceiling,
+five upstream releases, and a Wharton model that reproduces a published IRR to the basis point.
+An interpreter over a faithful graph is a reasonable thing to want, and most of it will be reused.
+
+What changed is the ordering: **the graph first and always, interpretation second and optionally**
+— rather than interpretation as the entrance, with the graph as the column it is measured against.
