@@ -41,8 +41,11 @@ conclusions.
    deliberately.
 3. **Cycles are represented, not refused.** Wharton holds 39 at cell level.
 4. **Emission targets plain Swift primitives.** Grouping, naming and typing are later passes.
-   §19's typed layer leaves the critical path, and with it the reason the inbound path depends on
-   BusinessMath at all.
+   §19's typed layer leaves the critical path.
+
+   **Corrected 2026-09-04.** That last point was originally written as "the inbound path may not
+   need BusinessMath at all", which is wrong. Foundation is enough to *represent* a graph;
+   evaluating one is a different claim, and §4 is where it is worked out.
 
 ## 3. Measured before designing
 
@@ -58,20 +61,101 @@ conclusions.
 - **The existing export path is not a round trip.** `ModelExporter.export` assigns positions
   through a `LayoutStrategy`. That is correct for the outbound direction — build a model in Swift,
   produce a spreadsheet — and it means a re-emitted workbook does **not** reproduce the original's
-  addresses. See §5.
+  addresses. See §7.
 
 ---
 
-## 4. Phase 10 — a faithful graph, and proof that it is faithful
+## 4. Where the functions come from
 
-### 4.1 What it delivers
+A cell reading `=AVERAGE(B2:B10)` has to get `AVERAGE` from somewhere. Representing it needs
+nothing — a name and a list of arguments is Foundation and a `String`. **Evaluating it is a
+different claim**, and the earlier note that the inbound path might need no BusinessMath conflated
+the two.
+
+Measured across all three corpora — 589,199 function call sites — the answer is that they come
+from four different places, and only one of them is a maths library.
+
+| Source | Functions | Why it belongs there |
+|---|---|---|
+| **The evaluator itself** | `IF`, `IFERROR`, `ISERROR`, `ISNA`, `ISNUMBER` | Excel's error propagation and coercion rules. Not arithmetic; nobody outside a spreadsheet evaluator can supply them |
+| **The graph** | `VLOOKUP`, `HLOOKUP`, `INDEX`, `MATCH`, `OFFSET`, `INDIRECT`, `ADDRESS`, `ROW` | These compute an *address* and read it. They are edge operations, and `OFFSET`/`INDIRECT` make edges dynamic |
+| **Swift and Foundation** | `SUM`, `MIN`, `MAX`, `ABS`, `ROUND`, `SQRT`, `COUNT`, `YEAR`, `MONTH`, `DATE` | Primitives and calendar arithmetic |
+| **BusinessMath** | `NPV`, `IRR`, `PMT`, `YEARFRAC`, `COVARIANCE.P`, and everything statistical or financial after them | Reimplementing these is the failure `FormulaEvaluator.Function`'s own documentation names: *"a second NPV that could disagree with the first"* |
+
+### 4.1 The period-local constraint
+
+`FormulaEvaluator<Double>.Function` is BusinessMath's Excel-named registry and looks like the
+obvious thing to call. It is not, and its own doc comment says why:
+
+> Each function acts **period by period** … Aggregating down a column is a different operation and
+> is **deliberately not expressible**: this grammar is period-local.
+
+That is the right design for `ModelDefinition`, and it is the wrong shape for a graph, where
+`AVERAGE(B2:B10)` aggregates *across cells* by definition. So the evaluator gets its own dispatch
+over range arguments and **delegates to BusinessMath's canonical implementations** — the core
+functions, which already take collections (`npvExcel(rate:cashFlows:)` takes cash flows) — rather
+than to the period-local enum. The registry is the naming authority and the semantics reference;
+it is not the call target.
+
+### 4.2 What BusinessMath is missing, measured
+
+Of the 296,762 calls whose formulas parse, BusinessMath's registry names **68%**. The named gaps
+that are genuinely its space — statistical and financial, where a second implementation could
+disagree with the first — are worth adding upstream rather than writing here:
+
+| Function | Calls | Sheets |
+|---|---|---|
+| `YEARFRAC` | 3,425 | 9 | day-count conventions are bond maths, not calendar maths |
+| `SUMPRODUCT` | 805 | 134 | the widest reach of any unregistered function |
+| `COVARIANCE.P` | 124 | — | BusinessMath already computes covariance; this is a binding |
+
+Everything else unregistered falls in the first three rows of the table above and should **not**
+go upstream: error semantics belong to the evaluator, lookups belong to the graph.
+
+---
+
+## 5. The blocker in front of all of this
+
+**53% of the corpus's formulas do not parse.**
+
+`_RAW` is not an Excel function. It is SwiftXLSX's fallback when `FormulaParser.parse` fails,
+keeping the text verbatim: `cells[ref] = (.formula(.function("_RAW", [.text(cleaned)])), …)`. It
+occurs **292,437 times** against 549,059 formulas.
+
+A formula with no structure yields no edges. This is the ceiling on any graph built from these
+files, and it sits in front of every function question — a function you cannot parse is not a
+function you are missing.
+
+Grouped by cause, it is **five parser gaps**, not a long tail:
+
+| Cause | Formulas | Example |
+|---|---|---|
+| **Omitted arguments** | ~126,000 | `IFERROR(B5/C5-1,)`, `ADDRESS($C27,AZ$3,1,,"Lease Revenue")` |
+| **Defined name as an operand** | ~95,000 | `VLOOKUP("SS",Production_Supply,7,FALSE)`, `C36+days_per_week` |
+| **Whole-column / whole-row ranges** | ~47,000 | `SUMIFS(Sheet2!$E:$E, …)`, `'Lease Revenue'!$2:$3` |
+| **Prefixed function names** | ~22,800 | `_xll.PsiNormal(…)` (an @RISK add-in), `_xlfn.COVARIANCE.P(…)` |
+| **Error literals** | 233 | `CB_DATA_!#REF!` |
+
+That accounts for essentially all 292,437. None is exotic; all five are ordinary spreadsheet
+syntax this parser has not been taught.
+
+**They are upstream.** SwiftXLSX owns the parser, and five releases have already come out of this
+work for defects found the same way. Fixing them is the highest-leverage thing available: it
+roughly doubles the material any graph can be built from, and it does so before a single decision
+about node granularity or evaluation matters.
+
+---
+
+## 6. Phase 10 — a faithful graph, and proof that it is faithful
+
+### 6.1 What it delivers
 
 1. A graph built from **any** workbook: every populated cell a node, every reference an edge, the
    formula kept as an expression over nodes rather than over addresses.
 2. An **evaluator** over that graph.
 3. A gate proving the two agree with the file.
 
-### 4.2 Why an evaluator, and why now
+### 6.2 Why an evaluator, and why now
 
 Fidelity has to be checkable or the claim in §1 is decoration. But checking it by writing a
 workbook and reading it back does not work: writing in memory caches no values, and re-emission
@@ -90,7 +174,7 @@ save-and-load.
 And the evaluator is not scaffolding. Emitted Swift is an evaluator; writing one against the graph
 is the first half of §1's second promise, not a test fixture.
 
-### 4.3 The gate
+### 6.3 The gate
 
 **For every workbook in the three corpora, every node whose cell carries a cached value evaluates
 to that value.** Reported as a proportion, with every disagreement named.
@@ -103,12 +187,23 @@ It will not be 100% on the first run, and the failures are the point: every one 
 a reference form, or a value type the graph does not yet carry. That list is the phase's real
 output.
 
-### 4.4 Tasks
+### 6.4 Tasks
+
+**Task 0 — the parser, upstream.** Five gaps in SwiftXLSX's `FormulaParser` (§5) leave 53% of the
+corpus unstructured. Closing them roughly doubles the material a graph can be built from, and no
+decision inside this phase matters more than that. Ordered by reach: omitted arguments, defined
+names as operands, whole-column and whole-row ranges, `_xlfn.`/`_xll.` prefixed names, error
+literals.
 
 **Task 1 — the graph.** A `CellGraph` (name provisional) built from a workbook: nodes for
 populated cells, edges from references, formulas held as expressions over node identities.
 Cross-sheet included. Nothing refused; anything not understood is carried as an opaque node with
 the reason, so it can be counted rather than lost.
+
+**Nothing is refused at build time.** A function the evaluator cannot compute is still *in* the
+graph — the structure of a call is known even when its meaning is not. Refusal moves from
+graph-construction to evaluation, where it becomes a reported gap rather than a dropped cell.
+That separation is what lets §6.3's gate produce a function roadmap instead of a silence.
 
 **Task 2 — the evaluator.** Evaluate in dependency order. Cycles are represented, so they must be
 *handled* — at minimum detected and reported as unevaluated rather than hung on; iterative
@@ -120,7 +215,7 @@ models. Publish the proportion and the full list of what disagreed and why.
 **Task 4 — what the failures say.** The list from Task 3 becomes the roadmap. It is the first
 roadmap in this project derived from arithmetic rather than from reading workbooks and guessing.
 
-### 4.5 What Phase 10 does not do
+### 6.5 What Phase 10 does not do
 
 - **No re-emission.** A faithful graph proven against cached values is the precondition; writing
   it back out is Phase 11.
@@ -131,7 +226,7 @@ roadmap in this project derived from arithmetic rather than from reading workboo
 - **Nothing removed from the recognizer.** It keeps working and keeps its measurements. Whether it
   becomes a projection over the graph is a question for after the graph exists.
 
-### 4.6 The risk worth naming
+### 6.6 The risk worth naming
 
 **347 seconds** to build the media model's dependency graph today. If everything reads through a
 cell-level graph, that is the floor for every operation on that workbook. 568,203 nodes should not
@@ -143,7 +238,7 @@ the substrate where §2 says it must not go.
 
 ---
 
-## 5. A note on what "round trip" means
+## 7. A note on what "round trip" means
 
 The phrase is used loosely and should not be. Three different claims hide in it:
 

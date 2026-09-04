@@ -172,6 +172,131 @@ final class CorpusMeasurementTests: XCTestCase {
         XCTAssertFalse(readings.isEmpty, "something should have been readable")
     }
 
+    /// Which functions do real workbooks actually call, and how often?
+    ///
+    /// An evaluator over the graph has to implement them, and the set is not a
+    /// matter of taste: a spreadsheet calls what it calls. Counting them turns "how
+    /// much of a function library do we need" from a judgement into a ranked list,
+    /// and says which of them BusinessMath already answers for.
+    ///
+    /// Reported, not gated.
+    func testWhichFunctionsTheCorpusCalls() throws {
+        let files = try corpusFiles()
+        var callsByName: [String: Int] = [:]
+        var sheetsByName: [String: Int] = [:]
+        var totalCalls = 0
+
+        for path in files {
+            guard let workbook = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
+                continue
+            }
+            for sheet in workbook.sheets {
+                let imported = ModelImporter.importSheet(sheet)
+                var onThisSheet: Set<String> = []
+                for (_, ast) in imported.formulaASTs {
+                    for name in CorpusMeasurementTests.functionNames(in: ast) {
+                        callsByName[name, default: 0] += 1
+                        totalCalls += 1
+                        onThisSheet.insert(name)
+                    }
+                }
+                for name in onThisSheet { sheetsByName[name, default: 0] += 1 }
+            }
+        }
+
+        let registered = Set(FormulaEvaluator<Double>.Function.allCases.map(\.rawValue))
+        let ranked = callsByName.sorted { ($0.value, $1.key) > ($1.value, $0.key) }
+        let covered = ranked.filter { registered.contains($0.key) }.reduce(0) { $0 + $1.value }
+
+        print("""
+            FUNCTIONS
+              distinct functions called  \(callsByName.count)
+              total calls                \(totalCalls)
+              calls BusinessMath names   \(covered) (\(totalCalls == 0 ? 0 : covered * 100 / totalCalls)%)
+            """)
+
+        for (name, calls) in ranked.prefix(30) {
+            let mark = registered.contains(name) ? "registered" : "—"
+            print("FUNCTIONS  \(name)  \(calls) calls, \(sheetsByName[name] ?? 0) sheets  \(mark)")
+        }
+
+        // `_RAW` is not an Excel function. It is SwiftXLSX's fallback for a formula
+        // its parser could not read, holding the text verbatim. A formula with no
+        // structure yields no edges, so this is the ceiling on any graph built from
+        // these files, and what it trips on is worth knowing exactly.
+        var shapes: [String: Int] = [:]
+        var samples: [String: String] = [:]
+        for path in files {
+            guard let workbook = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
+                continue
+            }
+            for sheet in workbook.sheets {
+                for (_, ast) in ModelImporter.importSheet(sheet).formulaASTs {
+                    guard case .function("_RAW", let arguments) = ast,
+                          case .text(let raw)? = arguments.first else { continue }
+                    let shape = CorpusMeasurementTests.shape(of: raw)
+                    shapes[shape, default: 0] += 1
+                    if samples[shape] == nil { samples[shape] = String(raw.prefix(70)) }
+                }
+            }
+        }
+
+        print("UNPARSED  \(shapes.values.reduce(0, +)) formulas SwiftXLSX could not parse")
+        for (shape, count) in shapes.sorted(by: { ($0.value, $1.key) > ($1.value, $0.key) })
+            .prefix(15) {
+            print("UNPARSED  \(shape)  \(count)  e.g. \(samples[shape] ?? "")")
+        }
+
+        XCTAssertFalse(files.isEmpty)
+    }
+
+    /// A coarse fingerprint of an unparsed formula, so failures group by cause.
+    ///
+    /// The leading call or token, not the whole text — two formulas failing for the
+    /// same reason should land together however different their arguments are.
+    private static func shape(of raw: String) -> String {
+        let text = raw.hasPrefix("=") ? String(raw.dropFirst()) : raw
+        if let parenthesis = text.firstIndex(of: "(") {
+            let head = text[text.startIndex..<parenthesis]
+            if head.allSatisfy({ $0.isLetter || $0 == "." || $0 == "_" }), !head.isEmpty {
+                return "\(head.uppercased())(…)"
+            }
+        }
+        if text.hasPrefix("{") { return "{array formula}" }
+        if text.contains("!") { return "cross-sheet reference" }
+        if let first = text.first, first.isNumber || first == "-" { return "arithmetic" }
+        return String(text.prefix(12))
+    }
+
+    /// Every function name a formula calls, including nested ones.
+    private static func functionNames(in ast: FormulaAST) -> [String] {
+        var found: [String] = []
+        var stack: [FormulaAST] = [ast]
+
+        // Iterative, so a deeply nested formula cannot exhaust the stack.
+        while let node = stack.popLast() {
+            switch node {
+            case .function(let name, let arguments):
+                found.append(name.uppercased())
+                stack.append(contentsOf: arguments)
+            case .add(let lhs, let rhs), .subtract(let lhs, let rhs),
+                 .multiply(let lhs, let rhs), .divide(let lhs, let rhs),
+                 .power(let lhs, let rhs),
+                 .greaterThan(let lhs, let rhs), .lessThan(let lhs, let rhs),
+                 .greaterOrEqual(let lhs, let rhs), .lessOrEqual(let lhs, let rhs),
+                 .equal(let lhs, let rhs), .notEqual(let lhs, let rhs),
+                 .concatenate(let lhs, let rhs):
+                stack.append(lhs)
+                stack.append(rhs)
+            case .negate(let inner):
+                stack.append(inner)
+            default:
+                continue
+            }
+        }
+        return found
+    }
+
     /// A graph can be built wherever there are formulas at all.
     ///
     /// This is the one thing worth asserting rather than merely printing, because

@@ -1827,10 +1827,17 @@ Emission targets plain Swift primitives. The typed layer of §19 — `ModelUnit`
 `Expr<U>`, `validateUnits()` — leaves the critical path; it applies to a model that has already
 been named and typed, which is a later projection rather than the first output.
 
-One consequence worth stating: a graph of cells and formulas emitted as primitives needs
-Foundation and nothing else. **The inbound path may not need BusinessMath at all.** That
-dependency was pinned for `ModelDefinition` and the typed layer, both of which are now
-downstream-optional rather than the target.
+One consequence was stated here and was wrong: *"a graph of cells and formulas emitted as
+primitives needs Foundation and nothing else — the inbound path may not need BusinessMath at
+all."* Foundation is enough to **represent** a graph. Evaluating one is a different claim, and
+`=AVERAGE(B2:B10)` has to get `AVERAGE` from somewhere.
+
+Measured afterwards across 589,199 call sites, the functions come from four places and only one is
+a maths library: the evaluator itself owns Excel's error semantics, the graph owns the lookups
+because they compute addresses, Swift and Foundation own the primitives, and **BusinessMath owns
+anything financial or statistical** — where writing a second implementation is the failure
+`FormulaEvaluator.Function`'s own documentation names, *"a second NPV that could disagree with the
+first"*. Worked out in `PROPOSAL_spreadsheet_graph.md` §4.
 
 ### 23.8 Measured on Kelly's Roast Beef — 2026-09-04
 
