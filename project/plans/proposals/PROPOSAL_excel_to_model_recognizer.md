@@ -1500,3 +1500,57 @@ was worth doing — cross-sheet models are unreadable without it, and the unifor
 found would have bitten anything that touched a cross-sheet row — but it is the last phase that
 can be built on the current ordering. The axis has to become a *finding* of the graph rather than
 a precondition of reading one.
+
+## 22. Phase 9 Design — The axis is a finding, not a precondition
+
+Added 2026-09-04, after three independent measurements said the same thing: 60 of 77 corpus
+workbooks, 12 of 18 credit-model sheets, and 100 of 104 media-model sheets have no timeline the
+recognizer can find — while a dependency graph builds on all of them.
+
+### 22.1 What a timeline actually is
+
+``PeriodAxis`` looks for a row of period *headings* and reads the model from there. That is how a
+person finds a timeline, and it fails whenever the headings are not what it expects: `0, 1, 2 …`
+period indices on a teaching model, `FYE`/`LTM` on a credit model, or nothing at all.
+
+But a timeline leaves a second, stronger trace. **A rule filled across a row is the same formula
+in every column**, and that is a fact about the formulas rather than about the labels above them.
+Three cells side by side sharing one R1C1 shape are three periods of one account — whatever the
+header says, and whether or not there is one.
+
+### 22.2 Deriving it
+
+A **shape run** is a maximal set of horizontally adjacent cells sharing one R1C1 canonical shape.
+Collect every run on a sheet and the columns they span; the span the most runs agree on is the
+timeline. Measured before writing any of this:
+
+| | Header detection | Shape runs |
+|---|---|---|
+| Kelly's Roast Beef | finds nothing | 10 runs, **6 agreeing** on E–Q |
+| Credit model, sheet `A` | picks a *column* of five cells | 16 runs, **16 agreeing** on L–O |
+
+The second case is the interesting one. Header detection did not fail quietly — it found five
+year-like values down column A and read the whole sheet sideways. Sixteen rows agreeing on one
+span is not merely another candidate; it is better evidence, and evidence of a kind the header
+row cannot supply.
+
+### 22.3 Where this goes, and where it does not
+
+**Not a replacement.** Header detection is right when it works, it is what a reader would do, and
+it carries the Wharton 125-of-125. Shape runs are the *fallback and the check*: used when no
+header axis is found, and reported when the two disagree.
+
+Disagreement is worth reporting rather than resolving silently. On credit sheet `A` the header
+answer is wrong and the shape answer is right; asserting that rule in general would be a guess.
+A diagnostic naming both lets the difference be seen.
+
+**A run is not yet an account.** Collapsing runs into accounts, turning a run's reference to its
+own left neighbour into a carry, and reducing cell-level cycles to model-level ones — Wharton's 39
+to its 1 — is the projection proper. This phase derives the axis; the projection is what the axis
+then makes possible.
+
+### 22.4 Gate
+
+An axis is derived on sheets where header detection finds none, measured across all three
+corpora. Wharton's 125-of-125 does not move, and where header detection already succeeds nothing
+changes.

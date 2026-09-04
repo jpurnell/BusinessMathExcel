@@ -194,7 +194,20 @@ public struct FormulaUniformity: Sendable {
     /// is why `$D$14 * -1` repeated across five periods is one shape rather than
     /// five, and why treating the `$` as decoration would report an untouched row
     /// as hand-edited.
-    private static func canonicalShape(of ast: FormulaAST, at cell: CellRef) -> String {
+    /// A formula's shape in R1C1 form, relative to the cell holding it.
+    ///
+    /// Shared with ``ShapeRun``, which asks the same question for a different
+    /// purpose: this type asks whether a *bound row* computes one way, and that one
+    /// asks which cells compute alike when nothing has been bound yet. Two
+    /// canonicalisers would eventually disagree about what "the same shape" means,
+    /// and the disagreement would be invisible until a row was uniform to one and
+    /// not the other.
+    ///
+    /// - Parameters:
+    ///   - ast: The formula.
+    ///   - cell: The cell holding it, which the addresses are relative to.
+    /// - Returns: The canonical shape.
+    static func canonicalShape(of ast: FormulaAST, at cell: CellRef) -> String {
         func each(_ operands: FormulaAST...) -> String {
             operands.map { canonicalShape(of: $0, at: cell) }.joined(separator: ",")
         }
