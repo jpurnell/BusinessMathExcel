@@ -247,7 +247,79 @@ final class CorpusMeasurementTests: XCTestCase {
             print("UNPARSED  \(shape)  \(count)  e.g. \(samples[shape] ?? "")")
         }
 
+        // The tally above sees only formulas that parsed, so every function inside
+        // the unparsed half was invisible to it. Scanning the raw text recovers
+        // them, which is the only way to see the add-in calls at all.
+        var inRaw: [String: Int] = [:]
+        var rawSheets: [String: Int] = [:]
+        for path in files {
+            guard let workbook = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
+                continue
+            }
+            for sheet in workbook.sheets {
+                var onThisSheet: Set<String> = []
+                for (_, ast) in ModelImporter.importSheet(sheet).formulaASTs {
+                    guard case .function("_RAW", let arguments) = ast,
+                          case .text(let raw)? = arguments.first else { continue }
+                    for name in CorpusMeasurementTests.calledNames(inRawText: raw) {
+                        inRaw[name, default: 0] += 1
+                        onThisSheet.insert(name)
+                    }
+                }
+                for name in onThisSheet { rawSheets[name, default: 0] += 1 }
+            }
+        }
+
+        let addIns = inRaw.filter { $0.key.hasPrefix("PSI") || $0.key.contains("RISK") }
+        print("HIDDEN  \(inRaw.count) distinct functions inside unparsed formulas")
+        for (name, calls) in inRaw.sorted(by: { ($0.value, $1.key) > ($1.value, $0.key) })
+            .prefix(25) {
+            let mark = registered.contains(name) ? "registered" : "—"
+            print("HIDDEN  \(name)  \(calls) calls, \(rawSheets[name] ?? 0) sheets  \(mark)")
+        }
+        print("ADDIN  \(addIns.count) distinct simulation add-in functions")
+        for (name, calls) in addIns.sorted(by: { ($0.value, $1.key) > ($1.value, $0.key) }) {
+            print("ADDIN  \(name)  \(calls) calls, \(rawSheets[name] ?? 0) sheets")
+        }
+
         XCTAssertFalse(files.isEmpty)
+    }
+
+    /// Every name called as a function in raw formula text.
+    ///
+    /// A run of identifier characters immediately followed by `(`. String literals
+    /// are skipped, so a parenthesis inside quoted text cannot invent a call.
+    /// Add-in prefixes are dropped — `_xll.PsiNormal` and `PsiNormal` are one
+    /// function, and the prefix says where Excel loaded it from rather than what it
+    /// computes.
+    private static func calledNames(inRawText raw: String) -> [String] {
+        var found: [String] = []
+        var identifier = ""
+        var inQuotes = false
+
+        for character in raw {
+            if character == "\"" {
+                inQuotes.toggle()
+                identifier = ""
+                continue
+            }
+            if inQuotes { continue }
+
+            if character.isLetter || character.isNumber || character == "_" || character == "." {
+                identifier.append(character)
+                continue
+            }
+            if character == "(", !identifier.isEmpty {
+                var name = identifier.uppercased()
+                for prefix in ["_XLL.", "_XLFN."] where name.hasPrefix(prefix) {
+                    name = String(name.dropFirst(prefix.count))
+                }
+                // A bare number before a parenthesis is arithmetic, not a call.
+                if name.first?.isLetter == true { found.append(name) }
+            }
+            identifier = ""
+        }
+        return found
     }
 
     /// A coarse fingerprint of an unparsed formula, so failures group by cause.
