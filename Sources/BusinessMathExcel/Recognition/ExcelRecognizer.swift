@@ -13,6 +13,111 @@ import SwiftXLSX
 /// cells is never promoted to stand in for the formula.
 public enum ExcelRecognizer {
 
+    /// Recognizes a whole workbook as one model.
+    ///
+    /// ## Why a workbook and not a sheet
+    ///
+    /// Serious models separate concerns by sheet: the data on one, the
+    /// calculations that read it on another. A 104-sheet media model measured for
+    /// this work pairs every metric — `Paid Cost - Data` feeding
+    /// `Paid Cost - Input+Calc` — and routes the lot into a consolidation sheet.
+    /// Recognizing a sheet at a time cannot see that structure, because the
+    /// references carrying it point off the sheet being read.
+    ///
+    /// ## Naming
+    ///
+    /// A name is qualified `Sheet!Name` **only where two sheets would otherwise
+    /// contribute the same one**, and then on both sides. Qualifying everything
+    /// would rename every account in the common case, where a workbook has one
+    /// model on one sheet and nothing is ambiguous. Qualifying only the second
+    /// occurrence would make which sheet keeps the bare name depend on the order
+    /// the sheets happen to sit in — a name that changes when somebody drags a tab.
+    ///
+    /// Every account records its sheet in ``RecognizedAccount/sheet`` regardless,
+    /// because provenance is not naming.
+    ///
+    /// ## Sheets that are not models
+    ///
+    /// A sheet with no timeline contributes nothing and is not an error. A page of
+    /// prose in a workbook is not a failure of the workbook. Its cells are still
+    /// counted in ``Coverage``, so a sheet nobody could read counts against the
+    /// figure rather than being quietly dropped from the denominator.
+    ///
+    /// - Parameters:
+    ///   - workbook: The workbook to read.
+    ///   - options: Recognizer options.
+    /// - Returns: One plan over every sheet that has a timeline.
+    public static func recognize(
+        _ workbook: Workbook,
+        options: RecognizerOptions = RecognizerOptions()
+    ) -> RecognitionResult {
+        var perSheet: [RecognitionResult] = []
+        var populated = 0
+        var recognized = 0
+
+        for sheet in workbook.sheets {
+            let result = recognize(sheet, options: options, in: workbook)
+            populated += result.coverage.populatedCells
+            recognized += result.coverage.recognizedCells
+            guard !result.model.periods.isEmpty else { continue }
+            perSheet.append(result)
+        }
+
+        var diagnostics = perSheet.flatMap(\.diagnostics)
+
+        // A name is only qualified where it would otherwise mean two things.
+        var sheetsByName: [String: Set<String>] = [:]
+        for result in perSheet {
+            for account in result.model.accounts {
+                sheetsByName[account.name, default: []].insert(account.sheet ?? "")
+            }
+        }
+        let contested = Set(sheetsByName.filter { $0.value.count > 1 }.keys)
+
+        var accounts: [RecognizedAccount] = []
+        var rollforwards: [LagDecomposition.RecognizedRollforward] = []
+        var sensitivities: [RecognizedSensitivity] = []
+        var residue: [Residue] = []
+
+        for result in perSheet {
+            for account in result.model.accounts {
+                guard contested.contains(account.name), let sheet = account.sheet else {
+                    accounts.append(account)
+                    continue
+                }
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .warning, code: .duplicateAccountName,
+                        cell: account.provenance.first,
+                        message: "\"\(account.name)\" is defined on more than one sheet, so "
+                            + "both are qualified by the sheet they came from. Left bare, one "
+                            + "account would mean two things and whichever a reference found "
+                            + "first would decide the answer"))
+                accounts.append(account.renamed(to: "\(sheet)!\(account.name)"))
+            }
+            rollforwards.append(contentsOf: result.model.rollforwards)
+            sensitivities.append(contentsOf: result.model.sensitivities)
+            residue.append(contentsOf: result.model.residue)
+        }
+
+        // Sheets sharing a timeline share it: a model spanning sheets has one.
+        // Periods are taken in the order the first sheet with any states them,
+        // which is the only order the workbook itself asserts.
+        let periods = perSheet.first?.model.periods ?? []
+
+        return RecognitionResult(
+            model: RecognizedModel(
+                periods: periods,
+                accounts: accounts,
+                rollforwards: rollforwards,
+                sensitivities: sensitivities,
+                residue: residue
+            ),
+            diagnostics: diagnostics,
+            coverage: Coverage(populatedCells: populated, recognizedCells: recognized)
+        )
+    }
+
     /// Recognizes one worksheet.
     ///
     /// - Parameters:
@@ -28,6 +133,7 @@ public enum ExcelRecognizer {
         options: RecognizerOptions = RecognizerOptions(),
         in workbook: Workbook? = nil
     ) -> RecognitionResult {
+        let sheetName = sheet.name
         let imported = ModelImporter.importSheet(sheet)
         var grid = SheetGrid.build(
             from: imported, options: options,
@@ -109,6 +215,7 @@ public enum ExcelRecognizer {
             guard let account = translate(
                 entry,
                 seeded: report.kind == .seededRollforward,
+                sheetName: sheetName,
                 in: grid,
                 axis: axis,
                 imported: imported,
@@ -129,7 +236,7 @@ public enum ExcelRecognizer {
 
         for assumption in assumptions {
             guard let account = translate(
-                assumption, in: grid, axis: axis, imported: imported,
+                assumption, sheetName: sheetName, in: grid, axis: axis, imported: imported,
                 diagnostics: &diagnostics)
             else {
                 residue.append(
@@ -213,6 +320,7 @@ public enum ExcelRecognizer {
     /// - Returns: The account, or `nil` when the formula could not be expressed.
     private static func translate(
         _ assumption: ScalarAssumption,
+        sheetName: String,
         in grid: SheetGrid,
         axis: PeriodAxis,
         imported: ModelImporter.ImportResult,
@@ -230,14 +338,15 @@ public enum ExcelRecognizer {
             else { return nil }
             return RecognizedAccount(
                 name: assumption.name, expression: split.expression, unit: stated,
-                provenance: provenance)
+                provenance: provenance, sheet: sheetName)
         }
 
         guard case .input(let value)? = grid.cells[assumption.valueCell] else { return nil }
         var values: [Period: Double] = [:]
         for period in axis.periods { values[period] = value }
         return RecognizedAccount(
-            name: assumption.name, values: values, unit: stated, provenance: provenance)
+            name: assumption.name, values: values, unit: stated, provenance: provenance,
+            sheet: sheetName)
     }
 
     /// The unit an account's cells state, reporting silence and disagreement.
@@ -290,6 +399,7 @@ public enum ExcelRecognizer {
     private static func translate(
         _ entry: LabeledSeries,
         seeded: Bool,
+        sheetName: String,
         in grid: SheetGrid,
         axis: PeriodAxis,
         imported: ModelImporter.ImportResult,
@@ -328,7 +438,7 @@ public enum ExcelRecognizer {
             return RecognizedAccount(
                 name: entry.name, values: values,
                 unit: unit(of: provenance, label: entry.name, in: grid, diagnostics: &diagnostics),
-                provenance: provenance)
+                provenance: provenance, sheet: sheetName)
         }
 
         guard let split = LagDecomposition.decompose(
@@ -351,7 +461,8 @@ public enum ExcelRecognizer {
             name: split.definedAccount ?? entry.name,
             expression: split.expression,
             unit: unit(of: provenance, label: entry.name, in: grid, diagnostics: &diagnostics),
-            provenance: provenance
+            provenance: provenance,
+            sheet: sheetName
         )
     }
 }

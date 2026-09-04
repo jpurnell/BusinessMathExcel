@@ -90,6 +90,25 @@ public struct RecognizedAccount: Sendable, Equatable {
     /// where it came from cannot be checked against the sheet.
     public let provenance: [CellRef]
 
+    /// The worksheet this account was read from.
+    ///
+    /// Provenance, not naming. An account always knows its sheet; whether its
+    /// *name* says so is a separate question, settled only where two sheets would
+    /// otherwise contribute the same name. A `CellRef` carries no sheet, so
+    /// without this an account read from a workbook could not be traced back to
+    /// the page it came from.
+    public let sheet: String?
+
+    /// This account under another name, keeping everything else.
+    ///
+    /// - Parameter name: The new name.
+    /// - Returns: The renamed account.
+    public func renamed(to name: String) -> RecognizedAccount {
+        RecognizedAccount(
+            name: name, formula: formula, expression: expression, values: values,
+            unit: unit, provenance: provenance, sheet: sheet)
+    }
+
     /// Creates a recognized account.
     ///
     /// - Parameters:
@@ -99,13 +118,15 @@ public struct RecognizedAccount: Sendable, Equatable {
     ///   - values: The literals, when supplied.
     ///   - unit: The inferred unit, if any.
     ///   - provenance: The cells it came from.
+    ///   - sheet: The worksheet it was read from.
     public init(
         name: String,
         formula: String? = nil,
         expression: RecognizedExpression? = nil,
         values: [Period: Double]? = nil,
         unit: UnitKind? = nil,
-        provenance: [CellRef]
+        provenance: [CellRef],
+        sheet: String? = nil
     ) {
         self.name = name
         self.formula = formula
@@ -113,6 +134,7 @@ public struct RecognizedAccount: Sendable, Equatable {
         self.values = values
         self.unit = unit
         self.provenance = provenance
+        self.sheet = sheet
     }
 
     /// Creates a derived account from its expression.
@@ -124,11 +146,13 @@ public struct RecognizedAccount: Sendable, Equatable {
     ///   - expression: The rule.
     ///   - unit: The unit its cells stated, if any.
     ///   - provenance: The cells it was read from.
+    ///   - sheet: The worksheet it was read from.
     public init(
         name: String,
         expression: RecognizedExpression,
         unit: UnitKind? = nil,
-        provenance: [CellRef]
+        provenance: [CellRef],
+        sheet: String? = nil
     ) {
         self.name = name
         self.formula = expression.rendered()
@@ -136,6 +160,7 @@ public struct RecognizedAccount: Sendable, Equatable {
         self.values = nil
         self.unit = unit
         self.provenance = provenance
+        self.sheet = sheet
     }
 }
 
