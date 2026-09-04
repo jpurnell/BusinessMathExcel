@@ -282,6 +282,21 @@ final class CorpusMeasurementTests: XCTestCase {
             print("ADDIN  \(name)  \(calls) calls, \(rawSheets[name] ?? 0) sheets")
         }
 
+        // One machine-readable line per function, so the coverage matrix can join
+        // against it rather than be transcribed by hand. Parsed and unparsed
+        // formulas are merged: a name is a name wherever it was found.
+        var merged: [String: (calls: Int, sheets: Int)] = [:]
+        for (name, calls) in callsByName where name != "_RAW" {
+            merged[name] = (calls, sheetsByName[name] ?? 0)
+        }
+        for (name, calls) in inRaw {
+            let existing = merged[name] ?? (0, 0)
+            merged[name] = (existing.calls + calls, existing.sheets + (rawSheets[name] ?? 0))
+        }
+        for (name, counts) in merged.sorted(by: { ($0.value.calls, $1.key) > ($1.value.calls, $0.key) }) {
+            print("TSV\t\(name)\t\(counts.calls)\t\(counts.sheets)")
+        }
+
         XCTAssertFalse(files.isEmpty)
     }
 
