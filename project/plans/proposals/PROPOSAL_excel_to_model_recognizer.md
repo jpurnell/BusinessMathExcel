@@ -1759,20 +1759,156 @@ formulas evaluate to what the original evaluated to. It is checkable on files no
 including files that do not exist yet. That is the difference between *fits the available data*
 and *is correct*, and it is the strongest reason to make the change.
 
-### 23.7 Open questions, to be settled against files rather than in the abstract
+### 23.7 The four questions, settled — 2026-09-04
 
-1. **Node granularity.** Cell-level is faithful and gives 568,203 nodes for one workbook.
-   Compression is not cosmetic — it decides whether emitted Swift is usable. Does it live in the
-   graph, or in a projection over it?
-2. **What round-trip identity means.** Formulas and computed values, explicitly not decoration.
-   Worth writing as a contract before building to it.
-3. **Cycles.** Wharton holds 39 at cell level. A faithful graph must *represent* them;
-   recognition currently refuses them. That is a posture change, not a feature.
-4. **What emitted Swift looks like** when it comes from an arbitrary graph rather than a
-   `ModelDefinition` — and what of the typed layer (§19) still applies when there are no units to
-   infer.
+#### 1. Cell-level graph; compression is a projection over it
 
-### 23.8 What this does not claim
+The graph holds one node per cell. Compression — collapsing a run into one relationship — is a
+*view* computed over the graph, never a property of it.
+
+This is not merely the simpler starting point. **Question 2 forces it.** If the same graph must be
+laid out as `Parameters` → `Decisions` → `Objective` → `Calculation`, and also however someone
+else structures a model, then grouping cannot be a property of the graph: there are many valid
+groupings of one graph and the graph cannot hold them all. A projection can be wrong and
+discarded; the substrate underneath is unharmed. Compression baked into the node set would instead
+be a decision about what "one thing" is, made before anything is known about the model, and
+round-trip would have to invert it exactly or lose fidelity.
+
+The cost is real and should be watched rather than assumed away: 568,203 nodes for one workbook,
+and **347 seconds** to build that graph today. If everything reads through the cell-level graph
+that becomes the floor for every operation. 568k nodes should not cost 347s — the suspicion is an
+algorithmic problem in construction rather than an inherent cost, and it is worth measuring before
+reaching for compression as the remedy.
+
+#### 2. Round-trip identity is formulas and computed values
+
+Explicitly **not** decoration: labels, colours, headings and layout are excluded from the identity
+a round trip must preserve.
+
+Layout becomes a *separate, later* capability, and a valuable one — the same graph presented
+several ways. The Tuck Decision Science convention structures a model as
+`Parameters` → `Decisions` → `Objective` → `Calculation`; another modeller structures it
+differently; both are projections of one graph.
+
+**Three of those four categories fall out of graph topology alone**, with no heuristics and
+nothing fitted to any corpus. `DependencyGraph` already defines `inputs` as cells with no
+precedents and `outputs` as cells with no dependents, which partitions every cell in any workbook:
+
+| Category | Topology |
+|---|---|
+| Unreachable data — labels, orphans | no precedents **and** no dependents (`inputs ∩ outputs`) |
+| Parameters | no precedents, has dependents (`inputs \ outputs`) |
+| Objectives | has precedents, no dependents (`outputs \ inputs`) |
+| Calculation | everything else — the interior |
+
+Whether labels enter the graph at all is already a knob: `DependencyGraph(sheet:including:)` takes
+a filter, and the corpus measurement passes `isQuantity` to exclude text.
+
+**Decision variables are the one that is not topological.** A decision variable looks exactly like
+a parameter — an input with dependents. What separates them is that something *changes* it, which
+is not visible in the dependency structure.
+
+It may not need inferring. Excel records Solver configuration in defined names — `solver_adj` for
+the adjustable cells, `solver_opt` for the objective, `solver_lhs`/`solver_rhs` for constraints —
+and `Workbook.namedRanges` has been readable since SwiftXLSX 0.8.0. Where those exist, the
+decisions are **stated by the file rather than guessed at**, which fits this project's posture far
+better than a heuristic would. Where they do not, a decision is indistinguishable from a parameter
+and should be reported as a parameter rather than invented.
+
+#### 3. Cycles are represented, not refused
+
+Wharton holds 39 at cell level. A faithful graph must carry them. This reverses a posture:
+recognition currently treats a cycle as a reason to reject, and `DependencyGraph` already
+distinguishes `isAcyclic` from `cycles` without refusing either.
+
+#### 4. Swift primitives first; grouping and labelling as a later pass
+
+Emission targets plain Swift primitives. The typed layer of §19 — `ModelUnit`, `LineItem<U>`,
+`Expr<U>`, `validateUnits()` — leaves the critical path; it applies to a model that has already
+been named and typed, which is a later projection rather than the first output.
+
+One consequence worth stating: a graph of cells and formulas emitted as primitives needs
+Foundation and nothing else. **The inbound path may not need BusinessMath at all.** That
+dependency was pinned for `ModelDefinition` and the typed layer, both of which are now
+downstream-optional rather than the target.
+
+### 23.8 Measured on Kelly's Roast Beef — 2026-09-04
+
+The check ran before the design was committed to. Kelly's Roast Beef is a bond cash-matching
+linear program from a Decision Science course, structured the way the course teaches, with the
+structure **written in column A**: `Parameters` at row 2, `Decision Variables` at row 10,
+`Objective Function` at row 16, `Calculation` at row 18. Header detection finds no timeline on it
+at all. Ground truth sitting beside the topology, on a sheet recognition cannot read.
+
+``GraphPartition`` was given the sheet and no labels — no wording, no formatting, no position.
+
+| The modeller wrote | Rows | The topology said |
+|---|---|---|
+| `Parameters` | 4–7 | **`parameter`**, 6–15 per row |
+| `Decision Variables` | 12–15 | **`parameter`**, one per row |
+| `Objective Function` | 17 | **`objective`**, C17 |
+| `Calculation` | 19–26 | **`calculation`**, 12–15 per row |
+
+Three of the four blocks are reproduced from the edges alone. The fourth is reproduced *as a
+parameter*, which is exactly the limit §23.7 predicted and for the predicted reason: a decision
+variable is fed by nothing and feeds something, which is what a parameter is.
+
+**And the file states its decisions.** 58 defined names, of which Solver's are the interesting
+ones:
+
+| Name | Target | Meaning |
+|---|---|---|
+| `solver_adj` | `Sheet1!$C$12:$C$15` | the adjustable cells — **precisely the labelled block** |
+| `solver_opt` | `Sheet1!$C$17` | the objective cell |
+| `solver_lhs1` | `Sheet1!$D$26:$Q$26` | a constraint, inside the calculation block |
+| `solver_lhs2` | `Sheet1!$C$12:$C$15` | non-negativity on the decisions |
+| `solver_num` | `2` | two constraints |
+
+`solver_opt` names C17, and the partition had independently marked C17 as the objective without
+being told. Two routes, same cell. So the fifth role is not inferred: it is **read where the file
+states it and reported as a parameter where it does not**, which is the posture already used
+everywhere else here.
+
+#### The scope decides what `unreachable` can mean
+
+The same sheet, three choices of what counts as a cell:
+
+| Scope | Cells | parameter | calculation | objective | unreachable |
+|---|---|---|---|---|---|
+| Every cell | 356 | 67 | 135 | 6 | **148** |
+| Not blank | 224 | 55 | 135 | 6 | **28** |
+| Quantities only | 198 | 55 | 135 | 6 | **2** |
+
+A sheet holds blank-but-formatted cells in their hundreds. Let them into the graph and they land
+in `unreachable` and drown it — 132 of that first 148 are blanks. The bucket is only useful when
+they are excluded, and then it says something worth hearing: with quantities only, **two** cells
+are stranded figures that nothing reads.
+
+This is not a defect in the partition; it is the reminder that *what counts as a cell* is a
+decision the caller makes, and `DependencyGraph(sheet:including:)` already takes it as a
+parameter. Excluding blanks is the useful default; excluding text as well answers a different
+question.
+
+#### One honest disagreement
+
+Rows 3 and 9 sit inside the sheet's `Parameters` block and the topology calls them
+`calculation` — they are computed from other cells. The label is a filing decision by a person;
+the graph is reporting what the sheet does. The graph is right about the mechanism, and the person
+is right that those values are inputs *to their thinking*. Both readings are worth keeping, which
+is an argument for the partition being a projection rather than a rewrite of the sheet.
+
+Similarly there are **six** cells nothing reads, where the modeller labelled one row
+`Objective Function`. A sink is a graph fact; which sink you care about is a modelling choice.
+
+### 23.9 What remains open
+
+- **Why the media model's graph takes 347s**, before compression is proposed as the cure.
+- **Whether Solver names survive across the corpus**, or whether Kelly's is unusually well
+  preserved.
+- **What emitted Swift looks like**, which is now the next design question rather than a
+  speculative one.
+
+### 23.10 What this does not claim
 
 That the recognizer was a mistake. It produced the measurements that located its own ceiling,
 five upstream releases, and a Wharton model that reproduces a published IRR to the basis point.
