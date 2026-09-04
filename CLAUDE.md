@@ -53,8 +53,11 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
 
 ## Dependencies
 
-- `SwiftXLSX` — bidirectional .xlsx read/write with FormulaAST. Pinned `exact: "0.2.0"` to
-  `github.com/jpurnell/SwiftXLSX`.
+- `SwiftXLSX` — bidirectional .xlsx read/write with FormulaAST. Pinned `exact: "0.12.0"` to
+  `github.com/jpurnell/SwiftXLSX`. From 0.12.0 it depends on `SwiftExcelCore`, which holds the
+  spreadsheet vocabulary — `CellValue`, `CellRef`, `FormulaAST`, `ExcelError`,
+  `CellValueProvider`. SwiftXLSX re-exports it, so `import SwiftXLSX` still sees those types and
+  nothing here needed changing.
 - `BusinessMath` — financial/statistical computation. Pinned `exact: "2.9.0"` to
   `github.com/jpurnell/BusinessMath`. 2.7.0 first supplied `ModelDefinition`, `Period`,
   `PeriodType` and the cycle solvers the recognizer targets; 2.8.0 added the function registry
