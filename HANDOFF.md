@@ -1,27 +1,32 @@
 # Session Handoff — 2026-09-05
 
-Resume here. The previous handoff (Phase 9 → the graph reorientation) is superseded; its content
-is in `project/plans/proposals/PROPOSAL_spreadsheet_graph.md` §23 and the checklists.
+Resume here. Shaped arrays shipped across all four packages; the previous handoff's next step
+(bind the remaining functions, measure YEARFRAC's basis) is done.
 
 ---
 
 ## The next step, concretely
 
-**Bind the remaining functions, and measure YEARFRAC's basis first.**
+**Measure what range sizes the corpus actually passes to a lookup**, then confirm or move
+`CellMatrix.maximumCells`.
 
-The morning's work is bindings — the BusinessMath session has been implementing distributions and
-sampling overnight, and each one that lands is a name SwiftExcelFunctions can now reach.
+This is the one thing the shaped-arrays work left undone, and it is named in the proposal's own
+adversarial review as the most likely place the change regresses something. Reading a range now
+keeps its blanks, so a sparse range costs what its *rectangle* costs rather than what its
+contents do. A range that used to be cheap because it was mostly empty is now proportional to its
+area, and above 262,144 cells `matrix(in:)` refuses and the formula answers `#VALUE!`.
 
-**Do this before anything else** (about ten minutes, and it may save someone a day):
+The bound was chosen by reasoning — a whole column is 1,048,576 and must be refused, a whole row
+is 16,384 and must not be — not by measurement. Nothing in 2,153 tests hits it. Whether a real
+workbook does is unknown.
 
 ```
-BUSINESSMATHEXCEL_CORPUS="<roots>" swift test --filter testHowTheReferenceFunctionsAreCalled
+BUSINESSMATHEXCEL_CORPUS="<roots>" swift test --filter Corpus
 ```
 
-Add `YEARFRAC` to that test's function list first. It reports call arities, and the question is
-**which basis the corpus's 3,425 YEARFRAC calls use**. If they are all basis 0 the two missing
-day-count conventions are not urgent at all; if they are basis 1, they are the single most
-valuable thing on the list.
+Corpus roots are not recorded anywhere (the workbooks are private). One is
+`~/Documents/Tuck/Academic/2012-2013/3. Spring/pdm/4. Long Acre/`; the Hulu model with the only
+known `TRANSPOSE` formulas is `~/Documents/Career/Hulu/News Vertical/Originals/`.
 
 ---
 
@@ -29,38 +34,60 @@ valuable thing on the list.
 
 | Repo | Tag | Tests | Gate |
 |---|---|---|---|
-| SwiftExcelCore | `v0.2.0` | 170 | 45/45, 0/0 |
-| SwiftXLSX | `v0.14.0` | 743 | 45/45, 0/0 |
-| SwiftExcelFunctions | `v0.2.0` + 6 commits | 613 | 45/45, 0/0 |
-| BusinessMathExcel | — | 566 | 45/45, 0/0 |
-
-SwiftExcelFunctions is **unreleased since 0.2.0** — six commits of function work waiting for a
-`0.3.0` tag whenever it suits.
+| SwiftExcelCore | `v0.3.0` | 198 | 45/45, 0/0 |
+| SwiftXLSX | `v0.15.0` | 743 | 45/45, 0/0 |
+| SwiftExcelFunctions | `v0.3.0` | 646 | 45/45, 0/0 |
+| BusinessMathExcel | `v0.7.0` + 3 | 566 | 45/45, 0/0 |
 
 ### Where the numbers are
 
 - **Corpus formulas that parse: 99.997%** — 17 unparsed of 549,059, from 292,437 at the start.
 - **Corpus function calls the registry can answer: 99.93%** — 869,307 of 869,908.
-- Remaining outside the Psi family: `XIRR` (2 calls), `TRANSPOSE` (1 call).
+- Remaining outside the Psi family: none. `XIRR` and `TRANSPOSE` both shipped.
+
+---
+
+## What 0.3.0 changed, and why it matters more than it looks
+
+`CellValue.array` carries a `CellMatrix` — a rectangle that knows its own `rows` and `columns`,
+with empty cells kept as `.blank` in place. It began as "can we do TRANSPOSE" and turned into a
+correctness fix, because three shipped functions were guessing dimensions the type could not
+state:
+
+| | Excel | Before |
+|---|---|---|
+| `VLOOKUP("b", A1:D3, 3, FALSE)` | `"b3"` | `#N/A` |
+| `HLOOKUP` on a four-row table | `"b3"` | `"a4"` |
+| `INDEX(block, 2, 1)` | `4` | `2` |
+| `INDEX(A1:A4, 3)` with `A2` empty | `30` | `40` |
+| out-of-bounds index, ×3 | `#REF!` | `#N/A` |
+
+VLOOKUP is the corpus's most-called function at 87,773 calls. It inferred its table width by
+testing which divisors came out even — safe at `col_index_num = 2`, which is why it survived.
+
+Full reasoning, including what implementation found that the proposal missed, is in
+`project/plans/proposals/PROPOSAL_shaped_arrays.md`.
 
 ---
 
 ## What is waiting on the BusinessMath session
 
-Two messages sent, neither blocking, both worth checking for a reply.
+**Two day-count conventions, now known to be low value.** `YEARFRAC` is bound for Excel's bases
+0, 2 and 3. BusinessMath lacks actual/actual (basis 1) and European 30/360 (basis 4). Measured
+since: **all 3,425 corpus `YEARFRAC` calls pass two arguments**, so every one takes basis 0,
+which exists. Both missing bases answer `#NUM!` and are reached by nothing. When they land,
+switch the two branches in `BuiltinBindingFunctions.yearfrac`.
 
-1. **Two day-count conventions.** `YEARFRAC` is bound for Excel's bases 0, 2 and 3.
-   BusinessMath lacks actual/actual (basis 1) and European 30/360 (basis 4), which Justin called
-   an oversight to fix upstream rather than work around here. Both return `#NUM!` today, and both
-   are additive enum cases — when they land, switch the two branches in
-   `BuiltinBindingFunctions.yearfrac` and delete the note.
+**Their generator advice was taken.** `SeededRandomSource` is now generic over the stdlib's
+`RandomNumberGenerator`, merely defaulting to `DeterministicRNG`, so nothing of theirs can move
+under us. `RANDBETWEEN` draws an unbiased integer via `next(upperBound:)` instead of scaling a
+double across the span.
 
-2. **Whether `DeterministicRNG` is the supported public entry point** for a seeded stream, or an
-   implementation detail. `SeededRandomSource` binds to it; redirecting is easy.
+**BusinessMath is read-only from here.** SwiftExcelFunctions pins it `exact: "2.9.0"` from
+GitHub, so that session's working tree cannot affect this build — and nothing in this session has
+ever written to their repo. Keep it that way while they are working.
 
-**BusinessMath is read-only from here.** SwiftExcelFunctions pins it `exact: "2.9.0"` from GitHub,
-so that session's working tree cannot affect this build — and nothing in this session has ever
-written to their repo. Keep it that way while they are working.
+The Psi distributions are the only block left outside the registry.
 
 ---
 
@@ -77,8 +104,8 @@ Full reasoning in `project/plans/proposals/PROPOSAL_swift_excel_architecture.md`
 SwiftXLSX held four things that change for four different reasons, and the function library was one
 of them.
 
-Function groups are **Logic, DateTime, Navigation**, plus Math, Stats, Text, Aggregation and
-Bindings. Logic rather than Branching: only three of its fourteen functions branch, and the rest
+Function groups are **Logic, DateTime, Navigation**, plus Math, Stats, Text, Aggregation, Array
+and Bindings. Logic rather than Branching: only three of its fourteen functions branch, and the rest
 are operators and predicates that feed one.
 
 ---
@@ -90,6 +117,14 @@ are operators and predicates that feed one.
   the caller passes a source, and without one `RAND()` answers `#VALUE!`. Deterministic by
   construction rather than by justification. One divergence: with a seeded source `RAND()` stops
   being volatile.
+- **A rectangle states its own shape.** `CellValue.array` carries a `CellMatrix`, and a range
+  read keeps its blanks in place. Do not "tidy" the blanks away: their absence is what made
+  `INDEX` count past the end of its own range, and what made `COUNTBLANK` unwritable. The
+  deprecated `values(in:)` still filters them, and still should.
+- **Spilling is deliberately absent.** Evaluation yields one value per cell. `TRANSPOSE` is
+  correct nested inside another formula and has nowhere to go on its own — which means the one
+  corpus workbook using it still will not evaluate. That is known, and judged not worth the
+  change to the evaluator's contract for a single function.
 - **References never became values.** `CellValue` has no `.reference` case and does not need one:
   measured across 549,059 formulas, reference functions nest inside one another **zero** times.
   `OFFSET` is always three arguments, so it names one cell and returns a value.
@@ -123,3 +158,9 @@ Mistakes from this session worth not repeating:
   eleven functions the package no longer had.
 - **The gate's justification comments go on the line directly above the declaration**, not above
   the property they explain.
+- **Predict, then run it.** Three guesses about how VLOOKUP failed were wrong — a 3-column table
+  recovers, and `col_index_num = 2` is inherently safe whatever width is assumed. Only writing
+  the probe found the real shape of the bug, and then found two more nobody had predicted.
+- **A coverage number is not a correctness number.** The registry answered 99.93% of corpus calls
+  while three of its functions returned wrong values. Registered and wrong scores identically to
+  registered and right.
