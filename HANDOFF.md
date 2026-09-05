@@ -7,18 +7,15 @@ Resume here. Shaped arrays shipped across all four packages; the previous handof
 
 ## The next step, concretely
 
-**Measure what range sizes the corpus actually passes to a lookup**, then confirm or move
-`CellMatrix.maximumCells`.
+**Nothing is outstanding.** The bound and the spill are both resolved; pick up whatever is next.
 
-This is the one thing the shaped-arrays work left undone, and it is named in the proposal's own
-adversarial review as the most likely place the change regresses something. Reading a range now
-keeps its blanks, so a sparse range costs what its *rectangle* costs rather than what its
-contents do. A range that used to be cheap because it was mostly empty is now proportional to its
-area, and above 262,144 cells `matrix(in:)` refuses and the formula answers `#VALUE!`.
+`CellMatrix.maximumCells` is gone rather than measured. The question "what range sizes does the
+corpus pass to a lookup" turned out to be the wrong one — it was sizing a threshold that should
+not have existed. A range reaching the grid's last row was never naming a bottom edge, so it is
+clipped to the sheet's data; a range written out by hand never is. Structural, so no measurement
+is needed to justify a number.
 
-The bound was chosen by reasoning — a whole column is 1,048,576 and must be refused, a whole row
-is 16,384 and must not be — not by measurement. Nothing in 2,153 tests hits it. Whether a real
-workbook does is unknown.
+If a corpus run is wanted anyway:
 
 ```
 BUSINESSMATHEXCEL_CORPUS="<roots>" swift test --filter Corpus
@@ -34,10 +31,10 @@ known `TRANSPOSE` formulas is `~/Documents/Career/Hulu/News Vertical/Originals/`
 
 | Repo | Tag | Tests | Gate |
 |---|---|---|---|
-| SwiftExcelCore | `v0.3.0` | 198 | 45/45, 0/0 |
-| SwiftXLSX | `v0.16.0` | 750 | 45/45, 0/0 |
-| SwiftExcelFunctions | `v0.3.0` | 646 | 45/45, 0/0 |
-| BusinessMathExcel | `v0.7.0` + 5 | 568 | 45/45, 0/0 |
+| SwiftExcelCore | `v0.4.0` | 211 | 45/45, 0/0 |
+| SwiftXLSX | `v0.17.0` | 755 | 45/45, 0/0 |
+| SwiftExcelFunctions | `v0.4.0` | 650 | 45/45, 0/0 |
+| BusinessMathExcel | `v0.7.0` + 6 | 568 | 45/45, 0/0 |
 
 ### Where the numbers are
 
@@ -121,16 +118,22 @@ are operators and predicates that feed one.
   read keeps its blanks in place. Do not "tidy" the blanks away: their absence is what made
   `INDEX` count past the end of its own range, and what made `COUNTBLANK` unwritable. The
   deprecated `values(in:)` still filters them, and still should.
-- **Reading an array formula and spilling one are different problems, and only one is solved.**
-  On import, the members of an array formula's span are now marked `_ARRAY(anchor, span)` and
-  depend on the anchor, so they are computed cells rather than constants. That was a real
-  misreading — 224 cells in one corpus workbook.
+- **Array formulas read, write and round-trip.** Members of a span are marked
+  `_ARRAY(anchor, span)` on import and depend on the anchor, so they are computed cells rather
+  than constants — 224 cells in one corpus workbook were being read as inputs. On export the
+  anchor is written with `t="array"` and its `ref`, and members as the empty `<f/>` Excel uses.
+  `Worksheet.writeArrayFormula(_:over:)` creates one. Verified by round-tripping that workbook:
+  224 members in, 224 out, no marker in the file.
 
-  Spilling on the *evaluation* side is still absent, but not for the reason first recorded here.
   `FormulaEvaluator.evaluate` returns a `CellValue`, which can be `.array(CellMatrix)`, so
-  `TRANSPOSE` does yield an array — the earlier note claiming "evaluation yields one value per
-  cell" was wrong. What is missing is *distributing* that array back across a range of cells,
-  which only matters when re-emitting a workbook.
+  `TRANSPOSE` yields an array — an earlier note here claiming "evaluation yields one value per
+  cell" was wrong. What has never existed is *assigning* such a result across cells during
+  evaluation, which is a spreadsheet application's job rather than a file library's.
+
+- **A whole-column reference is clipped to the sheet's data, not to a constant.** `$A:$A` reads
+  as far as the sheet goes. Only the far corner moves, so `INDEX($A:$A, 3)` is still the third
+  row; a range written out by hand is never clipped, because `COUNTBLANK(A1:B3)` is six on an
+  empty sheet. A provider states its own bounds through `lastPopulatedCell()`.
 - **References never became values.** `CellValue` has no `.reference` case and does not need one:
   measured across 549,059 formulas, reference functions nest inside one another **zero** times.
   `OFFSET` is always three arguments, so it names one cell and returns a value.
@@ -170,3 +173,9 @@ Mistakes from this session worth not repeating:
 - **A coverage number is not a correctness number.** The registry answered 99.93% of corpus calls
   while three of its functions returned wrong values. Registered and wrong scores identically to
   registered and right.
+- **A threshold is a principle that has not been found yet.** `CellMatrix.maximumCells` passed a
+  proposal, a review and a release before anyone asked why a number was needed at all. The answer
+  was that it was not. When a constant appears, ask what it is standing in for.
+- **Half a feature is a bug.** Teaching the reader about array formulas without teaching the
+  writer meant a workbook read and saved would open with `#NAME?` in every member. A round-trip
+  test is the cheapest way to find that, and it found it.
