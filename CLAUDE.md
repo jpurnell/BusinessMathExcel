@@ -53,7 +53,7 @@ Import:       .xlsx -> SwiftXLSX Workbook -> ModelImporter -> ExcelModel (DAG) -
 
 ## Dependencies
 
-- `SwiftXLSX` — bidirectional .xlsx read/write with FormulaAST. Pinned `exact: "0.12.0"` to
+- `SwiftXLSX` — bidirectional .xlsx read/write with FormulaAST. Pinned `exact: "0.14.0"` to
   `github.com/jpurnell/SwiftXLSX`. From 0.12.0 it depends on `SwiftExcelCore`, which holds the
   spreadsheet vocabulary — `CellValue`, `CellRef`, `FormulaAST`, `ExcelError`,
   `CellValueProvider`. SwiftXLSX re-exports it, so `import SwiftXLSX` still sees those types and

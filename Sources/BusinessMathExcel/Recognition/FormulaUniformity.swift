@@ -237,6 +237,11 @@ public struct FormulaUniformity: Sendable {
             return "b(\(value))"
         case .error(let value):
             return "err(\(value.rawValue))"
+        case .missing:
+            // A stable token, because two cells that both omit the same argument
+            // compute the same way — which is what a shape run is for. `IFERROR(x,)`
+            // filled across a row is one rule, not a row of exceptions.
+            return "miss()"
         case .add(let lhs, let rhs): return "add(\(each(lhs, rhs)))"
         case .subtract(let lhs, let rhs): return "sub(\(each(lhs, rhs)))"
         case .multiply(let lhs, let rhs): return "mul(\(each(lhs, rhs)))"

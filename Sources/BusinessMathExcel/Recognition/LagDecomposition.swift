@@ -354,7 +354,11 @@ public enum LagDecomposition {
             }
             return .account("\(reference.sheetName)!\(account)")
 
-        case .error, .concatenate:
+        // `.missing` refuses with the others. An omitted argument means the
+        // function applies its own default, and a `ModelDefinition` rule has no
+        // way to say that — writing 0 in its place would produce a model that
+        // runs and is quietly wrong.
+        case .error, .concatenate, .missing:
             diagnostics.append(
                 Diagnostic(
                     severity: .error, code: .unsupportedFormulaNode, cell: cell,

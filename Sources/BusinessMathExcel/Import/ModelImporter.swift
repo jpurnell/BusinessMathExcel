@@ -489,7 +489,11 @@ public enum ModelImporter {
                 convertAST($0, cellToNode: cellToNode, cell: cell, warnings: &warnings, depth: depth + 1)
             })
 
-        case .sheetRef, .namedRange, .error, .concatenate:
+        // `.missing` joins these rather than becoming 0 or "". An omitted argument
+        // is not a value, and `ExcelModel`'s `NodeFormula` has no way to say "not
+        // there"; substituting one would report that the sheet said something it
+        // did not, which is the failure this whole layer is built to avoid.
+        case .sheetRef, .namedRange, .error, .concatenate, .missing:
             warnings.append(
                 "Unsupported formula node '\(nodeKindName(ast))' at \(cell); "
                     + "it was replaced with UNSUPPORTED"
@@ -552,6 +556,7 @@ public enum ModelImporter {
         case .text: return "text"
         case .bool: return "bool"
         case .error: return "error"
+        case .missing: return "missing"
         case .add: return "add"
         case .subtract: return "subtract"
         case .multiply: return "multiply"
