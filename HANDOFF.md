@@ -31,10 +31,10 @@ known `TRANSPOSE` formulas is `~/Documents/Career/Hulu/News Vertical/Originals/`
 
 | Repo | Tag | Tests | Gate |
 |---|---|---|---|
-| SwiftExcelCore | `v0.4.0` | 211 | 45/45, 0/0 |
-| SwiftXLSX | `v0.17.0` | 755 | 45/45, 0/0 |
-| SwiftExcelFunctions | `v0.4.0` | 650 | 45/45, 0/0 |
-| BusinessMathExcel | `v0.7.0` + 6 | 568 | 45/45, 0/0 |
+| SwiftExcelCore | `v0.5.0` | 221 | 45/45, 0/0 |
+| SwiftXLSX | `v0.21.0` | 764 | 45/45, 0/0 |
+| SwiftExcelFunctions | `v0.5.0` | 662 | 45/45, 0/0 |
+| BusinessMathExcel | `v0.7.0` + 8 | 568 | 45/45, 0/0 |
 
 ### Where the numbers are
 
@@ -69,7 +69,21 @@ Full reasoning, including what implementation found that the proposal missed, is
 
 ## What is waiting on the BusinessMath session
 
-**A decision is with them: `excelActualActual`.** Both missing conventions have landed on their
+**`thirty360` is wrong for February, and the corpus reaches it.** BusinessMath found that
+basis 0 — the convention *all* 3,425 corpus `YEARFRAC` calls use — lacks the NASD February rule.
+Confirmed here against Excel's own cached value:
+`Long Acre Team 2013 Probabilistic All.xlsx / Lease Renewal!L77` is
+`YEARFRAC(2020-02-29, 2020-12-31)`, Excel says `0.83611111111111114` (301/360), we say
+`0.8388888888888889` (302/360). Pinned as `testTheFebruaryEndOfMonthRule` with
+`XCTExpectFailure`; it will report an unexpected pass when they tag. 49 corpus arguments resolve
+to a February month end, though most sit behind `IF(YEAR(a)=YEAR(b), …)` guards and never
+evaluate.
+
+**The naming went the other way, and better.** `actualActual` is now the spreadsheet's rule and
+`isdaActualActual` the standard, so basis 1 binds to `.actualActual` and basis 4 to
+`.thirty360European` — both the moment they tag.
+
+**Superseded: the request for `excelActualActual`.** Both missing conventions have landed on their
 `feature/excel-financial-ten`, but `actualActual` is ISDA, and Excel's basis 1 is *not* ISDA —
 they measured `YEARFRAC(2023-11-30, 2024-03-31, 1)` as exactly ⅓ in Excel and LibreOffice against
 ISDA's 0.33357. I asked for a separate `excelActualActual` case rather than binding basis 1 to
@@ -142,10 +156,11 @@ are operators and predicates that feed one.
   `Worksheet.writeArrayFormula(_:over:)` creates one. Verified by round-tripping that workbook:
   224 members in, 224 out, no marker in the file.
 
-  `FormulaEvaluator.evaluate` returns a `CellValue`, which can be `.array(CellMatrix)`, so
-  `TRANSPOSE` yields an array — an earlier note here claiming "evaluation yields one value per
-  cell" was wrong. What has never existed is *assigning* such a result across cells during
-  evaluation, which is a spreadsheet application's job rather than a file library's.
+  **Spilling is complete.** `CellMatrix.spilled(toRows:columns:)` holds the rule — broadcast a
+  vector, pad with `#N/A`, truncate. `FormulaEvaluator.spill(_:over:…)` evaluates a formula once
+  and answers with one value per cell. `Worksheet.apply(_:)` writes that. None of the three
+  packages gained a dependency on another: evaluation produces an assignment and the file library
+  consumes one, so the halves meet without either knowing the other exists.
 
 - **A whole-column reference is clipped to the sheet's data, not to a constant.** `$A:$A` reads
   as far as the sheet goes. Only the far corner moves, so `INDEX($A:$A, 3)` is still the third
