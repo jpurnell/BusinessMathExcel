@@ -393,6 +393,55 @@ final class CorpusMeasurementTests: XCTestCase {
         XCTAssertFalse(files.isEmpty)
     }
 
+    /// How often a reference function is nested inside another one.
+    ///
+    /// This is the only case that genuinely needs references to be values.
+    /// `SUM(OFFSET(A1,0,0,5,1))` does not — OFFSET can hand back the values.
+    /// `COLUMN(OFFSET(...))` does, because COLUMN wants the address that OFFSET
+    /// names rather than what is in it.
+    ///
+    /// Reported, not gated.
+    func testHowOftenReferenceFunctionsNest() throws {
+        let files = try corpusFiles()
+        let referenceFunctions: Set<String> = ["COLUMN", "ROW", "OFFSET", "INDIRECT", "ISREF"]
+        var nested: [String: Int] = [:]
+
+        for path in files {
+            guard let workbook = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
+                continue
+            }
+            for sheet in workbook.sheets {
+                for (_, ast) in ModelImporter.importSheet(sheet).formulaASTs {
+                    var stack: [FormulaAST] = [ast]
+                    while let node = stack.popLast() {
+                        if case .function(let outer, let arguments) = node {
+                            let outerName = outer.uppercased()
+                            if referenceFunctions.contains(outerName) {
+                                for argument in arguments {
+                                    if case .function(let inner, _) = argument,
+                                       referenceFunctions.contains(inner.uppercased()) {
+                                        nested["\(outerName)(\(inner.uppercased())(…))",
+                                               default: 0] += 1
+                                    }
+                                }
+                            }
+                            stack.append(contentsOf: arguments)
+                        } else if case .add(let lhs, let rhs) = node {
+                            stack.append(lhs); stack.append(rhs)
+                        }
+                    }
+                }
+            }
+        }
+
+        let total = nested.values.reduce(0, +)
+        print("NESTING  \(total) reference-inside-reference calls")
+        for (shape, count) in nested.sorted(by: { $0.value > $1.value }) {
+            print("NESTING  \(shape)  \(count)")
+        }
+        XCTAssertFalse(files.isEmpty)
+    }
+
     /// Every function call in a formula, with how many arguments it was given.
     private static func callArities(in ast: FormulaAST) -> [(String, Int)] {
         var found: [(String, Int)] = []
