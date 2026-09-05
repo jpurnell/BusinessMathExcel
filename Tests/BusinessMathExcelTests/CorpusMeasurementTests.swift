@@ -382,7 +382,15 @@ final class CorpusMeasurementTests: XCTestCase {
         }
 
         for name in ["COLUMN", "ROW", "ADDRESS", "INDIRECT", "OFFSET", "ISREF",
-                     "YEARFRAC", "XIRR", "EOMONTH", "WEEKDAY"] {
+                     "YEARFRAC", "XIRR", "EOMONTH", "WEEKDAY",
+                     // The bond block, asked for by the BusinessMath session on
+                     // 2026-09-05. ACCRINT is the one it needed and the one the
+                     // corpus does not have; the rest do appear, with Excel's own
+                     // cached values, which makes them oracles for the same
+                     // day-count machinery.
+                     "ACCRINT", "ACCRINTM", "COUPDAYBS", "COUPDAYS", "COUPNUM",
+                     "PRICE", "YIELD", "DURATION", "MDURATION", "DISC",
+                     "SLN", "SYD", "DDB", "VDB", "PDURATION", "NOMINAL"] {
             guard let arities = byArity[name] else { continue }
             let total = arities.values.reduce(0, +)
             let shape = arities.sorted { $0.key < $1.key }

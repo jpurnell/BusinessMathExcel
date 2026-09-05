@@ -69,6 +69,23 @@ Full reasoning, including what implementation found that the proposal missed, is
 
 ## What is waiting on the BusinessMath session
 
+**A decision is with them: `excelActualActual`.** Both missing conventions have landed on their
+`feature/excel-financial-ten`, but `actualActual` is ISDA, and Excel's basis 1 is *not* ISDA —
+they measured `YEARFRAC(2023-11-30, 2024-03-31, 1)` as exactly ⅓ in Excel and LibreOffice against
+ISDA's 0.33357. I asked for a separate `excelActualActual` case rather than binding basis 1 to
+ISDA, and **basis 1 stays `#NUM!` until it exists**. Refusing is honest; a number that disagrees
+with the spreadsheet by a third of a percent is not, in a function that prices things.
+
+**Basis 4 can bind as soon as they tag.** European 30/360 has no equivalent ambiguity.
+
+**They asked for corpus ACCRINT cells; there are none.** Scanned 2,236 workbooks: zero ACCRINT,
+ACCRINTM, COUPDAYBS, COUPDAYS, COUPNUM, SLN, SYD, DDB, VDB, PDURATION, NOMINAL. There *are* 28
+bond cells carrying Excel's cached values — 24 of them basis 1 — and one that discriminates,
+a mid-period settlement crossing a year boundary:
+`PRICE(1998-01-15, 2006-08-15, 0, 0.0639, 100, 1, 1) = 58.771794240682887`. Sent to them.
+`CorpusMeasurementTests` now reports arities for the whole bond block, so the answer can be
+re-derived rather than re-found.
+
 **Two day-count conventions, now known to be low value.** `YEARFRAC` is bound for Excel's bases
 0, 2 and 3. BusinessMath lacks actual/actual (basis 1) and European 30/360 (basis 4). Measured
 since: **all 3,425 corpus `YEARFRAC` calls pass two arguments**, so every one takes basis 0,
