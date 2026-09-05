@@ -381,7 +381,8 @@ final class CorpusMeasurementTests: XCTestCase {
             }
         }
 
-        for name in ["COLUMN", "ROW", "ADDRESS", "INDIRECT", "OFFSET", "ISREF"] {
+        for name in ["COLUMN", "ROW", "ADDRESS", "INDIRECT", "OFFSET", "ISREF",
+                     "YEARFRAC", "XIRR", "EOMONTH", "WEEKDAY"] {
             guard let arities = byArity[name] else { continue }
             let total = arities.values.reduce(0, +)
             let shape = arities.sorted { $0.key < $1.key }
@@ -439,6 +440,40 @@ final class CorpusMeasurementTests: XCTestCase {
         for (shape, count) in nested.sorted(by: { $0.value > $1.value }) {
             print("NESTING  \(shape)  \(count)")
         }
+        // YEARFRAC's third argument selects a day-count convention, and
+        // BusinessMath has three of Excel's five. Which bases the corpus writes
+        // decides whether the two it lacks matter at all.
+        var bases: [String: Int] = [:]
+        for path in files {
+            guard let workbook = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
+                continue
+            }
+            for sheet in workbook.sheets {
+                for (_, ast) in ModelImporter.importSheet(sheet).formulaASTs {
+                    var stack: [FormulaAST] = [ast]
+                    while let node = stack.popLast() {
+                        if case .function(let name, let arguments) = node {
+                            if name.uppercased() == "YEARFRAC" {
+                                if arguments.count < 3 {
+                                    bases["omitted (means 0)", default: 0] += 1
+                                } else if case .number(let value) = arguments[2] {
+                                    bases["basis \(Int(value))", default: 0] += 1
+                                } else {
+                                    bases["computed, not a literal", default: 0] += 1
+                                }
+                            }
+                            stack.append(contentsOf: arguments)
+                        } else if case .add(let lhs, let rhs) = node {
+                            stack.append(lhs); stack.append(rhs)
+                        }
+                    }
+                }
+            }
+        }
+        for (basis, count) in bases.sorted(by: { $0.value > $1.value }) {
+            print("BASIS  YEARFRAC \(basis): \(count)")
+        }
+
         XCTAssertFalse(files.isEmpty)
     }
 
