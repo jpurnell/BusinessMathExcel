@@ -1,6 +1,7 @@
 # Proposal — The Excel oracle
 
-**Status:** Draft, awaiting approval
+**Status:** **Approved and built, 2026-09-05.** Shipped in SwiftExcelFunctions `0.5.0`+ as
+`ExcelOracleTests` and `MicrosoftSpecificationTests`.
 **Spans:** SwiftExcelFunctions (the harness), SwiftXLSX and SwiftExcelCore (fixes it finds)
 **Filed here** because the corpus lives here and the harness reads it, though the code belongs
 in SwiftExcelFunctions where the evaluator is.
@@ -352,19 +353,66 @@ four months and only an unrelated session's reference workbook found it.
 
 ---
 
-## 15. Open Questions
+## 15. Open Questions — answered
 
-1. **Is `inherited` attribution reliable enough to report root counts?** If a precedent differs
-   only by float noise, its dependents are not really inherited failures. Needs a rule.
-2. **What tolerance counts as agreement?** Relative epsilon is right in principle; the exponent
-   range in the corpus (`e-241`) means it needs a floor as well.
-3. **How is `#DIV/0!` on both sides treated?** Excel cached 3,174 errors. When we produce the
-   same error, that is agreement — and it may be the cheapest large win available.
-4. **Where does the corpus path live?** Currently an environment variable rediscovered by hand
-   each session. A gitignored file naming the roots would save the next person ten minutes.
-5. **Do we run per-workbook or per-sheet?** A 568,000-cell workbook may need its own budget.
+1. **Is `inherited` attribution reliable enough to report root counts?**
+   **The question dissolved.** Precedents resolve to *Excel's* cached values, not to ours, so
+   every formula is judged against ground-truth inputs and each disagreement is a root by
+   construction. There is no cascade to attribute. §12 was wrong to call this the central design
+   problem — the `#DIV/0!` surge that suggested cascade was the absolute-reference bug below.
+
+2. **What tolerance counts as agreement?**
+   Relative `1e-9` with an absolute floor of `1e-12`. Excel stores about fifteen significant
+   digits and a `Double` carries seventeen, so the relative bound is far looser than rounding
+   noise and far tighter than any real disagreement — those are whole units apart. The floor
+   handles comparison against exact zero, where a relative test is undefined, and the numerical
+   dust real models leave: the corpus holds a cached `-1.1224406979409424e-239`, a zero that took
+   a long route, and calling it different from zero would be true and useless.
+
+3. **How is an error on both sides treated?** Agreement. A model full of `#DIV/0!` is a model
+   whose author left it that way, and reproducing that is the job. 2,723 cells in the first run.
+
+4. **Where does the corpus path live?** **Not** `.quality-gate.yml` — that file is the gate
+   binary's own schema and rejected the key outright: *"sets 1 key this version does not
+   recognise… advisory in this release and will become an error."* Borrowing a config file works
+   right up until its owner validates it. The roots live in a sibling `.excel-corpus`.
+
+5. **Per workbook or per sheet?** Per workbook, and the whole sweep is **opt-in**. A plain
+   `swift test` picking up the roots ran past ten minutes before the gate was involved, and the
+   gate runs `swift test`. `BUSINESSMATHEXCEL_ORACLE=1` or `BUSINESSMATHEXCEL_CORPUS` enables it.
+
+### A sixth, which the corpus answered rather than asked
+
+**Risk Solver's `Psi*` values are not oracles.** They are Monte Carlo: a cached
+`PsiTriangular(…)` is one sample from one run, and `PsiMean(…)` a statistic *of* that run, with
+no published seed. Nothing reproduces them. Counting them as disagreements would hold the
+agreement number down by something no work could fix, which is the fastest way to make a
+measurement worth ignoring — so they are excluded alongside the volatile functions.
+
+What those cells *can* give is structural and is reproducible: which functions appear, with how
+many arguments, in what shapes. That feeds the binding signatures. The values cannot be matched
+and the implementation specification has to be the guide, exactly as the master plan's "Known
+traps" section already assumes.
 
 ---
+
+## What building it found
+
+Three defects, none of them on anyone's list, all found by comparing against Excel rather than
+against ourselves:
+
+- **Every absolute reference resolved to an empty cell.** `CellRef.reference` renders the `$`
+  markers and `Worksheet.value(at:)` keyed the store with it, while the store is keyed by the
+  plain reference the file writes. `=D22/$D$66` answered `#DIV/0!`, silently. SwiftXLSX 0.22.0.
+- **`NPV(rate, B4:B8)` answered `#VALUE!`.** Every argument went through `requireNumber`, so any
+  range failed — and two of Microsoft's own three worked examples use a range. 126 corpus cells.
+- **`actual365` and `actual360` gain an hour across a daylight-saving boundary**, because they
+  measure elapsed time through a local-zone calendar rather than counting civil days. Invisible
+  in UTC, invisible without DST, and `thirty360` is unaffected. Upstream in BusinessMath.
+
+**Agreement after the first two: 99.34%**, over 30 workbooks and 156,176 comparable cells. The
+62.8% baseline in §10 was mostly the harness's own defects, which is what §12 predicted and the
+reason that section's warning was worth writing even though its diagnosis was wrong.
 
 ## 16. Documentation Strategy
 
@@ -381,7 +429,10 @@ four months and only an unrelated session's reference workbook found it.
 
 ## Approval
 
-- [ ] §15 Q1 answered — the attribution rule, which everything else depends on
-- [ ] Tolerance rule decided (§15 Q2)
+- [x] §15 Q1 answered — dissolved rather than decided; there is no cascade to attribute
+- [x] Tolerance rule decided (§15 Q2) — relative 1e-9, floor 1e-12
 - [ ] ADR drafted into `SwiftExcelFunctions/project/decisions/`
-- [ ] Agreed that the harness is a measurement, not a gate checker
+- [x] Agreed that the harness is a measurement, not a gate checker
+- [x] **Belt and suspenders**: `MicrosoftSpecificationTests` runs in the gate, from the published
+      reference, so the work can be inspected without running a sweep against private files. It
+      found the `NPV` and daylight-saving defects on the day it was written.
