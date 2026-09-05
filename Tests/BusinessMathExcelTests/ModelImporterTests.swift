@@ -347,7 +347,7 @@ final class ModelImporterTests: XCTestCase {
 
     func testArrayCellWarnsAsAnArrayFormula() throws {
         let result = ModelImporter.importCells([
-            (reference: "D5", value: .array([.number(1), .number(2)]))
+            (reference: "D5", value: .array(CellMatrix(row: [.number(1), .number(2)])))
         ])
         let warning = try XCTUnwrap(result.warnings.first)
         XCTAssertTrue(warning.contains("D5"), "Warning should name the cell: \(warning)")
@@ -359,7 +359,7 @@ final class ModelImporterTests: XCTestCase {
 
     func testArrayWarningIsDistinctFromDateAndError() throws {
         let result = ModelImporter.importCells([
-            (reference: "A1", value: .array([.number(1)])),
+            (reference: "A1", value: .array(CellMatrix(row: [.number(1)]))),
             (reference: "A2", value: .date(Date(timeIntervalSince1970: 0))),
             (reference: "A3", value: .error(.value)),
         ])
@@ -377,7 +377,7 @@ final class ModelImporterTests: XCTestCase {
 
     func testArrayCellDoesNotBecomeANode() {
         let result = ModelImporter.importCells([
-            (reference: "D5", value: .array([.number(1), .number(2)]))
+            (reference: "D5", value: .array(CellMatrix(row: [.number(1), .number(2)])))
         ])
         XCTAssertEqual(result.model.nodeCount, 0, "Recognition is Phase 6; this only stops silent loss")
     }

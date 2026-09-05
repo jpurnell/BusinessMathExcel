@@ -1,6 +1,7 @@
 # Proposal — Shaped arrays
 
-**Status:** Draft, awaiting approval
+**Status:** **Approved and implemented, 2026-09-05.** Shipped as SwiftExcelCore `v0.3.0`,
+SwiftXLSX `v0.15.0`, SwiftExcelFunctions `v0.3.0`.
 **Spans:** SwiftExcelCore, SwiftXLSX, SwiftExcelFunctions, BusinessMathExcel
 **Filed here** because it changes the type all four packages agree on, which is the
 same reason `PROPOSAL_swift_excel_architecture.md` lives here rather than in one member.
@@ -521,7 +522,52 @@ example of what happens without it is the version that survives.
 
 ## Approval
 
-- [ ] §15 Q1 answered — this proposal, or Alternative 1
-- [ ] Enumeration bound decided and corpus-checked
-- [ ] ADR drafted into `SwiftExcelFunctions/project/decisions/`
-- [ ] Release order agreed: Core v0.3.0 → SwiftXLSX → SwiftExcelFunctions → BusinessMathExcel
+- [x] **§15 Q1 answered — this proposal, not Alternative 1.** Justin: *"If we're going to do it,
+      we should do it right... I don't use them much in my corpus because Excel is wonky, not
+      because they're not useful."* Which corrects the proposal's own framing: the corpus
+      measures Excel's array-formula ergonomics, not the value of the concept. A Swift model has
+      no reason to inherit Ctrl+Shift+Enter.
+- [x] Enumeration bound decided: `CellMatrix.maximumCells = 262_144`. **Not corpus-checked** —
+      see below.
+- [x] ADR drafted — recorded in the SwiftExcelCore master plan and this file's §11.
+- [x] Release order followed: Core v0.3.0 → SwiftXLSX v0.15.0 → SwiftExcelFunctions v0.3.0 →
+      BusinessMathExcel.
+
+---
+
+## What implementation found that the proposal did not
+
+**The defect was worse than measured, and in one more function.** The proposal named two broken
+functions. There were three, across seven failing cases:
+
+| | Excel | Before |
+|---|---|---|
+| `VLOOKUP("b", A1:D3, 3, FALSE)` | `"b3"` | `#N/A` |
+| `HLOOKUP` on a four-row table | `"b3"` | `"a4"` |
+| `INDEX(block, 2, 1)` | `4` | `2` |
+| out-of-bounds index, ×3 | `#REF!` | `#N/A` |
+
+`HLOOKUP` was only *presumed* affected (§15 Q5) and is confirmed. The `#REF!`/`#N/A` confusion
+was not anticipated at all, and follows directly: a width that was guessed cannot distinguish
+"past the edge" from "not found".
+
+**Two of the bugs were fixed by the Core change alone.** `INDEX` and `MATCH` over a range with a
+gap came right the moment the read preserved blanks, before a line of the lookup code was
+touched. That is the argument for fixing the type rather than the callers, made concretely.
+
+**The migration was cheaper than the estimate.** 20 of 34 sites needed no edit, as predicted;
+the 14 that did were mechanical. SwiftXLSX needed **zero** source changes — a rebuild and a pin
+bump — because its one site does not bind the payload and its provider conformance inherited the
+new shaped read from the protocol default. Defaulting `matrix(in:)` from `value(at:)` is what
+made that true, and it was the best decision in the proposal.
+
+**§12's predicted failure mode did not materialize, and remains unmeasured.** The adversarial
+review warned that preserving blanks makes a sparse range cost its rectangle, and that a large
+mostly-empty range could newly hit the bound and return `#VALUE!`. Nothing in 566 + 646 + 743
+tests hit it. But the corpus check §15 Q2 called for was **not** run — the bound was chosen by
+reasoning (whole column 1,048,576 must be refused, whole row 16,384 must not) rather than by
+measuring what the corpus passes to a lookup. That measurement is still outstanding, and it is
+the most likely place this change regresses something.
+
+**Q3 and Q4 resolved:** no conformance stores explicit `.blank`, so the deprecated `values(in:)`
+shim is behaviour-preserving. It is deprecated rather than deleted.
