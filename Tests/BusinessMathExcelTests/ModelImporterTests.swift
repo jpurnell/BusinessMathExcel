@@ -340,6 +340,48 @@ final class ModelImporterTests: XCTestCase {
         }
     }
 
+    // MARK: - Array-formula members
+
+    // An array formula fills a rectangle from one cell. SwiftXLSX marks the cells
+    // it fills with `_ARRAY(anchor, span)`, because they carry an empty `<f/>` in
+    // the file and would otherwise arrive as their cached value — 224 computed
+    // cells in one measured workbook, every one of them presenting as an input.
+
+    func testAnArrayMemberIsAFormulaNodeNotAnInput() throws {
+        let result = ModelImporter.importCells([
+            (reference: "D55", value: .formula(
+                .function("TRANSPOSE", [.cellRange(CellRange(from: "H35", to: "K35"))]),
+                cached: .number(0))),
+            (reference: "D56", value: .formula(
+                .function("_ARRAY", [.cellRef(CellRef("D55")), .text("D55:D57")]),
+                cached: .number(-0.5))),
+        ])
+        let node = try XCTUnwrap(result.cellToNode[CellRef("D56")])
+        guard case .formula = try XCTUnwrap(result.model.kind(of: node)) else {
+            return XCTFail("D56 became \(String(describing: result.model.kind(of: node)))")
+        }
+    }
+
+    /// And it depends on the cell that computes it, so the graph reaches it.
+    func testAnArrayMemberDependsOnItsAnchor() throws {
+        let result = ModelImporter.importCells([
+            (reference: "D55", value: .formula(
+                .function("TRANSPOSE", [.cellRange(CellRange(from: "H35", to: "K35"))]),
+                cached: .number(0))),
+            (reference: "D56", value: .formula(
+                .function("_ARRAY", [.cellRef(CellRef("D55")), .text("D55:D57")]),
+                cached: .number(-0.5))),
+        ])
+        let member = try XCTUnwrap(result.cellToNode[CellRef("D56")])
+        let anchor = try XCTUnwrap(result.cellToNode[CellRef("D55")])
+        guard case .formula(let formula)? = result.model.kind(of: member),
+              case .function(_, let arguments) = formula else {
+            return XCTFail("expected a marker function")
+        }
+        XCTAssertEqual(arguments.first, .ref(anchor),
+                       "the member is computed by the anchor, and must say so")
+    }
+
     // MARK: - Unsupported Cell Types
 
     // `Worksheet` exposes no public write for `.array`, `.date`, or `.error`

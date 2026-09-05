@@ -35,9 +35,9 @@ known `TRANSPOSE` formulas is `~/Documents/Career/Hulu/News Vertical/Originals/`
 | Repo | Tag | Tests | Gate |
 |---|---|---|---|
 | SwiftExcelCore | `v0.3.0` | 198 | 45/45, 0/0 |
-| SwiftXLSX | `v0.15.0` | 743 | 45/45, 0/0 |
+| SwiftXLSX | `v0.16.0` | 750 | 45/45, 0/0 |
 | SwiftExcelFunctions | `v0.3.0` | 646 | 45/45, 0/0 |
-| BusinessMathExcel | `v0.7.0` + 3 | 566 | 45/45, 0/0 |
+| BusinessMathExcel | `v0.7.0` + 5 | 568 | 45/45, 0/0 |
 
 ### Where the numbers are
 
@@ -121,10 +121,16 @@ are operators and predicates that feed one.
   read keeps its blanks in place. Do not "tidy" the blanks away: their absence is what made
   `INDEX` count past the end of its own range, and what made `COUNTBLANK` unwritable. The
   deprecated `values(in:)` still filters them, and still should.
-- **Spilling is deliberately absent.** Evaluation yields one value per cell. `TRANSPOSE` is
-  correct nested inside another formula and has nowhere to go on its own — which means the one
-  corpus workbook using it still will not evaluate. That is known, and judged not worth the
-  change to the evaluator's contract for a single function.
+- **Reading an array formula and spilling one are different problems, and only one is solved.**
+  On import, the members of an array formula's span are now marked `_ARRAY(anchor, span)` and
+  depend on the anchor, so they are computed cells rather than constants. That was a real
+  misreading — 224 cells in one corpus workbook.
+
+  Spilling on the *evaluation* side is still absent, but not for the reason first recorded here.
+  `FormulaEvaluator.evaluate` returns a `CellValue`, which can be `.array(CellMatrix)`, so
+  `TRANSPOSE` does yield an array — the earlier note claiming "evaluation yields one value per
+  cell" was wrong. What is missing is *distributing* that array back across a range of cells,
+  which only matters when re-emitting a workbook.
 - **References never became values.** `CellValue` has no `.reference` case and does not need one:
   measured across 549,059 formulas, reference functions nest inside one another **zero** times.
   `OFFSET` is always three arguments, so it names one cell and returns a value.
