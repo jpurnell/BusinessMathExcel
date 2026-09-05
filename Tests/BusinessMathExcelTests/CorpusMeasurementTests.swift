@@ -355,6 +355,72 @@ final class CorpusMeasurementTests: XCTestCase {
         return String(text.prefix(12))
     }
 
+    /// How the reference functions are actually called.
+    ///
+    /// `COLUMN()` with no argument needs only the calling cell. `COLUMN(B5)` needs
+    /// the *address* of its argument, which an evaluator that reduces arguments to
+    /// values before calling has already thrown away. The two need different
+    /// machinery, and which dominates decides how much a context parameter alone
+    /// is worth.
+    ///
+    /// Reported, not gated.
+    func testHowTheReferenceFunctionsAreCalled() throws {
+        let files = try corpusFiles()
+        var byArity: [String: [Int: Int]] = [:]
+
+        for path in files {
+            guard let workbook = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
+                continue
+            }
+            for sheet in workbook.sheets {
+                for (_, ast) in ModelImporter.importSheet(sheet).formulaASTs {
+                    for (name, count) in CorpusMeasurementTests.callArities(in: ast) {
+                        byArity[name, default: [:]][count, default: 0] += 1
+                    }
+                }
+            }
+        }
+
+        for name in ["COLUMN", "ROW", "ADDRESS", "INDIRECT", "OFFSET", "ISREF"] {
+            guard let arities = byArity[name] else { continue }
+            let total = arities.values.reduce(0, +)
+            let shape = arities.sorted { $0.key < $1.key }
+                .map { "\($0.key) args: \($0.value)" }
+                .joined(separator: ", ")
+            print("ARITY  \(name)  \(total) calls — \(shape)")
+        }
+
+        XCTAssertFalse(files.isEmpty)
+    }
+
+    /// Every function call in a formula, with how many arguments it was given.
+    private static func callArities(in ast: FormulaAST) -> [(String, Int)] {
+        var found: [(String, Int)] = []
+        var stack: [FormulaAST] = [ast]
+
+        while let node = stack.popLast() {
+            switch node {
+            case .function(let name, let arguments):
+                found.append((name.uppercased(), arguments.count))
+                stack.append(contentsOf: arguments)
+            case .add(let lhs, let rhs), .subtract(let lhs, let rhs),
+                 .multiply(let lhs, let rhs), .divide(let lhs, let rhs),
+                 .power(let lhs, let rhs),
+                 .greaterThan(let lhs, let rhs), .lessThan(let lhs, let rhs),
+                 .greaterOrEqual(let lhs, let rhs), .lessOrEqual(let lhs, let rhs),
+                 .equal(let lhs, let rhs), .notEqual(let lhs, let rhs),
+                 .concatenate(let lhs, let rhs):
+                stack.append(lhs)
+                stack.append(rhs)
+            case .negate(let inner):
+                stack.append(inner)
+            default:
+                continue
+            }
+        }
+        return found
+    }
+
     /// Every function name a formula calls, including nested ones.
     private static func functionNames(in ast: FormulaAST) -> [String] {
         var found: [String] = []
