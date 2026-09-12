@@ -1,0 +1,214 @@
+# COMPLETED: Recognizer Phase 2 — Stages 1–2, Coverage, and comparison operators
+
+**Started:** 2026-09-01
+**Completed:** 2026-09-01 — commits `3c62b0c`, `a79fbb9`, `6b140e0`, `7d9389d`, `97b8caf`, `104a65e`, `ffac1c0`
+**Proposal:** `project/plans/proposals/PROPOSAL_excel_to_model_recognizer.md` (§3, §4, §10, phasing)
+**Depends on:** Phase 0 (BusinessMath 2.7.0) and Phase 1 (`ModelImporter`), both complete
+**Unblocks:** Stage 3 `FormulaTranslator` — and the coverage number that shapes everything after
+
+New code lives in `Sources/BusinessMathExcel/Recognition/`, a peer of `Import/` and `Export/`.
+The split is deliberate and load-bearing: `Import/` is a faithful structural transcription that
+never interprets, so a workbook we cannot understand still round-trips. Recognition is the
+interpretive layer stacked on top, and nothing in it may reach back down.
+
+**TDD per project rules: failing test first, minimum code, refactor. Commit at each green state.**
+
+---
+
+## Task 1 — Comparison operators in `NodeFormula` (do this first)
+
+Pulled forward from decision D8; see the proposal §15 Q0 for the measurement. Doing it first
+means the Coverage numbers Tasks 5–7 report are not depressed by a gap already decided.
+
+`FormulaAST` has six comparison cases; `NodeFormula` has none, so all six degrade to
+`UNSUPPORTED`. Same shape as `NodeFormula.power`, which cost one case and five switch sites.
+
+**`IF` itself needs nothing.** Excel's `IF` is a function, not an AST node, so it already imports
+as `.function("IF", args)` and round-trips today. Verified on both reference workbooks. Only the
+*operators inside its condition* are missing. Do not add an `IF` case.
+
+- [x] **RED** — test: `=A1>B1` imports as a comparison, not `UNSUPPORTED`; one test per operator.
+- [x] **RED** — test: `=IF(A1>B1, A1, B1)` imports with a real comparison in the condition.
+- [x] **GREEN** — add `.equal`, `.notEqual`, `.greaterThan`, `.lessThan`, `.greaterOrEqual`,
+      `.lessOrEqual` to `NodeFormula` and handle each in all five exhaustive switches:
+      `resolve(using:)`, `ModelImporter.convertAST`, `MonteCarloExtension.evaluateFormula`,
+      `MultiSheetExporter`, `FormulaMapper.collectFunctions`.
+- [x] **Decided:** 1 and 0, Excel's arithmetic convention. Checking `.bool` first was the
+      right instruction — it returned 0 for *both* TRUE and FALSE, the same value it uses
+      for "cannot evaluate", so a true condition was indistinguishable from an unsupported
+      one. Fixed alongside; leaving it would have made `A1>B1` yield 1 while `TRUE` yielded 0.
+- [x] ~~**Decide:** what `MonteCarloExtension` returns for a comparison.~~ It is a `Double` evaluator
+      with no boolean channel. Excel treats TRUE/FALSE as 1/0 in arithmetic, so 1/0 is defensible
+      and matches the existing `.bool` handling — but check what `.bool` actually does first
+      rather than assuming, and write down whichever you choose.
+- [x] Round-trip test: comparison survives export and re-import.
+- [x] Commit.
+
+**Scope guard.** This adds *representation only*. D9 still governs what an `IF` means — a
+timeline-answerable `IF` becomes an indicator series, and that is Stage 3's decision, not this
+task's. Adding the cases does not decide the semantics.
+
+## Task 2 — `Diagnostic` and `Coverage`
+
+The vocabulary everything else reports through. Small, and blocking for Tasks 3–6.
+
+- [x] **RED** — test: `Coverage.fraction` is `recognized / populated`, and `0` for an empty sheet
+      rather than a division by zero.
+- [x] **GREEN** — `Diagnostic` (severity, code, cell, message), `DiagnosticCode` per proposal §4,
+      `Coverage`. All `Sendable`, all DocC'd.
+- [x] Include `.dynamicReference` and `.foldedDynamicReference` in the enum even though Stage 3
+      owns them — the enum should be complete, and a `CaseIterable` with holes invites a second
+      one later.
+- [x] Commit.
+
+## Task 3 — `SheetGrid` (Stage 1)
+
+Cell topology and orientation. Consumes an `ImportResult`; knows cell positions, which the
+`ExcelModel` deliberately does not.
+
+- [x] **RED** — test: a sheet with years across the top resolves `.periodsAcrossColumns`; one with
+      years down the side resolves `.periodsDownRows`.
+- [x] **RED** — test: a sheet where both could be read as an axis emits `.ambiguousOrientation`
+      and picks neither. **Not guessing is the feature.**
+- [x] **RED** — test: a sheet with no axis at all emits `.noPeriodAxis`.
+- [x] **GREEN** — implement.
+- [x] **Decided:** a run of two or more period headings in *consecutive* cells along one line
+      whose years *strictly increase*. Each clause excludes something real — one heading is a
+      label, a gap means two series, repeated years are columns sharing a year. Written out in
+      `SheetGrid`'s DocC with the exclusions, not just the rule.
+- [x] **Also decided, forced by the real workbook:** a header cell may be a *formula*. Wharton's
+      axis is `2023` then `=E27+1` across, so refusing computed headers finds an axis on almost
+      no real model. This required `ImportResult` to stop discarding cached values.
+- [x] Edge: empty sheet, single column, a sheet at `maximumCells`  (`.scanLimitReached`).
+- [x] Commit.
+
+## Task 4 — `PeriodAxis` (Stage 1)
+
+Recovered headers to `[Period]`, using BusinessMath's `Period`/`PeriodType` — the reason Phase 0
+bumped the pin.
+
+- [x] **RED** — test: `2024 2025 2026` recovers three annual periods via `Period.year(_:)`.
+- [x] **RED** — test: header forms real models use — `FY24`, `2024E`, `Q1 2024`. Pick the set
+      deliberately and record what is *not* recognized rather than letting it be implicit.
+- [x] **RED** — test: a header that parses to a non-monotonic or duplicated sequence is reported,
+      not silently accepted.
+- [x] **GREEN** — implement. **`RecognizerOptions.granularity` deliberately not added.** With
+      annual the only recognized granularity, an option with one valid value is noise that
+      reads as a capability. It goes in when a second granularity does.
+- [x] **Decided, from the files rather than from imagination:** annual only. Neither reference
+      workbook contains a single quarterly, monthly, or date heading — verified by scanning both
+      string tables. Supporting quarters would mean guessing a spelling (`Q1 2024`? `1Q24`?) and
+      generalizing the increasing rule to (year, quarter) pairs, with no file to check against.
+      `FY2024`/`FY24`/`2024E` are accepted and tested but appear in neither file, so they are
+      supported rather than evidenced, and the DocC says so.
+- [x] Commit.
+
+## Task 5 — `LabeledSeries` (Stage 2) with address-fallback naming
+
+- [x] **RED** — test: a text cell binds to the run of value cells on its row.
+- [x] **RED** — test: values with no label get an address-derived name and an `.labelUnbound`
+      info diagnostic — they are recognized, not dropped.
+- [x] **RED** — test: duplicate labels emit `.duplicateAccountName` and both survive distinctly.
+- [x] **GREEN** — implement for both orientations.
+- [x] **Decided by dissolving the question.** Anchoring on the axis rather than on adjacency
+      makes it moot: once `PeriodAxis` says which columns hold periods, a series is that row's
+      cells in those columns. A blank is a missing value for that period, recorded as `nil`,
+      and the boundary came from the axis rather than from spacing. This also handles the
+      layout every real model uses, where a label in column B is separated from values in
+      column E by empty formatting columns — which run-scanning would have severed.
+- [x] Commit.
+
+## Task 6 — Formula uniformity
+
+Phase 2's gate names this explicitly: the count of non-uniform rows is what tells us how much of
+a sheet is hand-edited, and how far `IF`-free encoding can reach.
+
+- [x] **RED** — test: a row whose cells share a shape modulo column offset is uniform.
+- [x] **RED** — test: one hand-edited cell makes the row non-uniform and emits `.nonUniformRow`.
+      **The recognizer never picks a majority shape** (decision D10).
+- [x] **GREEN** — implement.
+- [x] **Decided, and the first answer was wrong.** Resolving refs through `cellToNode` loses
+      whether a reference was written `D14` or `$D$14`, because the importer normalizes `$`
+      away for cell *identity*. That distinction is invisible to evaluation and decisive for
+      geometry, and ignoring it reported `$D$14*-1` repeated across five untouched periods as
+      five different shapes. `ImportResult` now preserves each formula's original AST, and the
+      comparison is true R1C1: pinned components keep their address, free ones become offsets.
+- [x] **Added, not in the original plan:** a `seededRollforward` classification. A typed opening
+      period followed by one rule applied forward is the commonest structure in a model and is
+      directly expressible; counting it as a hand edit would overstate the number this task
+      exists to produce.
+- [x] Commit.
+
+## Task 7 — Measure
+
+- [x] Extend `WhartonImportMeasurementTests` (or add a recognition peer) to report coverage and
+      the non-uniform row count for the Wharton `ANSWER KEY`.
+- [x] Report the number. **It is a progress metric toward 100%, not a kill gate** — do not add an
+      assertion that fails the build on a coverage threshold.
+- [x] Record the figure in the proposal's phasing table and `master_plan.md`.
+- [x] Commit.
+
+---
+
+## Done when
+
+- [x] All seven tasks green, committed individually.
+- [x] `swift build && swift test` clean.
+- [x] **Quality gate 0 errors / 0 warnings, no overrides**, run with `--continue-on-failure`.
+- [x] CHANGELOG entry, including the `NodeFormula` source-breaking note from Task 1.
+- [x] Wharton coverage and non-uniform row count recorded.
+- [x] Move this file to `project/checklists/completed/`.
+
+## Do NOT do in this phase
+
+- Stage 3 and later: formula translation, lag decomposition, unit inference, `ModelDefinition`
+  materialization, typed source writing.
+- Dynamic-reference folding (`INDIRECT`/`ADDRESS`/`OFFSET`). Proposal §3 assigns it to Stage 3,
+  Tier 1 only. Stage 2 owes it nothing but the ability to express a sheet named by data.
+- `IF` *semantics*. Task 1 adds operators; D9 decides meaning, in Stage 3.
+- `MonteCarloExtension`'s `case .function: return 0`. Still scheduled behind the upstream registry.
+- Any interpretation inside `Import/`. If a task tempts you to put recognition there, the layer
+  split is the thing being tested.
+
+---
+
+## Measured result
+
+Wharton LBO Practice Model, `ANSWER KEY`:
+
+| | |
+|---|---|
+| Periods | 6, annual (2023–2028, row 27) |
+| Populated cells | 279 |
+| Recognized | 196 (**70%**) |
+| Series bound | 36 |
+| — uniform | 26 |
+| — seeded rollforward | 3 |
+| — non-uniform | 7 |
+
+`BLANK MODEL`: 157 cells, 88 recognized (56%), 19 series — 14 / 1 / 4.
+
+**What the missing 30% is.** The scalar regions: the assumptions block, and the Sources & Uses
+block laid out to the right of it. Those are key/value layouts rather than time series, and
+Stages 1–2 describe only the time-series grid. Nothing is lost — those cells simply have no
+series to belong to yet.
+
+**What the 7 non-uniform rows are.** Six are the same artifact: assumptions-block rows whose
+cells happen to fall in columns that hold periods lower down the sheet, so they bind as series
+and then disagree with themselves. One — `Debt (B58)` — is a genuine irregularity in the model
+proper. So the hand-edit count for this workbook is **one**, not seven, and the six are a
+consequence of a sheet having two layout regions where only one is described.
+
+## What was learned that the plan did not anticipate
+
+1. **A header row is usually computed.** Wharton's axis is `2023` typed, then `=E27+1` across.
+   Requiring literal headings found an axis on no sheet of the reference model.
+2. **`$` is decisive for geometry and invisible to evaluation.** Comparing shapes without it
+   reported five untouched periods as five hand edits, and inflated the headline count from 7
+   to 16.
+3. **Anchoring on the axis dissolves the blank-run question** the checklist expected to have to
+   answer, and handles the label-then-gap-then-values layout every real model uses.
+4. **Seeded rollforward needed its own classification.** Without it, the commonest expressible
+   structure in a financial model counts as a defect.
+
+Each was found by running against the real workbook before committing, not by reasoning about it.

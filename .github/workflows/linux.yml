@@ -1,0 +1,121 @@
+# Linux build — does this stack work off Apple platforms at all?
+#
+# WHY THIS EXISTS
+#
+# `ROADMAP.md` item 7 (hosted service) is blocked on one unknown: whether the
+# stack builds and passes on Linux. Nobody has tried. `Package.swift` declares
+# `platforms: [.macOS(.v14), .iOS(.v17)]` and nothing else, which is not a bar to
+# building on Linux — those bounds only constrain Apple platforms — but it is a
+# fair signal that it has never been exercised there.
+#
+# The answer gates a container image, a CI action, and the whole "runs anywhere"
+# half of the product argument. It is cheap to find out and expensive to assume.
+#
+# BILLING
+#
+# `ubuntu-latest` bills at 1x, unlike the 10x macOS multiplier that
+# `quality-gate.yml` warns about. These repos are public, so hosted minutes are
+# free either way — but the 1x figure is why this can stay enabled later without
+# the runner economics that shut the macOS fleet down.
+#
+# MANUAL ONLY, FOR NOW
+#
+# `workflow_dispatch` and nothing else. This is a question being asked, not a
+# gate being imposed; a green answer is the moment to consider adding `push`.
+#
+# PREREQUISITE
+#
+# SwiftXLSX depends on `jpurnell/SwiftZIP`, which is PRIVATE. Resolution fails
+# without a read-scoped token, so this reuses the same secret the quality gate
+# uses: SPM_PRIVATE_DEPS_TOKEN. Absent it, the resolve step fails with a 404 on
+# SwiftZIP that reads like a missing package rather than a missing credential —
+# which is worth knowing before diagnosing it as something else.
+
+name: Linux
+
+on:
+  workflow_dispatch:
+    inputs:
+      swift-version:
+        description: "Swift image tag to build against (e.g. 6.2, 6.3, latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Swift ${{ matrix.swift }} on Linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false        # one version failing must not hide another passing
+      matrix:
+        swift: ["6.2", "6.3", "latest"]
+    container:
+      image: swift:${{ github.event.inputs.swift-version || matrix.swift }}
+
+    steps:
+      - name: Report the toolchain
+        run: swift --version
+
+      - uses: actions/checkout@v4
+
+      # Private SPM dependency. Rewrite rather than embedding the token in
+      # Package.swift, so nothing credential-shaped is ever committed.
+      - name: Authorize private SPM dependencies
+        env:
+          TOKEN: ${{ secrets.SPM_PRIVATE_DEPS_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::SPM_PRIVATE_DEPS_TOKEN is unset. Resolution of the private"
+            echo "::warning::SwiftZIP dependency will fail, and will look like a 404."
+          else
+            git config --global url."https://${TOKEN}@github.com/".insteadOf "https://github.com/"
+          fi
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # `shell: bash` is load-bearing, not decoration. Without it GitHub runs
+      # `bash -e` on Linux — WITHOUT pipefail — so in `swift build | tee log` the
+      # step takes *tee's* exit status, and tee always succeeds. The first version
+      # of this workflow omitted it and reported three green jobs over a build that
+      # had failed with a hard error. A green CI that is not checking anything is
+      # worse than no CI, so the shell is pinned and the pipeline is explicit.
+      - name: Resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift package resolve
+
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build 2>&1 | tee build.log
+
+      - name: Test
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test 2>&1 | tee test.log
+
+      # The point of the run is the answer, so state it rather than leaving it in
+      # a log somebody has to open.
+      - name: Summarize
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Linux — Swift ${{ github.event.inputs.swift-version || matrix.swift }}"
+            echo ""
+            echo '```'
+            swift --version 2>&1 || true
+            echo '```'
+            echo ""
+            echo "| step | result |"
+            echo "|---|---|"
+            echo "| build | ${{ job.status }} |"
+            grep -cE "^.*error:" build.log 2>/dev/null | sed 's/^/| build errors | /; s/$/ |/' || true
+            grep -cE "^.*warning:" build.log 2>/dev/null | sed 's/^/| build warnings | /; s/$/ |/' || true
+            grep -oE "Executed [0-9]+ tests?, with [0-9]+ failures?" test.log 2>/dev/null | tail -1 | sed 's/^/| tests | /; s/$/ |/' || true
+          } >> "$GITHUB_STEP_SUMMARY"

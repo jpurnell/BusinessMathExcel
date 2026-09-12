@@ -1,0 +1,23 @@
+# Checker selection is deliberately left to the gate's default set.
+#
+# This file previously carried `checkers:` and `exclude:` keys. Neither is in the
+# schema — the decoder discarded them, so the gate never ran what the file claimed.
+# The schema's allowlist is `enabledCheckers`, and it has no negative form; omitting
+# it means "run the default selection", which is what was happening anyway. Excluding
+# a single checker is a `--exclude` flag on the command line, not a file setting.
+
+consistency:
+  corpusPath: ${ORG_JUDGEMENT_CORPUS:-}   # set in the environment; no absolute path in the repo
+  projectID: BusinessMathExcel
+  consistencyThreshold: 0.7
+  defaultRiskTier: 2
+
+# v2 layout: the master plan is project-owned, not framework content.
+status:
+  guidelinesPath: "."
+  masterPlanPath: project/master_plan.md
+
+# Refuse to trust a gate binary older than this. A stale binary silently runs
+# old rules; without this pin nothing says so. Ratchet on each deploy that the
+# repo depends on. Warns on every run; fails only under --strict.
+minimumGateVersion: "2026-09-03"

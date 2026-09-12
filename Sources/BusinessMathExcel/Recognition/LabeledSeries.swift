@@ -1,0 +1,241 @@
+import SwiftXLSX
+
+/// Stage 2 — a label bound to the values it names, one per period.
+///
+/// ## What decides which cells belong together
+///
+/// The **axis**, not adjacency. Once ``PeriodAxis`` has established which columns
+/// (or rows) hold periods, a series is simply that row's cells in those columns.
+///
+/// This answers a question that looks hard from the other direction. Scanning for
+/// runs of adjacent values forces a ruling on whether a blank breaks a run — and
+/// there is no good ruling, because a blank inside a row of figures is ordinary
+/// while a blank between two blocks is meaningful. Anchoring on the axis makes the
+/// question moot: a blank in a period column is a **missing value for that
+/// period**, recorded as `nil` in ``cells``, and the boundary was already
+/// established by the axis rather than guessed from spacing.
+///
+/// It also handles the layout every real model uses, where a label in column B is
+/// separated from values starting in column E by empty formatting columns.
+///
+/// ## Naming
+///
+/// The label is the nearest text cell on the series' own line, ahead of the first
+/// period. A series with no such cell is still recognized — it is named for the
+/// first cell it holds and reported as ``DiagnosticCode/labelUnbound`` at `info`.
+/// Values without a heading are a naming problem, not a reason to drop data.
+public struct LabeledSeries: Sendable, Equatable {
+
+    /// The series' name: its label, or its first cell's address when unlabelled.
+    ///
+    /// Unique within a sheet. A repeated label is disambiguated by appending its
+    /// label cell, and reported as ``DiagnosticCode/duplicateAccountName``.
+    public let name: String
+
+    /// The cell the label was read from, or `nil` when the name is address-derived.
+    public let labelCell: CellRef?
+
+    /// The row this series occupies, or the column when periods run down rows.
+    public let line: Int
+
+    /// One entry per period, in axis order. `nil` where that period has no cell.
+    public let cells: [CellRef?]
+
+    /// The series' value in the anchor column, when it has one.
+    ///
+    /// Deliberately not part of ``cells``, which stays aligned one-to-one with the
+    /// axis. This value belongs to the series but to no period — an equity cheque
+    /// written at close, an opening balance — and a consumer that needs it, such
+    /// as a return calculation, prepends it knowingly rather than finding it mixed
+    /// into the timeline.
+    public let anchorCell: CellRef?
+
+    /// The cells that actually hold something, in axis order.
+    public var populatedCells: [CellRef] { cells.compactMap { $0 } }
+
+    // MARK: - Binding
+
+    /// Binds every series on a sheet to its label.
+    ///
+    /// - Parameters:
+    ///   - grid: The sheet's topology, with an established orientation.
+    ///   - axis: The recovered time axis.
+    /// - Returns: One series per line holding values in the period columns, plus
+    ///   diagnostics for unlabelled and duplicated series.
+    public static func bind(
+        in grid: SheetGrid,
+        axis: PeriodAxis
+    ) -> (series: [LabeledSeries], diagnostics: [Diagnostic]) {
+        guard let orientation = grid.orientation, let axisLine = grid.axisLine else {
+            return ([], [])
+        }
+
+        let periodPositions = axis.sources.map {
+            orientation == .periodsAcrossColumns ? $0.column : $0.row
+        }
+        guard let firstPeriod = periodPositions.min() else { return ([], []) }
+
+        var diagnostics: [Diagnostic] = []
+        var series: [LabeledSeries] = []
+        var usedNames: Set<String> = []
+
+        // The axis governs the block it heads, not the whole sheet. Above it sit
+        // assumptions whose value columns land in the timeline's columns by nothing
+        // more than where the page was laid out; ``ScalarBlock`` reads those.
+        for line in linesHoldingValues(in: grid, orientation: orientation, at: periodPositions)
+        where line > axisLine {
+            let labelCell = label(in: grid, line: line, before: firstPeriod, orientation: orientation)
+            let labelPosition = labelCell.map {
+                orientation == .periodsAcrossColumns ? $0.column : $0.row
+            }
+            let owns = ownership(
+                labelPosition: labelPosition, line: line, in: grid, orientation: orientation)
+
+            let cells = periodPositions.map { position -> CellRef? in
+                guard owns(position) else { return nil }
+                let ref = cellRef(line: line, position: position, orientation: orientation)
+                return grid.cells[ref] == nil ? nil : ref
+            }
+            guard let firstCell = cells.compactMap({ $0 }).first else { continue }
+
+            let anchorCell = axis.anchor.map {
+                cellRef(line: line, position: $0.position, orientation: orientation)
+            }
+            let boundAnchor = anchorCell
+                .flatMap { grid.cells[$0] == nil ? nil : $0 }
+                .flatMap { owns(orientation == .periodsAcrossColumns ? $0.column : $0.row) ? $0 : nil }
+            var name = labelCell.flatMap { text(of: grid.cells[$0]) } ?? firstCell.reference
+
+            if let labelCell, usedNames.contains(name) {
+                // Both survive: a repeated heading is a naming collision, and
+                // dropping one would lose a row of the model to a formatting habit.
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .warning, code: .duplicateAccountName, cell: labelCell,
+                        message: "\"\(name)\" labels more than one series; the one at "
+                            + "\(labelCell.reference) is distinguished by its cell"))
+                name = "\(name) (\(labelCell.reference))"
+            } else if labelCell == nil {
+                diagnostics.append(
+                    Diagnostic(
+                        severity: .info, code: .labelUnbound, cell: firstCell,
+                        message: "The series at \(firstCell.reference) has no label ahead of it "
+                            + "and is named for its first cell"))
+            }
+
+            usedNames.insert(name)
+            series.append(
+                LabeledSeries(
+                    name: name, labelCell: labelCell, line: line, cells: cells,
+                    anchorCell: boundAnchor))
+        }
+
+        return (series, diagnostics)
+    }
+
+    // MARK: - Private
+
+    /// Lines holding at least one cell in a period position, in order.
+    private static func linesHoldingValues(
+        in grid: SheetGrid,
+        orientation: SheetGrid.Orientation,
+        at periodPositions: [Int]
+    ) -> [Int] {
+        let positions = Set(periodPositions)
+        var lines: Set<Int> = []
+        for ref in grid.cells.keys {
+            let position = orientation == .periodsAcrossColumns ? ref.column : ref.row
+            guard positions.contains(position) else { continue }
+            lines.insert(orientation == .periodsAcrossColumns ? ref.row : ref.column)
+        }
+        return lines.sorted()
+    }
+
+    /// The nearest text cell on a line, ahead of the first period.
+    /// The positions on a line that a label at `labelPosition` owns.
+    ///
+    /// A label owns a value only when no other text cell stands between them. Real
+    /// models put several small tables side by side — a label with its value beside
+    /// it, then another pair, then another — and their value columns land wherever
+    /// the page happened to be laid out, including in the timeline's columns. A
+    /// label that swept the whole axis would claim figures belonging to the table
+    /// on its right: on the Wharton `ANSWER KEY`, `Revenue growth` picked up a
+    /// sources-and-uses total and was refused as a row that disagreed with itself.
+    ///
+    /// Reading it this way is how a person reads the page — the nearest heading to
+    /// the left owns what follows it. It also excludes the intervening text cells
+    /// themselves, which are headings rather than values, by the same rule: a text
+    /// cell always has a text cell at its own position.
+    ///
+    /// - Parameters:
+    ///   - labelPosition: The label's own position, or `nil` when unlabelled.
+    ///   - line: The row, or column when periods run down rows.
+    ///   - grid: The sheet's topology.
+    ///   - orientation: Which way the periods run.
+    /// - Returns: A predicate answering whether the label owns a given position.
+    private static func ownership(
+        labelPosition: Int?,
+        line: Int,
+        in grid: SheetGrid,
+        orientation: SheetGrid.Orientation
+    ) -> (Int) -> Bool {
+        var textPositions: [Int] = []
+        for (ref, kind) in grid.cells {
+            let lineOf = orientation == .periodsAcrossColumns ? ref.row : ref.column
+            guard lineOf == line, text(of: kind) != nil else { continue }
+            textPositions.append(orientation == .periodsAcrossColumns ? ref.column : ref.row)
+        }
+
+        let whatIf = DataTableBlock.find(in: grid)
+        let start = labelPosition ?? Int.min
+        return { position in
+            let ref = cellRef(line: line, position: position, orientation: orientation)
+            // A What-If table's cells are answers to one formula, not periods of a
+            // row that happens to run alongside them.
+            guard !whatIf.contains(where: { $0.contains(ref) }) else { return false }
+            return !textPositions.contains { $0 > start && $0 <= position }
+        }
+    }
+
+    private static func label(
+        in grid: SheetGrid,
+        line: Int,
+        before firstPeriod: Int,
+        orientation: SheetGrid.Orientation
+    ) -> CellRef? {
+        var candidates: [(position: Int, ref: CellRef)] = []
+        for (ref, kind) in grid.cells {
+            let lineOf = orientation == .periodsAcrossColumns ? ref.row : ref.column
+            let position = orientation == .periodsAcrossColumns ? ref.column : ref.row
+            guard lineOf == line, position < firstPeriod, text(of: kind) != nil else { continue }
+            candidates.append((position, ref))
+        }
+        // Nearest to the values, so a sub-heading beats the section title above it.
+        return candidates.max { $0.position < $1.position }?.ref
+    }
+
+    private static func cellRef(
+        line: Int, position: Int, orientation: SheetGrid.Orientation
+    ) -> CellRef {
+        orientation == .periodsAcrossColumns
+            ? CellRef(column: position, row: line)
+            : CellRef(column: line, row: position)
+    }
+
+    /// The text a cell holds, trimmed, or `nil` when it holds none.
+    ///
+    /// Shared with ``ScalarBlock`` so that "is this cell a label" has one answer
+    /// on a sheet rather than two that drift apart.
+    ///
+    /// - Parameter kind: The cell's kind.
+    /// - Returns: The trimmed text, or `nil`.
+    static func text(of kind: NodeKind?) -> String? {
+        switch kind {
+        case .textInput(let value), .label(let value):
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        default:
+            return nil
+        }
+    }
+}

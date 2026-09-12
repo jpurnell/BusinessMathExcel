@@ -1,0 +1,14 @@
+.build/
+.DS_Store
+.swiftpm/
+development-guidelines/
+latestReport.json
+/.claude/skills/
+/development-guidelines.pre-v2/
+
+# Third-party reference workbook — fetch per Tests/Fixtures/README.md, do not redistribute
+Tests/Fixtures/*.xlsx
+
+.claude/settings.local.json
+# Reference material belongs outside the repository — see PROPOSAL_history_remediation.md
+project/library/
