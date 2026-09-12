@@ -1,58 +1,73 @@
-# Session Handoff — 2026-09-10
+# Session Handoff — 2026-09-12
 
-Resume here. Last session's handoff opened with *"nothing is blocking"*. **That is no longer
-true**, and the one blocking item is dated rather than vague: this repo stops resolving the next
-time SwiftExcelFunctions is tagged.
-
-Everything else is finished, green, and committed.
+Resume here. **The 2026-09-10 handoff's blocking item is resolved, and a larger one was found and
+also resolved.** Nothing is blocking now.
 
 ---
 
-## 1. The next step, concretely — and it is not optional
+## 1. What happened on 2026-09-12
 
-**Loosen this repo's BusinessMath pin before bumping SwiftExcelFunctions.**
+A provenance audit found third-party material published in git history. Both findings verified
+directly rather than taken on report, and both are now removed.
 
-```
-Package.swift:13   .package(url: ".../BusinessMath", exact: "2.15.0")
-```
+| Repo | Problem | Treatment | Verified |
+|---|---|---|---|
+| SwiftXLSX | an unrelated client's confidential hardware documentation | deleted & recreated | fresh clone: 2 refs, 0 client paths, 194 KiB |
+| BusinessMathExcel | same | deleted & recreated | fresh clone: 2 refs, 0 client paths, 488 KiB |
+| BusinessMath | ~90 MB of copyrighted books | `filter-repo`, surgical | fresh clone: 0 book paths, 0 refs reaching the commit, 141 → 61 MiB |
 
-| | requires BusinessMath at | resolves? |
-|---|---|---|
-| this repo | `exact: "2.15.0"` | — |
-| SwiftExcelFunctions **v0.7.1** (what we pin) | `from: "2.11.0"` | ✅ satisfied by 2.15.0 |
-| SwiftExcelFunctions **`main`** (unreleased) | `.upToNextMinor(from: "3.0.0-alpha.3")` | ❌ unsatisfiable |
+The runbook is [`proposals/PROPOSAL_history_remediation.md`](proposals/PROPOSAL_history_remediation.md),
+corrected in place as the operation taught it things — §B1a, §B1b and §B1c are all findings from
+execution, not design.
 
-`exact: "2.15.0"` cannot satisfy `>= 3.0.0-alpha.3`. Today's build is fine because we resolve
-v0.7.1, whose manifest still asks for `from: "2.11.0"`. The moment SwiftExcelFunctions cuts a
-release carrying the bond block, this repo fails to resolve.
-
-**Do not try to fix it by loosening this repo's pin alone — that was tried on 2026-09-10 and
-does not resolve.** SwiftExcelFunctions v0.7.1, the release we pin, itself requires BusinessMath
-`< 3.0.0`, so no pin this repo can write satisfies both that and `>= 3.0.0-alpha.3`. Both forms
-fail:
+**Current versions, all pins moved together:**
 
 ```
-exact: "3.0.0-alpha.3"                    → conflicts with swiftexcelfunctions 0.7.1
-.upToNextMinor(from: "3.0.0-alpha.3")     → same, reported as an empty prerelease range
+SwiftZIP  0.6.0  ·  SwiftExcelCore  0.8.0  ·  SwiftXLSX  0.25.0
+SwiftExcelFunctions  0.9.3  ·  BusinessMath  3.0.0-alpha.4  ·  BusinessMathExcel  0.9.0
 ```
 
-**The order is forced:**
+`Apache 2.0` for the first three, `AGPLv3 + commercial` for the last three.
 
-1. SwiftExcelFunctions cuts a release requiring the BusinessMath 3.0.0 line. *(Justin said one
-   is coming — this is the trigger.)*
-2. **One commit here** bumping *both* pins: SwiftExcelFunctions to the new release, and
-   BusinessMath from `exact: "2.15.0"` to `.upToNextMinor(from: "3.0.0-alpha.N")`.
-3. `swift build && swift test` — the 572 tests here have never run against BusinessMath 3.0.0,
-   which removed `sampleSize` among other things. Budget for that rather than assuming additive.
+### The three things that nearly went wrong
 
-The prerelease range form matters: SwiftPM will not resolve a prerelease through a range whose
-lower bound is not itself one, so a plain `from: "3.0.0"` sees no alpha at all.
+Each was caught by verification or by a peer session, not by the plan:
 
-This is the failure `CLAUDE.md`'s own "Why the pins are loose" section describes, arriving on
-schedule. That reasoning was applied to SwiftExcelCore and never carried across to BusinessMath,
-which is the same shared-package situation one dependency over.
+1. **62 GPG-signed commits** make `filter-repo` move 95 of 108 tags rather than 20 — so the
+   rewritten tags must **never** be pushed. `--mirror` or `--tags` would have moved 88 version
+   numbers onto new SHAs and broken SwiftPM fingerprints on every machine that had resolved them.
+2. **`main` and tags are not all the refs.** BusinessMath was declared done while three feature
+   branches still carried the books. Verify with `git for-each-ref --contains <commit>` on a
+   **fresh clone** — every local signal was green while the remote was still dirty.
+3. **`git fetch` prunes neither branches nor tags.** A clone that fetched before a rewrite still
+   holds the deleted tags, and one `git push --tags` resurrects everything.
 
-**Do this, then verify with `swift build && swift test` here, then tag SwiftExcelFunctions.**
+---
+
+## 1a. If you have another clone anywhere
+
+**Both halves, not just the reset:**
+
+```bash
+git fetch --prune --prune-tags origin && git reset --hard origin/main
+```
+
+Applies to any machine, cloud session, or CI with a persistent workspace that fetched before
+2026-09-12. Checked on this machine and clean; **not verifiable elsewhere.**
+
+---
+
+## 1b. Still outstanding
+
+- **GitHub unreferenced objects for BusinessMath.** It was force-pushed rather than recreated, so
+  the removed blobs remain retrievable by direct SHA until a support request expires them.
+  SwiftXLSX and BusinessMathExcel do not have this problem — deletion destroyed their object
+  stores.
+- **Licence detection** reads "pending" on all six. The files are correct on the remotes.
+- **Contribution terms.** Sole authorship is what makes the dual licence possible; a DCO or CLA is
+  needed before the first outside PR, and retrofitting one is painful.
+- The roadmap's work — correlation, graph export, CLI — is untouched and unchanged. See
+  [`ROADMAP.md`](ROADMAP.md).
 
 ---
 
