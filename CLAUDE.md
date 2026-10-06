@@ -136,7 +136,7 @@ Current state, all three moved in one commit:
 | SwiftXLSX | `.upToNextMinor(from: "0.25.0")` |
 | SwiftExcelFunctions | `.upToNextMinor(from: "0.9.3")` |
 
-**572 tests pass against BusinessMath 3.0.0-alpha.4.** The runbook said to budget for the 3.0.0
+**572 tests passed against BusinessMath 3.0.0-alpha.4** (573 as of 2026-10-06, now under Swift Testing). The runbook said to budget for the 3.0.0
 breaking changes — `sampleSize` removed among them — and they cost nothing here. Worth recording:
 the expensive-looking half of that migration was free, and the cheap-looking half (SwiftPM
 version identity) was where all the difficulty actually was.

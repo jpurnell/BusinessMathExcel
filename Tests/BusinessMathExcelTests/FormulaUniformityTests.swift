@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
 /// Whether a series' cells share one formula shape across the timeline.
-final class FormulaUniformityTests: XCTestCase {
+@Suite struct FormulaUniformityTests {
 
     private func uniformity(
         _ build: (Worksheet) -> Void
@@ -23,7 +24,7 @@ final class FormulaUniformityTests: XCTestCase {
         sheet.write("2026", to: "E1")
     }
 
-    func testARowOfTheSameFormulaShapeIsUniform() throws {
+    @Test func aRowOfTheSameFormulaShapeIsUniform() throws {
         let result = uniformity { sheet in
             withAxis(sheet)
             sheet.write("Base", to: "A2")
@@ -37,12 +38,12 @@ final class FormulaUniformityTests: XCTestCase {
             }
         }
 
-        let doubled = try XCTUnwrap(result.report.first { $0.series.name == "Doubled" })
-        XCTAssertTrue(doubled.isUniform, "Same shape modulo column offset")
-        XCTAssertTrue(result.diagnostics.isEmpty, "Got: \(result.diagnostics)")
+        let doubled = try #require(result.report.first { $0.series.name == "Doubled" })
+        #expect(doubled.isUniform, "Same shape modulo column offset")
+        #expect(result.diagnostics.isEmpty, "Got: \(result.diagnostics)")
     }
 
-    func testOneHandEditedCellBreaksTheRow() throws {
+    @Test func oneHandEditedCellBreaksTheRow() throws {
         let result = uniformity { sheet in
             withAxis(sheet)
             sheet.write("Base", to: "A2")
@@ -54,16 +55,13 @@ final class FormulaUniformityTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("E2")), .number(2)), to: "E3")
         }
 
-        let doubled = try XCTUnwrap(result.report.first { $0.series.name == "Doubled" })
-        XCTAssertFalse(doubled.isUniform)
-        XCTAssertEqual(result.diagnostics.map(\.code), [.nonUniformRow])
-        XCTAssertEqual(
-            result.diagnostics.first?.cell, CellRef("D3"),
-            "The diagnostic names the cell that broke the row"
-        )
+        let doubled = try #require(result.report.first { $0.series.name == "Doubled" })
+        #expect(!doubled.isUniform)
+        #expect(result.diagnostics.map(\.code) == [.nonUniformRow])
+        #expect(result.diagnostics.first?.cell == CellRef("D3"), "The diagnostic names the cell that broke the row")
     }
 
-    func testTheRecognizerNeverPicksAMajorityShape() throws {
+    @Test func theRecognizerNeverPicksAMajorityShape() throws {
         // Two cells agree and one does not. A majority vote would silently adopt
         // the two and rewrite the third; decision D10 forbids that.
         let result = uniformity { sheet in
@@ -76,23 +74,23 @@ final class FormulaUniformityTests: XCTestCase {
             sheet.write(FormulaAST.add(.cellRef(CellRef("E2")), .number(99)), to: "E3")
         }
 
-        let doubled = try XCTUnwrap(result.report.first { $0.series.name == "Doubled" })
-        XCTAssertFalse(doubled.isUniform, "No majority rules")
-        XCTAssertNil(doubled.shape, "And no shape is adopted")
+        let doubled = try #require(result.report.first { $0.series.name == "Doubled" })
+        #expect(!doubled.isUniform, "No majority rules")
+        #expect(doubled.shape == nil, "And no shape is adopted")
     }
 
-    func testARowOfPlainValuesIsUniform() throws {
+    @Test func aRowOfPlainValuesIsUniform() throws {
         let result = uniformity { sheet in
             withAxis(sheet)
             sheet.write("Inputs", to: "A2")
             for column in ["C", "D", "E"] { sheet.write(10.0, to: "\(column)2") }
         }
 
-        let inputs = try XCTUnwrap(result.report.first { $0.series.name == "Inputs" })
-        XCTAssertTrue(inputs.isUniform, "An input row has one shape: a literal per period")
+        let inputs = try #require(result.report.first { $0.series.name == "Inputs" })
+        #expect(inputs.isUniform, "An input row has one shape: a literal per period")
     }
 
-    func testARowMixingValuesAndFormulasIsNotUniform() throws {
+    @Test func aRowMixingValuesAndFormulasIsNotUniform() throws {
         // The seed-plus-rollforward shape: a typed first period, computed after.
         // Honest to report as non-uniform — the row does not reduce to one formula.
         let result = uniformity { sheet in
@@ -103,20 +101,13 @@ final class FormulaUniformityTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("D2")), .number(11)), to: "E2")
         }
 
-        let revenue = try XCTUnwrap(result.report.first { $0.series.name == "Revenue" })
-        XCTAssertFalse(revenue.isUniform)
-        XCTAssertEqual(
-            revenue.kind, .seededRollforward,
-            "A typed opening period followed by one rule applied forward is a structure the "
-                + "model layer expresses, not a hand edit"
-        )
-        XCTAssertTrue(
-            result.diagnostics.isEmpty,
-            "So it must not be reported as a non-uniform row"
-        )
+        let revenue = try #require(result.report.first { $0.series.name == "Revenue" })
+        #expect(!revenue.isUniform)
+        #expect(revenue.kind == .seededRollforward, "A typed opening period followed by one rule applied forward is a structure the model layer expresses, not a hand edit")
+        #expect(result.diagnostics.isEmpty, "So it must not be reported as a non-uniform row")
     }
 
-    func testAHandEditAfterTheSeedIsStillNonUniform() throws {
+    @Test func aHandEditAfterTheSeedIsStillNonUniform() throws {
         // Seed, then two periods that disagree with each other: not a rollforward.
         let result = uniformity { sheet in
             withAxis(sheet)
@@ -126,12 +117,12 @@ final class FormulaUniformityTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("D2")), .number(12)), to: "E2")
         }
 
-        let revenue = try XCTUnwrap(result.report.first { $0.series.name == "Revenue" })
-        XCTAssertEqual(revenue.kind, .nonUniform)
-        XCTAssertEqual(result.diagnostics.map(\.code), [.nonUniformRow])
+        let revenue = try #require(result.report.first { $0.series.name == "Revenue" })
+        #expect(revenue.kind == .nonUniform)
+        #expect(result.diagnostics.map(\.code) == [.nonUniformRow])
     }
 
-    func testAHoleDoesNotBreakUniformity() throws {
+    @Test func aHoleDoesNotBreakUniformity() throws {
         let result = uniformity { sheet in
             withAxis(sheet)
             sheet.write("Base", to: "A2")
@@ -142,13 +133,13 @@ final class FormulaUniformityTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("E2")), .number(2)), to: "E3")
         }
 
-        let doubled = try XCTUnwrap(result.report.first { $0.series.name == "Doubled" })
-        XCTAssertTrue(doubled.isUniform, "A missing period is not a disagreement")
+        let doubled = try #require(result.report.first { $0.series.name == "Doubled" })
+        #expect(doubled.isUniform, "A missing period is not a disagreement")
     }
 
     // MARK: - Absolute References
 
-    func testAnAbsoluteReferenceRepeatedAcrossPeriodsIsUniform() throws {
+    @Test func anAbsoluteReferenceRepeatedAcrossPeriodsIsUniform() throws {
         // `$D$1 * -1` in every period is one formula filled across. Computing a
         // relative offset for a pinned reference makes each cell look different
         // and reports an untouched row as hand-edited.
@@ -163,12 +154,12 @@ final class FormulaUniformityTests: XCTestCase {
             }
         }
 
-        let series = try XCTUnwrap(result.report.first { $0.series.name == "Fixed cost" })
-        XCTAssertTrue(series.isUniform, "A pinned reference does not shift when filled")
-        XCTAssertTrue(result.diagnostics.isEmpty, "Got: \(result.diagnostics)")
+        let series = try #require(result.report.first { $0.series.name == "Fixed cost" })
+        #expect(series.isUniform, "A pinned reference does not shift when filled")
+        #expect(result.diagnostics.isEmpty, "Got: \(result.diagnostics)")
     }
 
-    func testAbsoluteAndRelativeReferencesAreDistinguished() throws {
+    @Test func absoluteAndRelativeReferencesAreDistinguished() throws {
         // Same target cell, but one period pins it and the others do not. Filling
         // these would not produce each other, so they are genuinely different shapes.
         let result = uniformity { sheet in
@@ -181,16 +172,12 @@ final class FormulaUniformityTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("E2")), .number(2)), to: "E3")
         }
 
-        let series = try XCTUnwrap(result.report.first { $0.series.name == "Mixed" })
-        XCTAssertFalse(series.isUniform)
-        XCTAssertEqual(
-            series.divergentCells, [CellRef("D3"), CellRef("E3")],
-            "Both differ from the first cell seen. D3 and E3 agreeing with each other does not "
-                + "make C3 the outlier — deciding that would be the majority vote D10 forbids."
-        )
+        let series = try #require(result.report.first { $0.series.name == "Mixed" })
+        #expect(!series.isUniform)
+        #expect(series.divergentCells == [CellRef("D3"), CellRef("E3")], "Both differ from the first cell seen. D3 and E3 agreeing with each other does not make C3 the outlier — deciding that would be the majority vote D10 forbids.")
     }
 
-    func testAPartiallyAbsoluteReferenceKeepsOnlyItsPinnedComponent() throws {
+    @Test func aPartiallyAbsoluteReferenceKeepsOnlyItsPinnedComponent() throws {
         // `D$1` pins the row and lets the column travel — the shape is the same
         // across a fill, because the free component moves with the cell.
         let result = uniformity { sheet in
@@ -201,7 +188,7 @@ final class FormulaUniformityTests: XCTestCase {
             }
         }
 
-        let series = try XCTUnwrap(result.report.first { $0.series.name == "Row-pinned" })
-        XCTAssertTrue(series.isUniform)
+        let series = try #require(result.report.first { $0.series.name == "Row-pinned" })
+        #expect(series.isUniform)
     }
 }

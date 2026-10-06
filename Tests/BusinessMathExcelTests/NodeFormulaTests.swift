@@ -1,38 +1,39 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class NodeFormulaTests: XCTestCase {
+@Suite struct NodeFormulaTests {
 
     // MARK: - Leaf Resolution
 
-    func testResolveRef() throws {
+    @Test func resolveRef() throws {
         let node = NodeRef(label: "Revenue")
         let cell = CellRef(column: 1, row: 1)
         let formula = NodeFormula.ref(node)
 
         let ast = try formula.resolve(using: [node: cell])
-        XCTAssertEqual(ast, .cellRef(cell))
+        #expect(ast == .cellRef(cell))
     }
 
-    func testResolveNumber() throws {
+    @Test func resolveNumber() throws {
         let ast = try NodeFormula.number(42).resolve(using: [:])
-        XCTAssertEqual(ast, .number(42))
+        #expect(ast == .number(42))
     }
 
-    func testResolveText() throws {
+    @Test func resolveText() throws {
         let ast = try NodeFormula.text("hello").resolve(using: [:])
-        XCTAssertEqual(ast, .text("hello"))
+        #expect(ast == .text("hello"))
     }
 
-    func testResolveBool() throws {
+    @Test func resolveBool() throws {
         let ast = try NodeFormula.bool(true).resolve(using: [:])
-        XCTAssertEqual(ast, .bool(true))
+        #expect(ast == .bool(true))
     }
 
     // MARK: - Arithmetic Resolution
 
-    func testResolveAdd() throws {
+    @Test func resolveAdd() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let cellA = CellRef(column: 1, row: 1)
@@ -41,10 +42,10 @@ final class NodeFormulaTests: XCTestCase {
 
         let formula = NodeFormula.add(.ref(a), .ref(b))
         let ast = try formula.resolve(using: mapping)
-        XCTAssertEqual(ast, .add(.cellRef(cellA), .cellRef(cellB)))
+        #expect(ast == .add(.cellRef(cellA), .cellRef(cellB)))
     }
 
-    func testResolveSubtract() throws {
+    @Test func resolveSubtract() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let cellA = CellRef(column: 1, row: 1)
@@ -52,10 +53,10 @@ final class NodeFormulaTests: XCTestCase {
 
         let ast = try NodeFormula.subtract(.ref(a), .ref(b))
             .resolve(using: [a: cellA, b: cellB])
-        XCTAssertEqual(ast, .subtract(.cellRef(cellA), .cellRef(cellB)))
+        #expect(ast == .subtract(.cellRef(cellA), .cellRef(cellB)))
     }
 
-    func testResolveMultiply() throws {
+    @Test func resolveMultiply() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let cellA = CellRef(column: 1, row: 1)
@@ -63,10 +64,10 @@ final class NodeFormulaTests: XCTestCase {
 
         let ast = try NodeFormula.multiply(.ref(a), .ref(b))
             .resolve(using: [a: cellA, b: cellB])
-        XCTAssertEqual(ast, .multiply(.cellRef(cellA), .cellRef(cellB)))
+        #expect(ast == .multiply(.cellRef(cellA), .cellRef(cellB)))
     }
 
-    func testResolveDivide() throws {
+    @Test func resolveDivide() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let cellA = CellRef(column: 1, row: 1)
@@ -74,20 +75,20 @@ final class NodeFormulaTests: XCTestCase {
 
         let ast = try NodeFormula.divide(.ref(a), .ref(b))
             .resolve(using: [a: cellA, b: cellB])
-        XCTAssertEqual(ast, .divide(.cellRef(cellA), .cellRef(cellB)))
+        #expect(ast == .divide(.cellRef(cellA), .cellRef(cellB)))
     }
 
-    func testResolveNegate() throws {
+    @Test func resolveNegate() throws {
         let a = NodeRef(label: "A")
         let cellA = CellRef(column: 1, row: 1)
 
         let ast = try NodeFormula.negate(.ref(a)).resolve(using: [a: cellA])
-        XCTAssertEqual(ast, .negate(.cellRef(cellA)))
+        #expect(ast == .negate(.cellRef(cellA)))
     }
 
     // MARK: - Function Resolution
 
-    func testResolveFunction() throws {
+    @Test func resolveFunction() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let cellA = CellRef(column: 1, row: 1)
@@ -95,10 +96,10 @@ final class NodeFormulaTests: XCTestCase {
 
         let formula = NodeFormula.function("SUM", [.ref(a), .ref(b)])
         let ast = try formula.resolve(using: [a: cellA, b: cellB])
-        XCTAssertEqual(ast, .function("SUM", [.cellRef(cellA), .cellRef(cellB)]))
+        #expect(ast == .function("SUM", [.cellRef(cellA), .cellRef(cellB)]))
     }
 
-    func testResolveNestedFormula() throws {
+    @Test func resolveNestedFormula() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let c = NodeRef(label: "C")
@@ -112,70 +113,67 @@ final class NodeFormulaTests: XCTestCase {
             .ref(c)
         )
         let ast = try formula.resolve(using: mapping)
-        XCTAssertEqual(
-            ast,
-            .multiply(.add(.cellRef(cellA), .cellRef(cellB)), .cellRef(cellC))
-        )
+        #expect(ast == .multiply(.add(.cellRef(cellA), .cellRef(cellB)), .cellRef(cellC)))
     }
 
     // MARK: - Error Handling
 
-    func testDanglingReferenceThrows() {
+    @Test func danglingReferenceThrows() {
         let orphan = NodeRef(label: "Orphan")
         let formula = NodeFormula.ref(orphan)
 
-        XCTAssertThrowsError(try formula.resolve(using: [:])) { error in
+        if let error = #expect(throws: (any Error).self, performing: { try formula.resolve(using: [:]) }) {
             guard let resError = error as? ResolutionError else {
-                XCTFail("Expected ResolutionError")
+                Issue.record("Expected ResolutionError")
                 return
             }
             if case .danglingReference(let ref) = resError {
-                XCTAssertEqual(ref, orphan)
+                #expect(ref == orphan)
             } else {
-                XCTFail("Expected danglingReference")
+                Issue.record("Expected danglingReference")
             }
         }
     }
 
-    func testDanglingReferenceInNestedFormula() {
+    @Test func danglingReferenceInNestedFormula() {
         let valid = NodeRef(label: "Valid")
         let orphan = NodeRef(label: "Orphan")
         let cell = CellRef(column: 1, row: 1)
 
         let formula = NodeFormula.add(.ref(valid), .ref(orphan))
-        XCTAssertThrowsError(try formula.resolve(using: [valid: cell]))
+        #expect(throws: (any Error).self) { try formula.resolve(using: [valid: cell]) }
     }
 
     // MARK: - Convenience Builders
 
-    func testSumBuilder() {
+    @Test func sumBuilder() {
         let a = NodeFormula.number(1)
         let b = NodeFormula.number(2)
         let sum = NodeFormula.sum([a, b])
 
         if case .function(let name, let args) = sum {
-            XCTAssertEqual(name, "SUM")
-            XCTAssertEqual(args.count, 2)
+            #expect(name == "SUM")
+            #expect(args.count == 2)
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testPmtBuilder() {
+    @Test func pmtBuilder() {
         let pmt = NodeFormula.pmt(
             rate: .number(0.05),
             nper: .number(360),
             pv: .number(250_000)
         )
         if case .function(let name, let args) = pmt {
-            XCTAssertEqual(name, "PMT")
-            XCTAssertEqual(args.count, 3)
+            #expect(name == "PMT")
+            #expect(args.count == 3)
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testIpmtBuilder() {
+    @Test func ipmtBuilder() {
         let ipmt = NodeFormula.ipmt(
             rate: .number(0.005),
             per: .number(1),
@@ -183,14 +181,14 @@ final class NodeFormulaTests: XCTestCase {
             pv: .number(250_000)
         )
         if case .function(let name, let args) = ipmt {
-            XCTAssertEqual(name, "IPMT")
-            XCTAssertEqual(args.count, 4)
+            #expect(name == "IPMT")
+            #expect(args.count == 4)
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testPpmtBuilder() {
+    @Test func ppmtBuilder() {
         let ppmt = NodeFormula.ppmt(
             rate: .number(0.005),
             per: .number(1),
@@ -198,39 +196,39 @@ final class NodeFormulaTests: XCTestCase {
             pv: .number(250_000)
         )
         if case .function(let name, let args) = ppmt {
-            XCTAssertEqual(name, "PPMT")
-            XCTAssertEqual(args.count, 4)
+            #expect(name == "PPMT")
+            #expect(args.count == 4)
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testNpvBuilder() {
+    @Test func npvBuilder() {
         let npv = NodeFormula.npv(
             rate: .number(0.10),
             values: [.number(-1000), .number(300), .number(400), .number(500)]
         )
         if case .function(let name, let args) = npv {
-            XCTAssertEqual(name, "NPV")
-            XCTAssertEqual(args.count, 5)
+            #expect(name == "NPV")
+            #expect(args.count == 5)
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testIrrBuilderWithLiterals() {
+    @Test func irrBuilderWithLiterals() {
         let irr = NodeFormula.irr([.number(-1000), .number(300), .number(400), .number(500)])
         if case .function(let name, let args) = irr {
-            XCTAssertEqual(name, "IRR")
-            XCTAssertEqual(args.count, 4)
+            #expect(name == "IRR")
+            #expect(args.count == 4)
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
     // MARK: - Range Resolution
 
-    func testRangeResolvesToCellRange() throws {
+    @Test func rangeResolvesToCellRange() throws {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let c = NodeRef(label: "C")
@@ -240,59 +238,56 @@ final class NodeFormulaTests: XCTestCase {
 
         let formula = NodeFormula.range([a, b, c])
         let ast = try formula.resolve(using: [a: cellA, b: cellB, c: cellC])
-        XCTAssertEqual(
-            ast,
-            .cellRange(CellRange(from: cellA, to: cellC))
-        )
+        #expect(ast == .cellRange(CellRange(from: cellA, to: cellC)))
     }
 
-    func testRangeDanglingReferenceThrows() {
+    @Test func rangeDanglingReferenceThrows() {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let cellA = CellRef(column: 1, row: 1)
 
         let formula = NodeFormula.range([a, b])
-        XCTAssertThrowsError(try formula.resolve(using: [a: cellA]))
+        #expect(throws: (any Error).self) { try formula.resolve(using: [a: cellA]) }
     }
 
-    func testIrrBuilderUsesRange() {
+    @Test func irrBuilderUsesRange() {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let irr = NodeFormula.irr([.ref(a), .ref(b)])
 
         if case .function(let name, let args) = irr {
-            XCTAssertEqual(name, "IRR")
-            XCTAssertEqual(args.count, 1)
+            #expect(name == "IRR")
+            #expect(args.count == 1)
             if case .range(let refs) = args[0] {
-                XCTAssertEqual(refs.count, 2)
+                #expect(refs.count == 2)
             } else {
-                XCTFail("Expected range argument")
+                Issue.record("Expected range argument")
             }
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testNpvBuilderUsesRange() {
+    @Test func npvBuilderUsesRange() {
         let rate = NodeFormula.number(0.10)
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "B")
         let npv = NodeFormula.npv(rate: rate, values: [.ref(a), .ref(b)])
 
         if case .function(let name, let args) = npv {
-            XCTAssertEqual(name, "NPV")
-            XCTAssertEqual(args.count, 2)
+            #expect(name == "NPV")
+            #expect(args.count == 2)
             if case .range(let refs) = args[1] {
-                XCTAssertEqual(refs.count, 2)
+                #expect(refs.count == 2)
             } else {
-                XCTFail("Expected range as second argument")
+                Issue.record("Expected range as second argument")
             }
         } else {
-            XCTFail("Expected function case")
+            Issue.record("Expected function case")
         }
     }
 
-    func testPmtBuilderResolvesToFormulaAST() throws {
+    @Test func pmtBuilderResolvesToFormulaAST() throws {
         let rate = NodeRef(label: "Rate")
         let nper = NodeRef(label: "Nper")
         let pv = NodeRef(label: "PV")
@@ -303,9 +298,6 @@ final class NodeFormulaTests: XCTestCase {
         let pmt = NodeFormula.pmt(rate: .ref(rate), nper: .ref(nper), pv: .ref(pv))
         let ast = try pmt.resolve(using: [rate: cellRate, nper: cellNper, pv: cellPV])
 
-        XCTAssertEqual(
-            ast,
-            .function("PMT", [.cellRef(cellRate), .cellRef(cellNper), .cellRef(cellPV)])
-        )
+        #expect(ast == .function("PMT", [.cellRef(cellRate), .cellRef(cellNper), .cellRef(cellPV)]))
     }
 }

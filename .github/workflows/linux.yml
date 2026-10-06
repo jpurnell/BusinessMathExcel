@@ -117,5 +117,9 @@ jobs:
             echo "| build | ${{ job.status }} |"
             grep -cE "^.*error:" build.log 2>/dev/null | sed 's/^/| build errors | /; s/$/ |/' || true
             grep -cE "^.*warning:" build.log 2>/dev/null | sed 's/^/| build warnings | /; s/$/ |/' || true
-            grep -oE "Executed [0-9]+ tests?, with [0-9]+ failures?" test.log 2>/dev/null | tail -1 | sed 's/^/| tests | /; s/$/ |/' || true
+            # The suite is Swift Testing, whose summary line is "Test run with N tests
+            # in M suites passed|failed". XCTest's "Executed N tests" line is still
+            # printed and now always reads zero, so quoting it would report an empty
+            # run as the result.
+            grep -oE "Test run with [0-9]+ tests? in [0-9]+ suites? (passed|failed)[^.]*" test.log 2>/dev/null | tail -1 | sed 's/^/| tests | /; s/$/ |/' || true
           } >> "$GITHUB_STEP_SUMMARY"

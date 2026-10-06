@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -29,7 +30,11 @@ import SwiftXLSX
 ///
 /// Unset, every test here skips. The workbooks are private — teaching material and
 /// employer files — so none is checked in and none should be.
-final class CorpusMeasurementTests: XCTestCase {
+@Suite(.enabled(
+    if: Corpus.isAvailable,
+    "Set BUSINESSMATHEXCEL_CORPUS to a colon-separated list of directories holding .xlsx files. The workbooks are private and are not checked in."
+))
+struct CorpusMeasurementTests {
 
     /// One workbook's measurements.
     private struct Reading {
@@ -55,25 +60,16 @@ final class CorpusMeasurementTests: XCTestCase {
         return false
     }
 
+    /// The corpus, as the suite's enabling condition found it.
+    ///
+    /// The suite does not run without workbooks, so an empty list here means they
+    /// went away between the condition and the test — a failure, not a skip.
     private func corpusFiles() throws -> [String] {
-        guard let configured = ProcessInfo.processInfo.environment["BUSINESSMATHEXCEL_CORPUS"],
-              !configured.isEmpty
-        else {
-            throw XCTSkip(
-                "Set BUSINESSMATHEXCEL_CORPUS to a colon-separated list of directories. "
-                    + "The workbooks are private and are not checked in.")
+        let files = Corpus.files
+        guard !files.isEmpty else {
+            throw FixtureUnavailable(description: "No .xlsx files under the configured roots.")
         }
-
-        var files: [String] = []
-        for root in configured.split(separator: ":").map(String.init) {
-            guard let walk = FileManager.default.enumerator(atPath: root) else { continue }
-            for case let entry as String in walk
-            where entry.lowercased().hasSuffix(".xlsx") && !entry.contains("~$") {
-                files.append(root + "/" + entry)
-            }
-        }
-        guard !files.isEmpty else { throw XCTSkip("No .xlsx files under the configured roots.") }
-        return files.sorted()
+        return files
     }
 
     private func read(_ path: String) -> Reading? {
@@ -116,7 +112,7 @@ final class CorpusMeasurementTests: XCTestCase {
     /// dependency graph recovers from the same files. A graph can be built from any
     /// sheet that has formulas at all, because "what does this read" is answerable
     /// without deciding first what kind of model it is.
-    func testReportsWhatTheCorpusRecovers() throws {
+    @Test func reportsWhatTheCorpusRecovers() throws {
         let files = try corpusFiles()
         var readings: [Reading] = []
         var unreadable: [String] = []
@@ -169,7 +165,7 @@ final class CorpusMeasurementTests: XCTestCase {
 
         // Reported, not gated. A threshold here would be tuned to this corpus, and
         // the whole reason the corpus exists is that the fixture already was.
-        XCTAssertFalse(readings.isEmpty, "something should have been readable")
+        #expect(!readings.isEmpty, "something should have been readable")
     }
 
     /// Which functions do real workbooks actually call, and how often?
@@ -180,7 +176,7 @@ final class CorpusMeasurementTests: XCTestCase {
     /// and says which of them BusinessMath already answers for.
     ///
     /// Reported, not gated.
-    func testWhichFunctionsTheCorpusCalls() throws {
+    @Test func whichFunctionsTheCorpusCalls() throws {
         let files = try corpusFiles()
         var callsByName: [String: Int] = [:]
         var sheetsByName: [String: Int] = [:]
@@ -297,7 +293,7 @@ final class CorpusMeasurementTests: XCTestCase {
             print("TSV\t\(name)\t\(counts.calls)\t\(counts.sheets)")
         }
 
-        XCTAssertFalse(files.isEmpty)
+        #expect(!files.isEmpty)
     }
 
     /// Every name called as a function in raw formula text.
@@ -364,7 +360,7 @@ final class CorpusMeasurementTests: XCTestCase {
     /// is worth.
     ///
     /// Reported, not gated.
-    func testHowTheReferenceFunctionsAreCalled() throws {
+    @Test func howTheReferenceFunctionsAreCalled() throws {
         let files = try corpusFiles()
         var byArity: [String: [Int: Int]] = [:]
 
@@ -399,7 +395,7 @@ final class CorpusMeasurementTests: XCTestCase {
             print("ARITY  \(name)  \(total) calls — \(shape)")
         }
 
-        XCTAssertFalse(files.isEmpty)
+        #expect(!files.isEmpty)
     }
 
     /// How often a reference function is nested inside another one.
@@ -410,7 +406,7 @@ final class CorpusMeasurementTests: XCTestCase {
     /// names rather than what is in it.
     ///
     /// Reported, not gated.
-    func testHowOftenReferenceFunctionsNest() throws {
+    @Test func howOftenReferenceFunctionsNest() throws {
         let files = try corpusFiles()
         let referenceFunctions: Set<String> = ["COLUMN", "ROW", "OFFSET", "INDIRECT", "ISREF"]
         var nested: [String: Int] = [:]
@@ -482,7 +478,7 @@ final class CorpusMeasurementTests: XCTestCase {
             print("BASIS  YEARFRAC \(basis): \(count)")
         }
 
-        XCTAssertFalse(files.isEmpty)
+        #expect(!files.isEmpty)
     }
 
     /// Every function call in a formula, with how many arguments it was given.
@@ -549,7 +545,7 @@ final class CorpusMeasurementTests: XCTestCase {
     /// answerable from any sheet, without first deciding what kind of model it is.
     /// A timeline is a property some models have; a dependency is what every
     /// formula is.
-    func testEveryWorkbookWithFormulasYieldsAGraph() throws {
+    @Test func everyWorkbookWithFormulasYieldsAGraph() throws {
         let files = try corpusFiles()
         var checked = 0
         var barren: [String] = []
@@ -570,9 +566,7 @@ final class CorpusMeasurementTests: XCTestCase {
         }
 
         print("CORPUS graph built on \(checked) sheets holding formulas")
-        XCTAssertEqual(
-            barren, [],
-            "a sheet with formulas has dependencies, so it has a graph")
-        XCTAssertGreaterThan(checked, 0)
+        #expect(barren == [], "a sheet with formulas has dependencies, so it has a graph")
+        #expect(checked > 0)
     }
 }

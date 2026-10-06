@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -10,7 +11,7 @@ import SwiftXLSX
 /// `FormulaEvaluator.accountNames(in:)`, which parses it and throws if it cannot.
 /// A translator checked only against its own expectations is a translator that
 /// agrees with itself.
-final class FormulaTranslationTests: XCTestCase {
+@Suite struct FormulaTranslationTests {
 
     private func sheet(_ build: (Worksheet) -> Void) -> (SheetGrid, PeriodAxis) {
         let wb = Workbook()
@@ -34,7 +35,7 @@ final class FormulaTranslationTests: XCTestCase {
 
     // MARK: - The upstream parser accepts it
 
-    func testArithmeticParses() throws {
+    @Test func arithmeticParses() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Cost", to: "A3")
@@ -49,12 +50,11 @@ final class FormulaTranslationTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertEqual(try accounts(in: split.formula), ["Revenue", "Cost"])
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(try accounts(in: split.formula) == ["Revenue", "Cost"])
     }
 
-    func testAComparisonParses() throws {
+    @Test func aComparisonParses() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Target", to: "A3")
@@ -69,12 +69,11 @@ final class FormulaTranslationTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertEqual(try accounts(in: split.formula), ["Revenue", "Target"])
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(try accounts(in: split.formula) == ["Revenue", "Target"])
     }
 
-    func testARegisteredFunctionParses() throws {
+    @Test func aRegisteredFunctionParses() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Cash", to: "A2")
             sheet.write("Debt", to: "A3")
@@ -90,18 +89,14 @@ final class FormulaTranslationTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
-        XCTAssertEqual(
-            try accounts(in: split.formula), ["Cash", "Debt"],
-            "MIN is a function, not an account — the upstream parser must agree"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        #expect(try accounts(in: split.formula) == ["Cash", "Debt"], "MIN is a function, not an account — the upstream parser must agree")
     }
 
     // MARK: - Awkward names
 
-    func testANameWithPunctuationSurvivesInBrackets() throws {
+    @Test func aNameWithPunctuationSurvivesInBrackets() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Sales & Marketing", to: "A2")
             sheet.write("Revenue", to: "A3")
@@ -116,16 +111,12 @@ final class FormulaTranslationTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertTrue(
-            split.formula.contains("[Sales & Marketing]"),
-            "the ampersand would otherwise be read as an operator: \(split.formula)"
-        )
-        XCTAssertEqual(try accounts(in: split.formula), ["Sales & Marketing", "Revenue"])
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.formula.contains("[Sales & Marketing]"), "the ampersand would otherwise be read as an operator: \(split.formula)")
+        #expect(try accounts(in: split.formula) == ["Sales & Marketing", "Revenue"])
     }
 
-    func testAnAddressDerivedNameParses() throws {
+    @Test func anAddressDerivedNameParses() throws {
         // An unlabelled row is named for its first cell — `C4`, which starts with a
         // letter and ends in digits, and is a perfectly ordinary identifier.
         let (grid, axis) = sheet { sheet in
@@ -138,14 +129,13 @@ final class FormulaTranslationTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertNoThrow(try accounts(in: split.formula))
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(throws: Never.self) { try accounts(in: split.formula) }
     }
 
     // MARK: - Unregistered functions
 
-    func testAnUnregisteredFunctionIsReportedAndNotInvented() throws {
+    @Test func anUnregisteredFunctionIsReportedAndNotInvented() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Looked up", to: "A4")
@@ -157,16 +147,12 @@ final class FormulaTranslationTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertEqual(split.diagnostics.map(\.code), [.unregisteredFunction])
-        XCTAssertTrue(
-            split.diagnostics.first?.message.contains("VLOOKUP") == true,
-            "the diagnostic names the function so the registry gap is actionable"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unregisteredFunction])
+        #expect(split.diagnostics.first?.message.contains("VLOOKUP") == true, "the diagnostic names the function so the registry gap is actionable")
     }
 
-    func testAnUnregisteredFunctionNeverBecomesItsCachedNumber() throws {
+    @Test func anUnregisteredFunctionNeverBecomesItsCachedNumber() throws {
         // The precise failure this project exists to avoid. The cell has a cached
         // value sitting in it, and translation must not reach for it.
         let wb = Workbook()
@@ -181,24 +167,20 @@ final class FormulaTranslationTests: XCTestCase {
         source.write(FormulaAST.function("VLOOKUP", [.cellRef(CellRef("D2"))]), to: "D4")
 
         let reloaded = try Workbook(xlsxData: try wb.save())
-        let sheet = try XCTUnwrap(reloaded.sheets.first)
+        let sheet = try #require(reloaded.sheets.first)
         let imported = ModelImporter.importSheet(sheet)
         let grid = SheetGrid.build(from: imported)
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertEqual(split.diagnostics.map(\.code), [.unregisteredFunction])
-        XCTAssertFalse(
-            split.formula.contains("VLOOKUP"),
-            "an unparseable name must not be handed to the evaluator either"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unregisteredFunction])
+        #expect(!split.formula.contains("VLOOKUP"), "an unparseable name must not be handed to the evaluator either")
     }
 
-    func testRegisteredNamesAreCheckedAgainstTheRealRegistry() {
+    @Test func registeredNamesAreCheckedAgainstTheRealRegistry() {
         // Not a hand-copied list. If upstream registers or removes a name, this
         // moves with it rather than drifting.
-        XCTAssertNotNil(FormulaEvaluator<Double>.Function(rawValue: "MIN"))
-        XCTAssertNil(FormulaEvaluator<Double>.Function(rawValue: "VLOOKUP"))
+        #expect(FormulaEvaluator<Double>.Function(rawValue: "MIN")?.rawValue == "MIN")
+        #expect(FormulaEvaluator<Double>.Function(rawValue: "VLOOKUP") == nil)
     }
 }

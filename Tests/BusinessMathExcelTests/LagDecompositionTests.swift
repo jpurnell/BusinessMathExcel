@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
@@ -9,7 +10,7 @@ import SwiftXLSX
 /// column left. The offset along the period axis is that reach, and it is
 /// mechanical — the grid knows where every cell sits — so a formula can be split
 /// into the part that stays and the part that becomes a rollforward.
-final class LagDecompositionTests: XCTestCase {
+@Suite struct LagDecompositionTests {
 
     /// Years across C..E, so the period columns are C, D, E.
     private func sheet(
@@ -32,7 +33,7 @@ final class LagDecompositionTests: XCTestCase {
 
     // MARK: - Lag zero
 
-    func testAFormulaReadingItsOwnPeriodHasNoLag() throws {
+    @Test func aFormulaReadingItsOwnPeriodHasNoLag() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Cost", to: "A3")
@@ -47,15 +48,14 @@ final class LagDecompositionTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertTrue(split.rollforwards.isEmpty, "same period, so nothing carries")
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.rollforwards.isEmpty, "same period, so nothing carries")
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
     }
 
     // MARK: - Lag one
 
-    func testASelfReferenceOnePeriodBackBecomesARollforward() throws {
+    @Test func aSelfReferenceOnePeriodBackBecomesARollforward() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -63,35 +63,27 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("D2")), .number(1.15)), to: "E2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
-        XCTAssertEqual(split.rollforwards.count, 1, "one reach back, one carry")
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
+        #expect(split.rollforwards.count == 1, "one reach back, one carry")
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
     }
 
-    func testTheCarriedReferenceIsRewrittenToItsOpeningAccount() throws {
+    @Test func theCarriedReferenceIsRewrittenToItsOpeningAccount() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("C2")), .number(1.15)), to: "D2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
-        let carry = try XCTUnwrap(split.rollforwards.first)
-        XCTAssertNotEqual(
-            carry.opening, carry.closing,
-            "an account cannot open at its own close in the same period"
-        )
-        XCTAssertTrue(
-            split.formula.contains(carry.opening),
-            "the period-local formula reads the opening account, not the prior cell"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
+        let carry = try #require(split.rollforwards.first)
+        #expect(carry.opening != carry.closing, "an account cannot open at its own close in the same period")
+        #expect(split.formula.contains(carry.opening), "the period-local formula reads the opening account, not the prior cell")
     }
 
     // MARK: - Mixed
 
-    func testAFormulaReachingBothWaysSplits() throws {
+    @Test func aFormulaReachingBothWaysSplits() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Cash", to: "A2")
             sheet.write("Flow", to: "A3")
@@ -102,16 +94,15 @@ final class LagDecompositionTests: XCTestCase {
                 FormulaAST.add(.cellRef(CellRef("C2")), .cellRef(CellRef("D3"))), to: "D2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
-        XCTAssertEqual(split.rollforwards.count, 1, "only the lagged term carries")
-        XCTAssertTrue(split.diagnostics.isEmpty)
-        XCTAssertTrue(split.formula.contains("Flow"), "the same-period term survives by name")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
+        #expect(split.rollforwards.count == 1, "only the lagged term carries")
+        #expect(split.diagnostics.isEmpty)
+        #expect(split.formula.contains("Flow"), "the same-period term survives by name")
     }
 
     // MARK: - Off the axis
 
-    func testAReferenceOffThePeriodAxisIsNotALag() throws {
+    @Test func aReferenceOffThePeriodAxisIsNotALag() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Growth", to: "A6")
             sheet.write(0.15, to: "B6")
@@ -121,15 +112,14 @@ final class LagDecompositionTests: XCTestCase {
                 FormulaAST.multiply(.cellRef(CellRef("B6")), .number(100)), to: "D2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
-        XCTAssertTrue(split.rollforwards.isEmpty, "a scalar is constant, not carried")
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D2"), in: grid, axis: axis))
+        #expect(split.rollforwards.isEmpty, "a scalar is constant, not carried")
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
     }
 
     // MARK: - Refusals
 
-    func testAReachOfTwoPeriodsIsRefused() throws {
+    @Test func aReachOfTwoPeriodsIsRefused() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -139,13 +129,12 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.cellRef(CellRef("C2")), to: "E2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("E2"), in: grid, axis: axis))
-        XCTAssertEqual(split.diagnostics.map(\.code), [.unsupportedLag])
-        XCTAssertTrue(split.rollforwards.isEmpty, "and it is not quietly treated as lag 1")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("E2"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unsupportedLag])
+        #expect(split.rollforwards.isEmpty, "and it is not quietly treated as lag 1")
     }
 
-    func testAForwardReferenceIsRefused() throws {
+    @Test func aForwardReferenceIsRefused() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "D2")
@@ -154,12 +143,11 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.cellRef(CellRef("D2")), to: "C2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("C2"), in: grid, axis: axis))
-        XCTAssertEqual(split.diagnostics.map(\.code), [.unsupportedLag])
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("C2"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unsupportedLag])
     }
 
-    func testARefusalNamesTheCellAndTheReach() throws {
+    @Test func aRefusalNamesTheCellAndTheReach() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -167,16 +155,15 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.cellRef(CellRef("C2")), to: "E2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("E2"), in: grid, axis: axis))
-        let diagnostic = try XCTUnwrap(split.diagnostics.first)
-        XCTAssertEqual(diagnostic.cell, CellRef("E2"))
-        XCTAssertTrue(diagnostic.message.contains("2"), "Got: \(diagnostic.message)")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("E2"), in: grid, axis: axis))
+        let diagnostic = try #require(split.diagnostics.first)
+        #expect(diagnostic.cell == CellRef("E2"))
+        #expect(diagnostic.message.contains("2"), "Got: \(diagnostic.message)")
     }
 
     // MARK: - Pinned references
 
-    func testAPinnedReferenceIsAnAssumptionNotACarry() throws {
+    @Test func aPinnedReferenceIsAnAssumptionNotACarry() throws {
         // `$B$6` names the same cell from every period, so it is a rate, not last
         // period's anything. Reading the `$` is the difference between a
         // rollforward and a constant — and getting it wrong turns an interest rate
@@ -195,13 +182,12 @@ final class LagDecompositionTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D3"), in: grid, axis: axis))
-        XCTAssertTrue(split.rollforwards.isEmpty, "a pinned cell carries nothing")
-        XCTAssertTrue(split.formula.contains("Rate"))
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D3"), in: grid, axis: axis))
+        #expect(split.rollforwards.isEmpty, "a pinned cell carries nothing")
+        #expect(split.formula.contains("Rate"))
     }
 
-    func testAPinnedReferenceOnePeriodBackIsStillAnAssumption() throws {
+    @Test func aPinnedReferenceOnePeriodBackIsStillAnAssumption() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Base", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -211,10 +197,9 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.cellRef(CellRef("$C$2")), to: "D3")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D3"), in: grid, axis: axis))
-        XCTAssertTrue(split.rollforwards.isEmpty)
-        XCTAssertTrue(split.diagnostics.isEmpty)
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D3"), in: grid, axis: axis))
+        #expect(split.rollforwards.isEmpty)
+        #expect(split.diagnostics.isEmpty)
     }
 
     // MARK: - Cell ranges
@@ -225,7 +210,7 @@ final class LagDecompositionTests: XCTestCase {
     /// flow build. Every one of them is an account, the range holds no time in it
     /// at all, and the whole construct is `SUM([EBITDA], [Less: Taxes], …)` — which
     /// the grammar has expressed since the function registry landed.
-    func testARangeWithinOnePeriodBecomesItsAccounts() throws {
+    @Test func aRangeWithinOnePeriodBecomesItsAccounts() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("EBITDA", to: "A2")
             sheet.write("Taxes", to: "A3")
@@ -241,13 +226,12 @@ final class LagDecompositionTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
-        XCTAssertEqual(split.formula, "SUM(EBITDA, Taxes)")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        #expect(split.formula == "SUM(EBITDA, Taxes)")
     }
 
-    func testARangeSkipsTheBlankRowsInsideIt() throws {
+    @Test func aRangeSkipsTheBlankRowsInsideIt() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("EBITDA", to: "A2")
             sheet.write("Taxes", to: "A4")
@@ -263,12 +247,8 @@ final class LagDecompositionTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D5"), in: grid, axis: axis))
-        XCTAssertEqual(
-            split.formula, "SUM(EBITDA, Taxes)",
-            "row 3 holds nothing, and Excel's SUM passes over it"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D5"), in: grid, axis: axis))
+        #expect(split.formula == "SUM(EBITDA, Taxes)", "row 3 holds nothing, and Excel's SUM passes over it")
     }
 
     /// A range running along the timeline is a different thing and is refused.
@@ -277,7 +257,7 @@ final class LagDecompositionTests: XCTestCase {
     /// over time, not a period-local formula, and the two cannot share a
     /// translation: rendering it as `SUM(Revenue)` would read as this period's
     /// revenue and quietly drop five years.
-    func testARangeAlongTheTimelineIsRefused() throws {
+    @Test func aRangeAlongTheTimelineIsRefused() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Total", to: "A3")
@@ -288,12 +268,8 @@ final class LagDecompositionTests: XCTestCase {
                 to: "C3")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("C3"), in: grid, axis: axis))
-        XCTAssertEqual(
-            split.diagnostics.map(\.code), [.unsupportedFormulaNode],
-            "reported, not rendered as something that means less"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("C3"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unsupportedFormulaNode], "reported, not rendered as something that means less")
     }
 
     // MARK: - Named ranges
@@ -305,7 +281,7 @@ final class LagDecompositionTests: XCTestCase {
     /// SwiftXLSX 0.8.0 the reference was unresolvable — the name arrived with
     /// nothing to look it up in — and the row went to residue, taking
     /// `Less: Interest` and, through it, `EBT` down with it.
-    func testANamedRangeResolvesThroughTheNormalReferenceRules() throws {
+    @Test func aNamedRangeResolvesThroughTheNormalReferenceRules() throws {
         let (grid, axis) = sheet(names: ["Rate": CellRef("$B$3")]) { sheet in
             sheet.write("Interest Rate", to: "A3")
             sheet.write(0.1, to: "B3")
@@ -315,18 +291,12 @@ final class LagDecompositionTests: XCTestCase {
                 FormulaAST.multiply(.cellRef(CellRef("C2")), .namedRange("Rate")), to: "C4")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("C4"), in: grid, axis: axis))
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
-        XCTAssertEqual(
-            split.formula, "(C2 * [Interest Rate])",
-            "the name resolves to B3, and B3's account is the one its row names — "
-                + "the name in the formula and the name of the account are different "
-                + "things and need not agree"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("C4"), in: grid, axis: axis))
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        #expect(split.formula == "(C2 * [Interest Rate])", "the name resolves to B3, and B3's account is the one its row names — the name in the formula and the name of the account are different things and need not agree")
     }
 
-    func testAnUnknownNamedRangeIsRefused() throws {
+    @Test func anUnknownNamedRangeIsRefused() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Charge", to: "A3")
             for column in ["C", "D", "E"] { sheet.write(10.0, to: "\(column)2") }
@@ -334,12 +304,8 @@ final class LagDecompositionTests: XCTestCase {
                 FormulaAST.multiply(.cellRef(CellRef("C2")), .namedRange("Missing")), to: "C3")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("C3"), in: grid, axis: axis))
-        XCTAssertEqual(
-            split.diagnostics.map(\.code), [.unsupportedFormulaNode],
-            "a name with nothing behind it is reported, not treated as zero silently"
-        )
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("C3"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unsupportedFormulaNode], "a name with nothing behind it is reported, not treated as zero silently")
     }
 
     /// A range off the timeline is still a column of accounts.
@@ -350,7 +316,7 @@ final class LagDecompositionTests: XCTestCase {
     /// not that the column happens to be a year. Requiring a period column here
     /// meant the Wharton sources-and-uses totals worked or failed according to
     /// whether their block happened to overlap the timeline's columns.
-    func testARangeOutsideThePeriodColumnsStillReadsAsAccounts() throws {
+    @Test func aRangeOutsideThePeriodColumnsStillReadsAsAccounts() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Term Loan", to: "A2")
             sheet.write("Equity", to: "A3")
@@ -363,10 +329,9 @@ final class LagDecompositionTests: XCTestCase {
                 to: "B4")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("B4"), in: grid, axis: axis))
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
-        XCTAssertEqual(split.formula, "SUM([Term Loan], Equity)")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("B4"), in: grid, axis: axis))
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        #expect(split.formula == "SUM([Term Loan], Equity)")
     }
 
     /// A text literal is not an account, and must not be rendered as one.
@@ -377,7 +342,7 @@ final class LagDecompositionTests: XCTestCase {
     /// bare name `True` produced a formula that read it as an *account*, which
     /// either fails to resolve or, worse, binds to a real account that happens to
     /// be spelled that way.
-    func testATextLiteralIsRefusedRatherThanReadAsAnAccount() throws {
+    @Test func aTextLiteralIsRefusedRatherThanReadAsAnAccount() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Check", to: "A2")
             sheet.write("True", to: "A3")
@@ -391,13 +356,12 @@ final class LagDecompositionTests: XCTestCase {
                 to: "C2")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("C2"), in: grid, axis: axis))
-        XCTAssertEqual(split.diagnostics.map(\.code), [.unsupportedFormulaNode])
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("C2"), in: grid, axis: axis))
+        #expect(split.diagnostics.map(\.code) == [.unsupportedFormulaNode])
         // Row 3 really is named `True`, which is the trap: the reference to C3
         // *should* read as that account, and the literal in the second argument
         // should not — one is a cell on that row, the other is a word.
-        XCTAssertEqual(split.formula, "IF((True = 1.0), 0, 0.0)")
+        #expect(split.formula == "IF((True = 1.0), 0, 0.0)")
     }
 
     // MARK: - Held flat at the first period
@@ -411,7 +375,7 @@ final class LagDecompositionTests: XCTestCase {
     /// as underdetermined because any value at all satisfies it.
     ///
     /// What the row actually means is the seed's own definition, repeated.
-    func testARowPinnedToItsOwnSeedTakesTheSeedsDefinition() throws {
+    @Test func aRowPinnedToItsOwnSeedTakesTheSeedsDefinition() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("EBITDA margin", to: "A3")
             sheet.write(0.4, to: "B3")
@@ -421,14 +385,13 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.cellRef(CellRef("$C$4")), to: "E4")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertTrue(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
-        XCTAssertEqual(split.formula, "[EBITDA margin]")
-        XCTAssertTrue(split.rollforwards.isEmpty, "holding flat is not a carry")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.diagnostics.isEmpty, "Got: \(split.diagnostics)")
+        #expect(split.formula == "[EBITDA margin]")
+        #expect(split.rollforwards.isEmpty, "holding flat is not a carry")
     }
 
-    func testARowPinnedToALiteralSeedIsThatConstant() throws {
+    @Test func aRowPinnedToALiteralSeedIsThatConstant() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Tax Rate", to: "A4")
             sheet.write(0.25, to: "C4")
@@ -436,13 +399,12 @@ final class LagDecompositionTests: XCTestCase {
             sheet.write(FormulaAST.cellRef(CellRef("$C$4")), to: "E4")
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertEqual(split.formula, "0.25", "the seed states it; nothing else does")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.formula == "0.25", "the seed states it; nothing else does")
     }
 
     /// A pinned reference to *another* row is unaffected.
-    func testAPinnedReferenceToAnotherRowStillNamesThatRow() throws {
+    @Test func aPinnedReferenceToAnotherRowStillNamesThatRow() throws {
         let (grid, axis) = sheet { sheet in
             sheet.write("Revenue growth", to: "A3")
             sheet.write(0.1, to: "B3")
@@ -452,8 +414,7 @@ final class LagDecompositionTests: XCTestCase {
             }
         }
 
-        let split = try XCTUnwrap(
-            LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
-        XCTAssertEqual(split.formula, "[Revenue growth]")
+        let split = try #require(LagDecomposition.decompose(cell: CellRef("D4"), in: grid, axis: axis))
+        #expect(split.formula == "[Revenue growth]")
     }
 }

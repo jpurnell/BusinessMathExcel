@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
 
-final class AmortizationModelBuilderTests: XCTestCase {
+@Suite struct AmortizationModelBuilderTests {
 
     private let principal = 100_000.0
     private let annualRate = 0.06
@@ -19,96 +20,97 @@ final class AmortizationModelBuilderTests: XCTestCase {
 
     // MARK: - Input Nodes
 
-    func testHasPrincipalInput() throws {
+    @Test func hasPrincipalInput() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Principal"))
+        let ref = try #require(model.node(named: "Principal"))
         if case .input(let value) = model.kind(of: ref) {
-            XCTAssertEqual(value, principal, accuracy: 0.01)
+            #expect(abs(value - principal) <= 0.01)
         } else {
-            XCTFail("Expected input node")
+            Issue.record("Expected input node")
         }
     }
 
-    func testHasAnnualRateInput() throws {
+    @Test func hasAnnualRateInput() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Annual Rate"))
+        let ref = try #require(model.node(named: "Annual Rate"))
         if case .input(let value) = model.kind(of: ref) {
-            XCTAssertEqual(value, annualRate, accuracy: 0.0001)
+            #expect(abs(value - annualRate) <= 0.0001)
         } else {
-            XCTFail("Expected input node")
+            Issue.record("Expected input node")
         }
     }
 
-    func testHasTermInput() throws {
+    @Test func hasTermInput() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Term (months)"))
+        let ref = try #require(model.node(named: "Term (months)"))
         if case .input(let value) = model.kind(of: ref) {
-            XCTAssertEqual(value, Double(termMonths), accuracy: 0.01)
+            #expect(abs(value - Double(termMonths)) <= 0.01)
         } else {
-            XCTFail("Expected input node")
+            Issue.record("Expected input node")
         }
     }
 
     // MARK: - Calculation Nodes
 
-    func testHasMonthlyRateFormula() throws {
+    @Test func hasMonthlyRateFormula() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Monthly Rate"))
+        let ref = try #require(model.node(named: "Monthly Rate"))
         if case .formula = model.kind(of: ref) {
         } else {
-            XCTFail("Expected formula node")
+            Issue.record("Expected formula node")
         }
     }
 
-    func testHasMonthlyPaymentFormula() throws {
+    @Test func hasMonthlyPaymentFormula() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Monthly Payment"))
+        let ref = try #require(model.node(named: "Monthly Payment"))
         if case .formula = model.kind(of: ref) {
         } else {
-            XCTFail("Expected formula node")
+            Issue.record("Expected formula node")
         }
     }
 
     // MARK: - Table
 
-    func testScheduleTableExists() {
+    @Test func scheduleTableExists() throws {
         let model = makeModel()
-        XCTAssertNotNil(model.table(named: "Schedule"))
+        let table = try #require(model.table(named: "Schedule"))
+        #expect(table.label == "Schedule")
     }
 
-    func testScheduleTableHasCorrectRowCount() {
+    @Test func scheduleTableHasCorrectRowCount() {
         let model = makeModel()
         let table = model.table(named: "Schedule")
-        XCTAssertEqual(table?.rowCount, termMonths)
+        #expect(table?.rowCount == termMonths)
     }
 
-    func testScheduleTableHasCorrectColumns() {
+    @Test func scheduleTableHasCorrectColumns() {
         let model = makeModel()
         let table = model.table(named: "Schedule")
-        XCTAssertEqual(table?.columns, [
+        #expect(table?.columns == [
             "Period", "Beginning Balance", "Payment",
             "Interest", "Principal", "Ending Balance"
         ])
     }
 
-    func testFirstRowBegBalReferencesPrincipal() throws {
+    @Test func firstRowBegBalReferencesPrincipal() throws {
         let model = makeModel()
-        let table = try XCTUnwrap(model.table(named: "Schedule"))
+        let table = try #require(model.table(named: "Schedule"))
         let begBalRef = table.cell(row: 0, column: 1)
 
         if case .formula(let formula) = model.kind(of: begBalRef) {
-            let principalRef = try XCTUnwrap(model.node(named: "Principal"))
-            XCTAssertEqual(formula, .ref(principalRef))
+            let principalRef = try #require(model.node(named: "Principal"))
+            #expect(formula == .ref(principalRef))
         } else {
-            XCTFail("Expected formula referencing Principal")
+            Issue.record("Expected formula referencing Principal")
         }
     }
 
-    func testSecondRowBegBalReferencesFirstEndBal() throws {
+    @Test func secondRowBegBalReferencesFirstEndBal() throws {
         let model = makeModel()
-        let table = try XCTUnwrap(model.table(named: "Schedule"))
+        let table = try #require(model.table(named: "Schedule"))
         guard table.rowCount >= 2 else {
-            XCTFail("Need at least 2 rows")
+            Issue.record("Need at least 2 rows")
             return
         }
 
@@ -116,79 +118,78 @@ final class AmortizationModelBuilderTests: XCTestCase {
         let secondBegBal = table.cell(row: 1, column: 1)
 
         if case .formula(let formula) = model.kind(of: secondBegBal) {
-            XCTAssertEqual(formula, .ref(firstEndBal))
+            #expect(formula == .ref(firstEndBal))
         } else {
-            XCTFail("Expected formula referencing previous ending balance")
+            Issue.record("Expected formula referencing previous ending balance")
         }
     }
 
     // MARK: - Output Nodes
 
-    func testHasTotalPaymentsOutput() throws {
+    @Test func hasTotalPaymentsOutput() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Total Payments"))
+        let ref = try #require(model.node(named: "Total Payments"))
         if case .output = model.kind(of: ref) {
         } else {
-            XCTFail("Expected output node")
+            Issue.record("Expected output node")
         }
     }
 
-    func testHasTotalInterestOutput() throws {
+    @Test func hasTotalInterestOutput() throws {
         let model = makeModel()
-        let ref = try XCTUnwrap(model.node(named: "Total Interest"))
+        let ref = try #require(model.node(named: "Total Interest"))
         if case .output = model.kind(of: ref) {
         } else {
-            XCTFail("Expected output node")
+            Issue.record("Expected output node")
         }
     }
 
     // MARK: - Node Count
 
-    func testNodeCount() {
+    @Test func nodeCount() {
         let model = makeModel()
         let expectedInputs = 3
         let expectedCalcs = 2
         let expectedTableCells = termMonths * 6
         let expectedOutputs = 2
         let expected = expectedInputs + expectedCalcs + expectedTableCells + expectedOutputs
-        XCTAssertEqual(model.nodeCount, expected)
+        #expect(model.nodeCount == expected)
     }
 
     // MARK: - Export
 
-    func testExportsToWorkbook() throws {
+    @Test func exportsToWorkbook() throws {
         let model = makeModel()
         let wb = try ModelExporter.export(model, title: "Amortization", sheetName: "Amortization")
 
-        XCTAssertEqual(wb.sheets.count, 1)
-        XCTAssertEqual(wb.sheets[0].name, "Amortization")
+        #expect(wb.sheets.count == 1)
+        #expect(wb.sheets[0].name == "Amortization")
     }
 
-    func testExportedPMTFormula() throws {
+    @Test func exportedPMTFormula() throws {
         let model = makeModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
-        let paymentRef = try XCTUnwrap(model.node(named: "Monthly Payment"))
-        let paymentCell = try XCTUnwrap(assignment.mapping[paymentRef])
+        let paymentRef = try #require(model.node(named: "Monthly Payment"))
+        let paymentCell = try #require(assignment.mapping[paymentRef])
 
-        let ast = sheet.formulaAST(at: paymentCell.reference)
-        XCTAssertNotNil(ast)
+        let ast = try #require(sheet.formulaAST(at: paymentCell.reference))
 
         if case .negate(let inner) = ast {
             if case .function(let name, _) = inner {
-                XCTAssertEqual(name, "PMT")
+                #expect(name == "PMT")
             } else {
-                XCTFail("Expected PMT function inside negate")
+                Issue.record("Expected PMT function inside negate")
             }
         } else {
-            XCTFail("Expected negated PMT formula")
+            Issue.record("Expected negated PMT formula")
         }
     }
 
-    func testSavesToFile() throws {
+    @Test func savesToFile() throws {
         let model = makeModel()
         let wb = try ModelExporter.export(model, title: "Amortization")
 
@@ -197,15 +198,14 @@ final class AmortizationModelBuilderTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try wb.save(to: url)
-        XCTAssertTrue(try url.checkResourceIsReachable())
+        #expect(try url.checkResourceIsReachable())
     }
 
     // MARK: - DebtInstrument Integration
 
-    func testBuildFromDebtInstrument() throws {
-        let calendar = Calendar.current
-        let start = try XCTUnwrap(calendar.date(from: DateComponents(year: 2025, month: 1, day: 1)))
-        let maturity = try XCTUnwrap(calendar.date(from: DateComponents(year: 2025, month: 4, day: 1)))
+    @Test func buildFromDebtInstrument() throws {
+        let start = try #require(TestCalendar.noon(year: 2025, month: 1, day: 1))
+        let maturity = try #require(TestCalendar.noon(year: 2025, month: 4, day: 1))
 
         let instrument = DebtInstrument(
             principal: 100_000,
@@ -218,6 +218,6 @@ final class AmortizationModelBuilderTests: XCTestCase {
 
         let model = AmortizationModelBuilder.build(from: instrument)
         let table = model.table(named: "Schedule")
-        XCTAssertEqual(table?.rowCount, 3)
+        #expect(table?.rowCount == 3)
     }
 }

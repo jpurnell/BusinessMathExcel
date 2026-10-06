@@ -498,15 +498,21 @@ public enum TypedSourceWriter {
         }
     }
 
+    /// The source literal that rebuilds `period`.
+    ///
+    /// The year and month come from `Period`'s own components rather than from a
+    /// calendar constructed here. `Period` built its date with one calendar, and
+    /// reading that date back through a different one — which is what this did,
+    /// with a Gregorian calendar in whatever time zone the process had — is only
+    /// the inverse of the constructor when the two happen to agree. The type's own
+    /// accessors are its inverse by construction, so the emitted literal names the
+    /// period it was given.
     private static func literal(for period: Period) -> String {
         switch period.type {
         case .annual:
-            return "Period.year(\(Calendar(identifier: .gregorian).component(.year, from: period.date)))"
+            return "Period.year(\(period.year))"
         default:
-            let calendar = Calendar(identifier: .gregorian)
-            let year = calendar.component(.year, from: period.date)
-            let month = calendar.component(.month, from: period.date)
-            return "Period.month(year: \(year), month: \(month))"
+            return "Period.month(year: \(period.year), month: \(period.month))"
         }
     }
 

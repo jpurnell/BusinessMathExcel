@@ -151,7 +151,7 @@ swift package generate-documentation --target BusinessMathExcel
 
 Start with the **Reading a Spreadsheet** guide, which covers recognition end to end.
 
-100% of public APIs documented. 572 tests.
+100% of public APIs documented. 573 tests, written with Swift Testing.
 
 ## License
 

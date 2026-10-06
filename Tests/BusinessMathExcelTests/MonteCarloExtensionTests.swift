@@ -1,8 +1,9 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class MonteCarloExtensionTests: XCTestCase {
+@Suite struct MonteCarloExtensionTests {
 
     private func makeModel() -> (ExcelModel, NodeRef) {
         let model = ExcelModel()
@@ -17,7 +18,7 @@ final class MonteCarloExtensionTests: XCTestCase {
 
     // MARK: - Formula Evaluation
 
-    func testEvaluatesPowerFormula() throws {
+    @Test func evaluatesPowerFormula() throws {
         let model = ExcelModel()
         let base = model.addInput(label: "Base", value: 2)
         let output = model.addOutput(label: "Cubed", formula: .power(.ref(base), .number(3)))
@@ -32,17 +33,14 @@ final class MonteCarloExtensionTests: XCTestCase {
             seed: 42
         )
 
-        let data = try XCTUnwrap(wb.sheets.first { $0.name == "Simulation Data" })
-        guard case .number(let value) = try XCTUnwrap(data.cell(at: "B2")) else {
-            return XCTFail("Expected a numeric output value")
+        let data = try #require(wb.sheets.first { $0.name == "Simulation Data" })
+        guard case .number(let value) = try #require(data.cell(at: "B2")) else {
+            Issue.record("Expected a numeric output value"); return
         }
-        XCTAssertEqual(
-            value, 8, accuracy: 1e-9,
-            "2^3 must evaluate to 8, not fall through to a silent zero"
-        )
+        #expect(abs(value - 8) <= 1e-9, "2^3 must evaluate to 8, not fall through to a silent zero")
     }
 
-    func testEvaluatesComparisonAsOneOrZero() throws {
+    @Test func evaluatesComparisonAsOneOrZero() throws {
         // Excel treats TRUE and FALSE as 1 and 0 in arithmetic. This evaluator has
         // no boolean channel, so that is the only representation available to it.
         for (label, formula, expected) in [
@@ -60,15 +58,15 @@ final class MonteCarloExtensionTests: XCTestCase {
                 iterations: 2, seed: 7
             )
 
-            let data = try XCTUnwrap(wb.sheets.first { $0.name == "Simulation Data" })
-            guard case .number(let value) = try XCTUnwrap(data.cell(at: "B2")) else {
-                return XCTFail("\(label): expected a numeric output")
+            let data = try #require(wb.sheets.first { $0.name == "Simulation Data" })
+            guard case .number(let value) = try #require(data.cell(at: "B2")) else {
+                Issue.record("\(label): expected a numeric output"); return
             }
-            XCTAssertEqual(value, expected, accuracy: 1e-9, "comparison evaluating \(label)")
+            #expect(abs(value - expected) <= 1e-9, "comparison evaluating \(label)")
         }
     }
 
-    func testEvaluatesBooleanAsOneOrZero() throws {
+    @Test func evaluatesBooleanAsOneOrZero() throws {
         // TRUE previously evaluated to 0, the same value used for "cannot evaluate",
         // which made a true condition indistinguishable from an unsupported one.
         let model = ExcelModel()
@@ -82,18 +80,18 @@ final class MonteCarloExtensionTests: XCTestCase {
             iterations: 2, seed: 7
         )
 
-        let data = try XCTUnwrap(wb.sheets.first { $0.name == "Simulation Data" })
-        guard case .number(let value) = try XCTUnwrap(data.cell(at: "B2")) else {
-            return XCTFail("Expected a numeric output")
+        let data = try #require(wb.sheets.first { $0.name == "Simulation Data" })
+        guard case .number(let value) = try #require(data.cell(at: "B2")) else {
+            Issue.record("Expected a numeric output"); return
         }
-        XCTAssertEqual(value, 1, accuracy: 1e-9)
+        #expect(abs(value - 1) <= 1e-9)
     }
 
     // MARK: - Sheet Creation
 
-    func testAddsDataSheet() throws {
+    @Test func addsDataSheet() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -107,13 +105,13 @@ final class MonteCarloExtensionTests: XCTestCase {
             seed: 42
         )
 
-        XCTAssertEqual(wb.sheets.count, 3)
-        XCTAssertEqual(wb.sheets[1].name, "Simulation Data")
+        #expect(wb.sheets.count == 3)
+        #expect(wb.sheets[1].name == "Simulation Data")
     }
 
-    func testAddsSummarySheet() throws {
+    @Test func addsSummarySheet() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -127,15 +125,15 @@ final class MonteCarloExtensionTests: XCTestCase {
             seed: 42
         )
 
-        XCTAssertEqual(wb.sheets[2].name, "Summary")
+        #expect(wb.sheets[2].name == "Summary")
     }
 
     // MARK: - Data Sheet Content
 
-    func testDataSheetHasCorrectRowCount() throws {
+    @Test func dataSheetHasCorrectRowCount() throws {
         let iterations = 50
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -150,19 +148,19 @@ final class MonteCarloExtensionTests: XCTestCase {
         )
 
         let dataSheet = wb.sheets[1]
-        XCTAssertEqual(dataSheet.cell(at: "A1"), .text("Price"))
-        XCTAssertEqual(dataSheet.cell(at: "B1"), .text("Output"))
+        #expect(dataSheet.cell(at: "A1") == .text("Price"))
+        #expect(dataSheet.cell(at: "B1") == .text("Output"))
 
         if case .number = dataSheet.cell(at: "A\(iterations + 1)") {
         } else {
-            XCTFail("Expected data in last row")
+            Issue.record("Expected data in last row")
         }
     }
 
-    func testDataSheetHasHeaders() throws {
+    @Test func dataSheetHasHeaders() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
-        let qty = try XCTUnwrap(model.node(named: "Quantity"))
+        let price = try #require(model.node(named: "Price"))
+        let qty = try #require(model.node(named: "Quantity"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -178,16 +176,16 @@ final class MonteCarloExtensionTests: XCTestCase {
         )
 
         let dataSheet = wb.sheets[1]
-        XCTAssertEqual(dataSheet.cell(at: "A1"), .text("Price"))
-        XCTAssertEqual(dataSheet.cell(at: "B1"), .text("Quantity"))
-        XCTAssertEqual(dataSheet.cell(at: "C1"), .text("Output"))
+        #expect(dataSheet.cell(at: "A1") == .text("Price"))
+        #expect(dataSheet.cell(at: "B1") == .text("Quantity"))
+        #expect(dataSheet.cell(at: "C1") == .text("Output"))
     }
 
     // MARK: - Summary Sheet Content
 
-    func testSummarySheetHasStatFormulas() throws {
+    @Test func summarySheetHasStatFormulas() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -202,20 +200,20 @@ final class MonteCarloExtensionTests: XCTestCase {
         )
 
         let summary = wb.sheets[2]
-        XCTAssertEqual(summary.cell(at: "A1"), .text("Mean"))
-        XCTAssertTrue(summary.cell(at: "B1")?.isFormula == true)
+        #expect(summary.cell(at: "A1") == .text("Mean"))
+        #expect(summary.cell(at: "B1")?.isFormula == true)
 
-        XCTAssertEqual(summary.cell(at: "A2"), .text("Std Dev"))
-        XCTAssertTrue(summary.cell(at: "B2")?.isFormula == true)
+        #expect(summary.cell(at: "A2") == .text("Std Dev"))
+        #expect(summary.cell(at: "B2")?.isFormula == true)
 
-        XCTAssertEqual(summary.cell(at: "A3"), .text("Min"))
-        XCTAssertEqual(summary.cell(at: "A4"), .text("Max"))
-        XCTAssertEqual(summary.cell(at: "A5"), .text("Count"))
+        #expect(summary.cell(at: "A3") == .text("Min"))
+        #expect(summary.cell(at: "A4") == .text("Max"))
+        #expect(summary.cell(at: "A5") == .text("Count"))
     }
 
-    func testSummarySheetHasPercentileFormulas() throws {
+    @Test func summarySheetHasPercentileFormulas() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -230,16 +228,47 @@ final class MonteCarloExtensionTests: XCTestCase {
         )
 
         let summary = wb.sheets[2]
-        XCTAssertEqual(summary.cell(at: "A7"), .text("Percentiles"))
-        XCTAssertEqual(summary.cell(at: "A8"), .text("P5"))
-        XCTAssertTrue(summary.cell(at: "B8")?.isFormula == true)
+        #expect(summary.cell(at: "A7") == .text("Percentiles"))
+        #expect(summary.cell(at: "A8") == .text("P5"))
+        #expect(summary.cell(at: "B8")?.isFormula == true)
+    }
+
+    @Test func everyPercentileIsLabelledWithItsWholePercent() throws {
+        let (model, output) = makeModel()
+        let price = try #require(model.node(named: "Price"))
+        let wb = try ModelExporter.export(model)
+
+        MonteCarloExtension.apply(
+            to: wb,
+            model: model,
+            outputRef: output,
+            variations: [
+                .init(ref: price, distribution: .uniform(min: 80, max: 120))
+            ],
+            iterations: 100,
+            seed: 42
+        )
+
+        // Label and fraction are two renderings of one number. They are derived
+        // from the integer percent, so neither can drift from the other by a
+        // floating-point truncation.
+        let summary = wb.sheets[2]
+        let rows = 8...15
+        let labels = rows.map { summary.cell(at: "A\($0)") }
+        #expect(labels == ["P5", "P10", "P25", "P50", "P75", "P90", "P95", "P99"].map { .text($0) })
+
+        let fractions = try rows.map { row -> String in
+            let formula = FormulaSerializer.serialize(try #require(summary.formulaAST(at: "B\(row)")))
+            return String(formula.split(separator: ",").last ?? "")
+        }
+        #expect(fractions == ["0.05)", "0.1)", "0.25)", "0.5)", "0.75)", "0.9)", "0.95)", "0.99)"])
     }
 
     // MARK: - Determinism
 
-    func testSeedProducesDeterministicResults() throws {
+    @Test func seedProducesDeterministicResults() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
 
         let wb1 = try ModelExporter.export(model)
         MonteCarloExtension.apply(
@@ -262,18 +291,18 @@ final class MonteCarloExtensionTests: XCTestCase {
             let ref = "A\(row)"
             if case .number(let v1) = data1.cell(at: ref),
                case .number(let v2) = data2.cell(at: ref) {
-                XCTAssertEqual(v1, v2, accuracy: 1e-10)
+                #expect(abs(v1 - v2) <= 1e-10)
             } else {
-                XCTFail("Expected matching numbers at \(ref)")
+                Issue.record("Expected matching numbers at \(ref)")
             }
         }
     }
 
     // MARK: - Round-Trip
 
-    func testSavesToFile() throws {
+    @Test func savesToFile() throws {
         let (model, output) = makeModel()
-        let price = try XCTUnwrap(model.node(named: "Price"))
+        let price = try #require(model.node(named: "Price"))
         let wb = try ModelExporter.export(model)
 
         MonteCarloExtension.apply(
@@ -287,6 +316,6 @@ final class MonteCarloExtensionTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try wb.save(to: url)
-        XCTAssertTrue(try url.checkResourceIsReachable())
+        #expect(try url.checkResourceIsReachable())
     }
 }

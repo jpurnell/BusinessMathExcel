@@ -275,9 +275,13 @@ public enum MonteCarloExtension {
         sheet.write("Percentiles", to: CellRef(column: 1, row: row).reference, style: .header)
         row += 1
 
-        let percentiles = [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
-        for pct in percentiles {
-            let pctLabel = "P\(Int(pct * 100))"
+        // Whole percents, with the fraction derived from them. The label is then the
+        // integer itself rather than a Double scaled back up and truncated, which is
+        // exact only while `fraction * 100` happens to land on or above the integer.
+        let percentiles = [5, 10, 25, 50, 75, 90, 95, 99]
+        for percent in percentiles {
+            let pct = Double(percent) / 100
+            let pctLabel = "P\(percent)"
             sheet.write(pctLabel, to: CellRef(column: 1, row: row).reference, style: .header)
             sheet.writeFormula(
                 "=PERCENTILE(\(dataRange),\(pct))",

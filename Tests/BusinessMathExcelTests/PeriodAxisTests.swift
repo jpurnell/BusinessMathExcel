@@ -1,10 +1,11 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
 
 /// Stage 1 — turning detected headings into a real time axis.
-final class PeriodAxisTests: XCTestCase {
+@Suite struct PeriodAxisTests {
 
     private func axis(
         _ build: (Worksheet) -> Void
@@ -33,32 +34,32 @@ final class PeriodAxisTests: XCTestCase {
         return (result.axis, grid.diagnostics + result.diagnostics)
     }
 
-    func testYearHeadingsBecomeAnnualPeriods() throws {
+    @Test func yearHeadingsBecomeAnnualPeriods() throws {
         let result = axis { sheet in
             sheet.write("2024", to: "B1")
             sheet.write("2025", to: "C1")
             sheet.write("2026", to: "D1")
         }
 
-        let axis = try XCTUnwrap(result.axis)
-        XCTAssertEqual(axis.periods, [Period.year(2024), Period.year(2025), Period.year(2026)])
-        XCTAssertEqual(axis.granularity, .annual)
-        XCTAssertTrue(result.diagnostics.isEmpty, "Got: \(result.diagnostics)")
+        let axis = try #require(result.axis)
+        #expect(axis.periods == [Period.year(2024), Period.year(2025), Period.year(2026)])
+        #expect(axis.granularity == .annual)
+        #expect(result.diagnostics.isEmpty, "Got: \(result.diagnostics)")
     }
 
-    func testPeriodsKeepTheOrderOfTheirSourceCells() throws {
+    @Test func periodsKeepTheOrderOfTheirSourceCells() throws {
         let result = axis { sheet in
             sheet.write("2024", to: "B1")
             sheet.write("2025", to: "C1")
         }
 
-        let axis = try XCTUnwrap(result.axis)
-        XCTAssertEqual(axis.sources.map(\.reference), ["B1", "C1"])
-        XCTAssertEqual(axis.periods.count, axis.sources.count)
-        XCTAssertEqual(axis.periods.first, Period.year(2024))
+        let axis = try #require(result.axis)
+        #expect(axis.sources.map(\.reference) == ["B1", "C1"])
+        #expect(axis.periods.count == axis.sources.count)
+        #expect(axis.periods.first == Period.year(2024))
     }
 
-    func testTheRecoveredPeriodsAreBusinessMathAnnualPeriods() throws {
+    @Test func theRecoveredPeriodsAreBusinessMathAnnualPeriods() throws {
         // The whole point of the Phase 0 pin bump: these are the types
         // `ModelDefinition` consumes, not a local stand-in.
         let result = axis { sheet in
@@ -66,13 +67,13 @@ final class PeriodAxisTests: XCTestCase {
             sheet.write("2025", to: "C1")
         }
 
-        let axis = try XCTUnwrap(result.axis)
-        let first = try XCTUnwrap(axis.periods.first)
-        XCTAssertEqual(first.type, PeriodType.annual)
-        XCTAssertEqual(first, Period.year(2024))
+        let axis = try #require(result.axis)
+        let first = try #require(axis.periods.first)
+        #expect(first.type == PeriodType.annual)
+        #expect(first == Period.year(2024))
     }
 
-    func testFiscalAndEstimateHeadingsRecoverTheirYear() throws {
+    @Test func fiscalAndEstimateHeadingsRecoverTheirYear() throws {
         for (headings, years) in [(["FY2024", "FY2025"], [2024, 2025]),
                                   (["FY24", "FY25"], [2024, 2025]),
                                   (["2024E", "2025E"], [2024, 2025])] {
@@ -80,12 +81,12 @@ final class PeriodAxisTests: XCTestCase {
                 sheet.write(headings[0], to: "B1")
                 sheet.write(headings[1], to: "C1")
             }
-            let axis = try XCTUnwrap(result.axis, "\(headings)")
-            XCTAssertEqual(axis.periods, years.map(Period.year), "\(headings)")
+            let axis = try #require(result.axis, "\(headings)")
+            #expect(axis.periods == years.map(Period.year), "\(headings)")
         }
     }
 
-    func testAComputedHeaderRowRecoversItsPeriods() throws {
+    @Test func aComputedHeaderRowRecoversItsPeriods() throws {
         // The shape every real model uses: one typed year, the rest computed.
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Model")
@@ -94,25 +95,24 @@ final class PeriodAxisTests: XCTestCase {
         let reloaded = try Workbook(xlsxData: try wb.save())
 
         let grid = SheetGrid.build(
-            from: ModelImporter.importSheet(try XCTUnwrap(reloaded.sheets.first)))
-        // Writing in memory caches nothing, so this asserts the pathway, not the value.
-        XCTAssertNotNil(grid.cachedValues)
+            from: ModelImporter.importSheet(try #require(reloaded.sheets.first)))
+        // Writing in memory caches nothing, so a grid built from the round trip
+        // carries no cached values. The pathway is what is under test: it has to
+        // survive a formula with nothing cached behind it.
+        #expect(grid.cachedValues.isEmpty)
     }
 
-    func testNoAxisYieldsNoPeriodsAndNoRepeatedComplaint() {
+    @Test func noAxisYieldsNoPeriodsAndNoRepeatedComplaint() {
         let result = axis { sheet in
             sheet.write("Revenue", to: "A1")
             sheet.write(100.0, to: "B1")
         }
 
-        XCTAssertNil(result.axis)
-        XCTAssertTrue(
-            result.diagnostics.isEmpty,
-            "SheetGrid already reported the missing axis; saying so twice is noise"
-        )
+        #expect(result.axis == nil)
+        #expect(result.diagnostics.isEmpty, "SheetGrid already reported the missing axis; saying so twice is noise")
     }
 
-    func testQuarterlyHeadingsAreNotRecognized() {
+    @Test func quarterlyHeadingsAreNotRecognized() {
         // Deliberate, and recorded: neither reference workbook contains a single
         // quarterly heading, so supporting one would be guessing at its spelling.
         let result = axis { sheet in
@@ -120,7 +120,7 @@ final class PeriodAxisTests: XCTestCase {
             sheet.write("Q2 2024", to: "C1")
         }
 
-        XCTAssertNil(result.axis)
+        #expect(result.axis == nil)
     }
 
     // MARK: - An axis derived from the sheet's own arithmetic
@@ -141,16 +141,16 @@ final class PeriodAxisTests: XCTestCase {
     ///
     /// This is the case that motivates the whole phase: measured across three
     /// corpora, most sheets carry no heading row the detector can read.
-    func testAnAxisIsDerivedWhereNoHeadingsExist() throws {
+    @Test func anAxisIsDerivedWhereNoHeadingsExist() throws {
         let result = axis { sheet in
             fill(sheet, row: 5, columns: ["C", "D", "E", "F"], referencing: 4, FormulaAST.multiply)
             fill(sheet, row: 6, columns: ["C", "D", "E", "F"], referencing: 4, FormulaAST.add)
             fill(sheet, row: 7, columns: ["C", "D", "E", "F"], referencing: 4, FormulaAST.divide)
         }
 
-        let axis = try XCTUnwrap(result.axis, "Got: \(result.diagnostics)")
-        XCTAssertEqual(axis.count, 4, "columns C through F")
-        XCTAssertEqual(axis.provenance, .shapeRuns(agreeing: 3))
+        let axis = try #require(result.axis, "Got: \(result.diagnostics)")
+        #expect(axis.count == 4, "columns C through F")
+        #expect(axis.provenance == .shapeRuns(agreeing: 3))
     }
 
     /// A derived axis has no headings — that is its premise — so its periods are
@@ -160,23 +160,23 @@ final class PeriodAxisTests: XCTestCase {
     /// whatever text happened to sit above the span would make a structural finding
     /// depend on the arbitrary part, and would fail in exactly the cases this path
     /// exists to serve.
-    func testADerivedAxisCarriesOrdinalPeriods() throws {
+    @Test func aDerivedAxisCarriesOrdinalPeriods() throws {
         let result = axis { sheet in
             fill(sheet, row: 5, columns: ["C", "D", "E"], referencing: 4, FormulaAST.multiply)
             fill(sheet, row: 6, columns: ["C", "D", "E"], referencing: 4, FormulaAST.add)
             fill(sheet, row: 7, columns: ["C", "D", "E"], referencing: 4, FormulaAST.divide)
         }
 
-        let axis = try XCTUnwrap(result.axis, "Got: \(result.diagnostics)")
-        XCTAssertEqual(axis.periods, [Period.year(1), Period.year(2), Period.year(3)])
-        XCTAssertEqual(axis.periods.map(\.label), ["1", "2", "3"], "positions, not years")
-        XCTAssertEqual(Set(axis.periods).count, 3, "three positions, not two and a collision")
+        let axis = try #require(result.axis, "Got: \(result.diagnostics)")
+        #expect(axis.periods == [Period.year(1), Period.year(2), Period.year(3)])
+        #expect(axis.periods.map(\.label) == ["1", "2", "3"], "positions, not years")
+        #expect(Set(axis.periods).count == 3, "three positions, not two and a collision")
     }
 
     /// Header detection is right when it works, it is what a reader would do, and
     /// it carries the Wharton 125-of-125. Shape runs are the fallback, not the
     /// replacement.
-    func testAHeaderAxisIsKeptWhereOneExists() throws {
+    @Test func aHeaderAxisIsKeptWhereOneExists() throws {
         let result = axisAndEveryFinding { sheet in
             sheet.write("2024", to: "C1")
             sheet.write("2025", to: "D1")
@@ -186,12 +186,10 @@ final class PeriodAxisTests: XCTestCase {
             fill(sheet, row: 7, columns: ["C", "D", "E"], referencing: 4, FormulaAST.divide)
         }
 
-        let axis = try XCTUnwrap(result.axis, "Got: \(result.diagnostics)")
-        XCTAssertEqual(axis.periods, [Period.year(2024), Period.year(2025), Period.year(2026)])
-        XCTAssertEqual(axis.provenance, .headings)
-        XCTAssertTrue(
-            result.diagnostics.isEmpty,
-            "The two agree on the span, so there is nothing to report. Got: \(result.diagnostics)")
+        let axis = try #require(result.axis, "Got: \(result.diagnostics)")
+        #expect(axis.periods == [Period.year(2024), Period.year(2025), Period.year(2026)])
+        #expect(axis.provenance == .headings)
+        #expect(result.diagnostics.isEmpty, "The two agree on the span, so there is nothing to report. Got: \(result.diagnostics)")
     }
 
     /// The header axis is kept and the difference is **reported**.
@@ -200,7 +198,7 @@ final class PeriodAxisTests: XCTestCase {
     /// finds five year-like values down a column and reads the whole sheet sideways
     /// while sixteen runs agree on a span across. Asserting the shape answer in
     /// general would be a guess, so the disagreement is named rather than resolved.
-    func testADisagreementIsReportedRatherThanResolved() throws {
+    @Test func aDisagreementIsReportedRatherThanResolved() throws {
         let result = axisAndEveryFinding { sheet in
             sheet.write("2024", to: "B1")
             sheet.write("2025", to: "C1")
@@ -210,20 +208,19 @@ final class PeriodAxisTests: XCTestCase {
             fill(sheet, row: 7, columns: ["F", "G", "H", "I"], referencing: 4, FormulaAST.divide)
         }
 
-        let axis = try XCTUnwrap(result.axis, "Got: \(result.diagnostics)")
-        XCTAssertEqual(axis.periods, [Period.year(2024), Period.year(2025), Period.year(2026)],
-                       "the header axis is kept")
-        XCTAssertEqual(axis.provenance, .headings)
-        XCTAssertEqual(result.diagnostics.map(\.code), [.derivedAxisDiffers])
+        let axis = try #require(result.axis, "Got: \(result.diagnostics)")
+        #expect(axis.periods == [Period.year(2024), Period.year(2025), Period.year(2026)], "the header axis is kept")
+        #expect(axis.provenance == .headings)
+        #expect(result.diagnostics.map(\.code) == [.derivedAxisDiffers])
     }
 
     /// Below the floor nothing is derived, and the sheet is left saying what it
     /// said before: no axis here.
-    func testTooLittleAgreementDerivesNoAxis() {
+    @Test func tooLittleAgreementDerivesNoAxis() {
         let result = axis { sheet in
             fill(sheet, row: 5, columns: ["C", "D", "E"], referencing: 4, FormulaAST.multiply)
             fill(sheet, row: 6, columns: ["C", "D", "E"], referencing: 4, FormulaAST.add)
         }
-        XCTAssertNil(result.axis)
+        #expect(result.axis == nil)
     }
 }

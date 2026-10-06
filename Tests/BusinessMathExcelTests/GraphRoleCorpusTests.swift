@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
@@ -17,28 +18,17 @@ import SwiftXLSX
 /// Reported, not gated. The point is to see where topology and a human's labels
 /// agree and where they part company; an assertion tuned to one workbook would be
 /// the fitting this whole direction exists to get away from.
-final class GraphRoleCorpusTests: XCTestCase {
+@Suite struct GraphRoleCorpusTests {
 
     private func workbook(named fragment: String) throws -> (name: String, book: Workbook) {
-        guard let configured = ProcessInfo.processInfo.environment["BUSINESSMATHEXCEL_CORPUS"],
-              !configured.isEmpty
-        else {
-            throw XCTSkip("Set BUSINESSMATHEXCEL_CORPUS. The workbooks are private.")
-        }
-
-        for root in configured.split(separator: ":").map(String.init) {
-            guard let walk = FileManager.default.enumerator(atPath: root) else { continue }
-            for case let entry as String in walk
-            where entry.lowercased().contains(fragment.lowercased())
-                && entry.lowercased().hasSuffix(".xlsx") && !entry.contains("~$") {
-                let path = root + "/" + entry
-                guard let book = try? Workbook(contentsOf: URL(fileURLWithPath: path)) else {
-                    continue
-                }
-                return ((entry as NSString).lastPathComponent, book)
+        for entry in Corpus.entries(named: fragment) {
+            guard let book = try? Workbook(contentsOf: URL(fileURLWithPath: entry.path)) else {
+                continue
             }
+            return ((entry.relativePath as NSString).lastPathComponent, book)
         }
-        throw XCTSkip("No workbook matching '\(fragment)' under the configured roots.")
+        throw FixtureUnavailable(
+            description: "No readable workbook matching '\(fragment)' under the configured roots.")
     }
 
     /// A row number in a three-wide column, so the rows line up when read.
@@ -65,7 +55,11 @@ final class GraphRoleCorpusTests: XCTestCase {
     }
 
     /// The partition beside the sheet's own headings, sheet by sheet.
-    func testTheGraphsRolesAgainstAHumansLabels() throws {
+    @Test(.enabled(
+        if: !Corpus.entries(named: "Kelly").isEmpty,
+        "Set BUSINESSMATHEXCEL_CORPUS to roots holding the Kelly's Roast Beef workbook. The workbooks are private."
+    ))
+    func theGraphsRolesAgainstAHumansLabels() throws {
         let (name, book) = try workbook(named: "Kelly")
 
         // Three scopes, because what counts as a cell decides what the partition
@@ -87,21 +81,13 @@ final class GraphRoleCorpusTests: XCTestCase {
             for (scopeName, filter) in scopes {
                 let scoped = GraphPartition(sheet: sheet, including: filter)
                 let counts = scoped.counts
-                print("KELLY  scope \"\(scopeName)\": \(scoped.roles.count) cells — "
-                    + "parameter \(counts[.parameter] ?? 0), "
-                    + "calculation \(counts[.calculation] ?? 0), "
-                    + "objective \(counts[.objective] ?? 0), "
-                    + "unreachable \(counts[.unreachable] ?? 0)")
+                print("KELLY  scope \"\(scopeName)\": \(scoped.roles.count) cells — parameter \(counts[.parameter] ?? 0), calculation \(counts[.calculation] ?? 0), objective \(counts[.objective] ?? 0), unreachable \(counts[.unreachable] ?? 0)")
             }
 
             let partition = GraphPartition(sheet: sheet, including: scopes[1].1)
 
             let counts = partition.counts
-            print("KELLY  \(name) — sheet \"\(sheet.name)\": "
-                + "parameter \(counts[.parameter] ?? 0), "
-                + "calculation \(counts[.calculation] ?? 0), "
-                + "objective \(counts[.objective] ?? 0), "
-                + "unreachable \(counts[.unreachable] ?? 0)")
+            print("KELLY  \(name) — sheet \"\(sheet.name)\": parameter \(counts[.parameter] ?? 0), calculation \(counts[.calculation] ?? 0), objective \(counts[.objective] ?? 0), unreachable \(counts[.unreachable] ?? 0)")
 
             // Column A, as the modeller wrote it, with the role of everything on
             // the same row. Where the two agree, the labels are describing the
@@ -140,6 +126,6 @@ final class GraphRoleCorpusTests: XCTestCase {
             print("KELLY    \(named.name) → \(named.reference)")
         }
 
-        XCTAssertFalse(book.sheets.isEmpty)
+        #expect(!book.sheets.isEmpty)
     }
 }

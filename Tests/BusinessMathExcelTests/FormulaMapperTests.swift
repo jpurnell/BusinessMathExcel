@@ -1,11 +1,12 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 
-final class FormulaMapperTests: XCTestCase {
+@Suite struct FormulaMapperTests {
 
     // MARK: - Financial Functions
 
-    func testRecognizesPMT() {
+    @Test func recognizesPMT() {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.005)
         model.addFormula(
@@ -14,11 +15,11 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.financialMappings.count, 1)
-        XCTAssertEqual(result.financialMappings.first?.function, "PMT")
+        #expect(result.financialMappings.count == 1)
+        #expect(result.financialMappings.first?.function == "PMT")
     }
 
-    func testRecognizesNPV() {
+    @Test func recognizesNPV() {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.10)
         model.addOutput(
@@ -27,11 +28,11 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.financialMappings.count, 1)
-        XCTAssertEqual(result.financialMappings.first?.function, "NPV")
+        #expect(result.financialMappings.count == 1)
+        #expect(result.financialMappings.first?.function == "NPV")
     }
 
-    func testRecognizesIRR() {
+    @Test func recognizesIRR() {
         let model = ExcelModel()
         model.addOutput(
             label: "IRR",
@@ -39,11 +40,11 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.financialMappings.count, 1)
-        XCTAssertEqual(result.financialMappings.first?.function, "IRR")
+        #expect(result.financialMappings.count == 1)
+        #expect(result.financialMappings.first?.function == "IRR")
     }
 
-    func testRecognizesIPMTAndPPMT() {
+    @Test func recognizesIPMTAndPPMT() {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.005)
         model.addFormula(
@@ -56,15 +57,15 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.financialMappings.count, 2)
+        #expect(result.financialMappings.count == 2)
         let names = result.financialMappings.map(\.function)
-        XCTAssertTrue(names.contains("IPMT"))
-        XCTAssertTrue(names.contains("PPMT"))
+        #expect(names.contains("IPMT"))
+        #expect(names.contains("PPMT"))
     }
 
     // MARK: - Statistical Functions
 
-    func testRecognizesAVERAGE() {
+    @Test func recognizesAVERAGE() {
         let model = ExcelModel()
         model.addFormula(
             label: "Mean",
@@ -72,11 +73,11 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.statisticalMappings.count, 1)
-        XCTAssertEqual(result.statisticalMappings.first?.function, "AVERAGE")
+        #expect(result.statisticalMappings.count == 1)
+        #expect(result.statisticalMappings.first?.function == "AVERAGE")
     }
 
-    func testRecognizesSUM() {
+    @Test func recognizesSUM() {
         let model = ExcelModel()
         model.addFormula(
             label: "Total",
@@ -84,11 +85,11 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.statisticalMappings.count, 1)
-        XCTAssertEqual(result.statisticalMappings.first?.function, "SUM")
+        #expect(result.statisticalMappings.count == 1)
+        #expect(result.statisticalMappings.first?.function == "SUM")
     }
 
-    func testRecognizesSTDEV() {
+    @Test func recognizesSTDEV() {
         let model = ExcelModel()
         model.addFormula(
             label: "StdDev",
@@ -96,11 +97,11 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.statisticalMappings.count, 1)
-        XCTAssertEqual(result.statisticalMappings.first?.function, "STDEV")
+        #expect(result.statisticalMappings.count == 1)
+        #expect(result.statisticalMappings.first?.function == "STDEV")
     }
 
-    func testRecognizesPERCENTILE() {
+    @Test func recognizesPERCENTILE() {
         let model = ExcelModel()
         model.addFormula(
             label: "P50",
@@ -108,13 +109,13 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.statisticalMappings.count, 1)
-        XCTAssertEqual(result.statisticalMappings.first?.function, "PERCENTILE")
+        #expect(result.statisticalMappings.count == 1)
+        #expect(result.statisticalMappings.first?.function == "PERCENTILE")
     }
 
     // MARK: - Unknown Functions
 
-    func testUnknownFunctionReported() {
+    @Test func unknownFunctionReported() {
         let model = ExcelModel()
         model.addFormula(
             label: "Custom",
@@ -122,14 +123,14 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.unmappedFunctions, ["MYFUNC"])
-        XCTAssertTrue(result.financialMappings.isEmpty)
-        XCTAssertTrue(result.statisticalMappings.isEmpty)
+        #expect(result.unmappedFunctions == ["MYFUNC"])
+        #expect(result.financialMappings.isEmpty)
+        #expect(result.statisticalMappings.isEmpty)
     }
 
     // MARK: - Mixed Models
 
-    func testMixedFinancialAndStatistical() {
+    @Test func mixedFinancialAndStatistical() {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.005)
         model.addFormula(
@@ -142,13 +143,13 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.financialMappings.count, 1)
-        XCTAssertEqual(result.statisticalMappings.count, 1)
+        #expect(result.financialMappings.count == 1)
+        #expect(result.statisticalMappings.count == 1)
     }
 
     // MARK: - Nested Functions
 
-    func testNestedFunctionsAllRecognized() {
+    @Test func nestedFunctionsAllRecognized() {
         let model = ExcelModel()
         model.addOutput(
             label: "Result",
@@ -159,29 +160,29 @@ final class FormulaMapperTests: XCTestCase {
         )
 
         let result = FormulaMapper.map(model)
-        XCTAssertEqual(result.financialMappings.count, 1)
-        XCTAssertEqual(result.statisticalMappings.count, 1)
+        #expect(result.financialMappings.count == 1)
+        #expect(result.statisticalMappings.count == 1)
     }
 
     // MARK: - Empty Model
 
-    func testEmptyModelProducesEmptyResult() {
+    @Test func emptyModelProducesEmptyResult() {
         let model = ExcelModel()
         let result = FormulaMapper.map(model)
-        XCTAssertTrue(result.financialMappings.isEmpty)
-        XCTAssertTrue(result.statisticalMappings.isEmpty)
-        XCTAssertTrue(result.unmappedFunctions.isEmpty)
+        #expect(result.financialMappings.isEmpty)
+        #expect(result.statisticalMappings.isEmpty)
+        #expect(result.unmappedFunctions.isEmpty)
     }
 
     // MARK: - Input-Only Model
 
-    func testInputOnlyModelHasNoMappings() {
+    @Test func inputOnlyModelHasNoMappings() {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addInput(label: "B", value: 2)
 
         let result = FormulaMapper.map(model)
-        XCTAssertTrue(result.financialMappings.isEmpty)
-        XCTAssertTrue(result.statisticalMappings.isEmpty)
+        #expect(result.financialMappings.isEmpty)
+        #expect(result.statisticalMappings.isEmpty)
     }
 }

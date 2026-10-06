@@ -1,9 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
 /// Stage 1 — cell topology and period-axis detection.
-final class SheetGridTests: XCTestCase {
+@Suite struct SheetGridTests {
 
     private func grid(
         _ build: (Worksheet) -> Void,
@@ -17,7 +18,7 @@ final class SheetGridTests: XCTestCase {
 
     // MARK: - Orientation
 
-    func testYearsAcrossTheTopReadAsPeriodsAcrossColumns() {
+    @Test func yearsAcrossTheTopReadAsPeriodsAcrossColumns() {
         let grid = grid { sheet in
             sheet.write("Revenue", to: "A2")
             for (offset, year) in [2024, 2025, 2026].enumerated() {
@@ -26,12 +27,12 @@ final class SheetGridTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(grid.orientation, .periodsAcrossColumns)
-        XCTAssertEqual(grid.axisCells.map(\.reference), ["B1", "C1", "D1"])
-        XCTAssertTrue(grid.diagnostics.isEmpty, "Got: \(grid.diagnostics)")
+        #expect(grid.orientation == .periodsAcrossColumns)
+        #expect(grid.axisCells.map(\.reference) == ["B1", "C1", "D1"])
+        #expect(grid.diagnostics.isEmpty, "Got: \(grid.diagnostics)")
     }
 
-    func testYearsDownTheSideReadAsPeriodsDownRows() {
+    @Test func yearsDownTheSideReadAsPeriodsDownRows() {
         let grid = grid { sheet in
             sheet.write("Revenue", to: "B1")
             for (offset, year) in [2024, 2025, 2026].enumerated() {
@@ -40,11 +41,11 @@ final class SheetGridTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(grid.orientation, .periodsDownRows)
-        XCTAssertEqual(grid.axisCells.map(\.reference), ["A2", "A3", "A4"])
+        #expect(grid.orientation == .periodsDownRows)
+        #expect(grid.axisCells.map(\.reference) == ["A2", "A3", "A4"])
     }
 
-    func testASheetReadableBothWaysIsAmbiguousAndPicksNeither() {
+    @Test func aSheetReadableBothWaysIsAmbiguousAndPicksNeither() {
         // Years across row 1 and years down column A, same length. Choosing either
         // would be a coin toss presented as an answer.
         let grid = grid { sheet in
@@ -54,21 +55,21 @@ final class SheetGridTests: XCTestCase {
             }
         }
 
-        XCTAssertNil(grid.orientation, "Not guessing is the feature")
-        XCTAssertEqual(grid.diagnostics.map(\.code), [.ambiguousOrientation])
+        #expect(grid.orientation == nil, "Not guessing is the feature")
+        #expect(grid.diagnostics.map(\.code) == [.ambiguousOrientation])
     }
 
-    func testASheetWithNoPeriodHeadersReportsNoAxis() {
+    @Test func aSheetWithNoPeriodHeadersReportsNoAxis() {
         let grid = grid { sheet in
             sheet.write("Revenue", to: "A1")
             sheet.write(100.0, to: "B1")
         }
 
-        XCTAssertNil(grid.orientation)
-        XCTAssertEqual(grid.diagnostics.map(\.code), [.noPeriodAxis])
+        #expect(grid.orientation == nil)
+        #expect(grid.diagnostics.map(\.code) == [.noPeriodAxis])
     }
 
-    func testASingleYearIsNotAnAxis() {
+    @Test func aSingleYearIsNotAnAxis() {
         // One header is a label. An axis needs at least two periods to establish
         // a direction.
         let grid = grid { sheet in
@@ -76,22 +77,22 @@ final class SheetGridTests: XCTestCase {
             sheet.write(100.0, to: "B2")
         }
 
-        XCTAssertNil(grid.orientation)
-        XCTAssertEqual(grid.diagnostics.map(\.code), [.noPeriodAxis])
+        #expect(grid.orientation == nil)
+        #expect(grid.diagnostics.map(\.code) == [.noPeriodAxis])
     }
 
-    func testYearsThatDoNotAdvanceAreNotAnAxis() {
+    @Test func yearsThatDoNotAdvanceAreNotAnAxis() {
         let grid = grid { sheet in
             for column in ["B", "C", "D"] {
                 sheet.write("2024", to: "\(column)1")
             }
         }
 
-        XCTAssertNil(grid.orientation)
-        XCTAssertEqual(grid.diagnostics.map(\.code), [.noPeriodAxis])
+        #expect(grid.orientation == nil)
+        #expect(grid.diagnostics.map(\.code) == [.noPeriodAxis])
     }
 
-    func testHeadersMustBeContiguousAlongTheLine() {
+    @Test func headersMustBeContiguousAlongTheLine() {
         // B1 and D1 are years with a gap at C1: two separate runs of one, not a
         // run of two.
         let grid = grid { sheet in
@@ -100,63 +101,62 @@ final class SheetGridTests: XCTestCase {
             sheet.write("2025", to: "D1")
         }
 
-        XCTAssertNil(grid.orientation)
+        #expect(grid.orientation == nil)
     }
 
     // MARK: - Header Forms
 
-    func testRecognizesTheHeaderFormsModelsActuallyUse() {
+    @Test func recognizesTheHeaderFormsModelsActuallyUse() {
         for headers in [["2024", "2025"], ["FY2024", "FY2025"], ["FY24", "FY25"],
                         ["2024E", "2025E"], ["2024A", "2025P"]] {
             let grid = grid { sheet in
                 sheet.write(headers[0], to: "B1")
                 sheet.write(headers[1], to: "C1")
             }
-            XCTAssertEqual(
-                grid.orientation, .periodsAcrossColumns, "\(headers) should read as an axis")
+            #expect(grid.orientation == .periodsAcrossColumns, "\(headers) should read as an axis")
         }
     }
 
-    func testRecognizesAYearStoredAsANumber() {
+    @Test func recognizesAYearStoredAsANumber() {
         let grid = grid { sheet in
             sheet.write(2024.0, to: "B1")
             sheet.write(2025.0, to: "C1")
         }
-        XCTAssertEqual(grid.orientation, .periodsAcrossColumns)
+        #expect(grid.orientation == .periodsAcrossColumns)
     }
 
-    func testDoesNotMistakeOrdinaryNumbersForYears() {
+    @Test func doesNotMistakeOrdinaryNumbersForYears() {
         let grid = grid { sheet in
             sheet.write(100.0, to: "B1")
             sheet.write(200.0, to: "C1")
         }
-        XCTAssertNil(grid.orientation)
+        #expect(grid.orientation == nil)
     }
 
     // MARK: - Topology
 
-    func testAnEmptySheetHasNoBoundsAndNoAxis() {
+    @Test func anEmptySheetHasNoBoundsAndNoAxis() {
         let grid = grid { _ in }
 
-        XCTAssertEqual(grid.populatedCells, 0)
-        XCTAssertNil(grid.bounds)
-        XCTAssertNil(grid.orientation)
-        XCTAssertEqual(grid.diagnostics.map(\.code), [.noPeriodAxis])
+        #expect(grid.populatedCells == 0)
+        #expect(grid.bounds == nil)
+        #expect(grid.orientation == nil)
+        #expect(grid.diagnostics.map(\.code) == [.noPeriodAxis])
     }
 
-    func testBoundsSpanThePopulatedCells() {
+    @Test func boundsSpanThePopulatedCells() {
         let grid = grid { sheet in
             sheet.write(1.0, to: "B2")
             sheet.write(2.0, to: "D5")
         }
 
-        XCTAssertEqual(grid.bounds?.reference, "B2:D5")
-        XCTAssertEqual(grid.populatedCells, 2)
+        #expect(grid.bounds?.reference == "B2:D5")
+        #expect(grid.populatedCells == 2)
     }
 
     // MARK: - Options
 
-    func testForcedOrientationOverridesDetection() {
+    @Test func forcedOrientationOverridesDetection() {
         var options = RecognizerOptions()
         options.orientation = .periodsDownRows
 
@@ -165,10 +165,10 @@ final class SheetGridTests: XCTestCase {
             sheet.write("2025", to: "C1")
         }, options: options)
 
-        XCTAssertEqual(grid.orientation, .periodsDownRows, "A caller's declaration wins")
+        #expect(grid.orientation == .periodsDownRows, "A caller's declaration wins")
     }
 
-    func testExceedingTheScanLimitIsReported() {
+    @Test func exceedingTheScanLimitIsReported() {
         var options = RecognizerOptions()
         options.maximumCells = 2
 
@@ -176,6 +176,6 @@ final class SheetGridTests: XCTestCase {
             for row in 1...5 { sheet.write(Double(row), to: "A\(row)") }
         }, options: options)
 
-        XCTAssertTrue(grid.diagnostics.contains { $0.code == .scanLimitReached })
+        #expect(grid.diagnostics.contains { $0.code == .scanLimitReached })
     }
 }

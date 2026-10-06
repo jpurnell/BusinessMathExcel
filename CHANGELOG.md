@@ -2,6 +2,59 @@
 
 All notable changes to BusinessMathExcel will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- **The test suite is Swift Testing, not XCTest.** All 50 suites, 572 tests, carried over by name
+  with none lost; the suite is 573 with the one test added below. The six corpus tests that
+  skipped without `BUSINESSMATHEXCEL_CORPUS` still skip, now through `.enabled(if:)` on the
+  suite rather than a thrown `XCTSkip`, so the reason is stated once and shown in the run.
+
+  Tolerances are unchanged: each `XCTAssertEqual(a, b, accuracy: t)` became
+  `#expect(abs(a - b) <= t)` with the same `t` — 43 of them, same distribution before and after.
+  Each `XCTAssertThrowsError` became `#expect(throws:)` with the same inspection of the error.
+
+- **84 assertions that only checked for presence now check a value.** `XCTAssertNotNil(x)`
+  translates to `#expect(x != nil)`, and the gate rejects that — rightly: it passes for any
+  value at all. It had been rejecting nothing before, because its rule did not read the XCTest
+  spelling. The migration did not create these weak assertions; it made them visible.
+
+  Where the next line went on to use the value, the two became one unwrap (`try #require`) and
+  the value is used directly. Where presence in a dictionary was the claim, the assertion is now
+  the exact key set, or an empty list of what is missing. Where a formula's existence was the
+  claim, it is now the formula: the DCF sheet's NPV cell is `D7+NPV(D4,D8:D11)`, not merely
+  non-empty. Three were vacuous as written — `XCTAssertNotNil` on a value that was not optional
+  — and assert something for the first time.
+
+- `TypedSourceWriter` takes a period's year and month from `Period.year` and `Period.month`
+  rather than building a Gregorian calendar and reading the period's date through it. `Period`
+  constructs its date with its own calendar; reading it back through a different one is only
+  the inverse when the two agree. No emitted source changes on a Gregorian machine — the golden
+  file is byte-identical.
+
+- `MonteCarloExtension` writes its percentile rows from integer percents (5, 10, … 99) and
+  derives the fraction, where it used to hold fractions and compute the label as
+  `Int(pct * 100)`. The labels and formulas written are the same; the conversion that could
+  truncate is gone.
+
+- Test dates come from one calendar with a stated time zone (`TestCalendar`), at noon UTC. Two
+  tests built dates from `Calendar.current` and from `Calendar(identifier: .gregorian)`, which
+  fixes the calendar system and still inherits the machine's zone. The suite passes under
+  `Pacific/Auckland`, `America/Los_Angeles` and `Pacific/Kiritimati`.
+
+- The four deprecated translators are tested through a protocol (`LegacyTranslating`). Swift
+  Testing will not apply `@Suite` or `@Test` to a deprecated declaration, which is how the
+  XCTest suites had been calling deprecated API without a warning.
+
+- The Linux workflow's summary quotes Swift Testing's result line. It quoted XCTest's
+  `Executed N tests`, which is still printed and now always says zero.
+
+### Added
+
+- A test that every Monte Carlo percentile row carries the label and the fraction of the same
+  whole percent — all eight rows, where the suite previously checked that `A8` read `P5`.
+
 ## [0.8.0] - 2026-09-10
 
 ### Added

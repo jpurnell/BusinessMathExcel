@@ -1,118 +1,119 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 
-final class ExcelModelTests: XCTestCase {
+@Suite struct ExcelModelTests {
 
     // MARK: - Adding Nodes
 
-    func testAddInput() {
+    @Test func addInput() {
         let model = ExcelModel()
         let ref = model.addInput(label: "Principal", value: 250_000)
 
-        XCTAssertEqual(model.nodeCount, 1)
-        XCTAssertEqual(ref.label, "Principal")
+        #expect(model.nodeCount == 1)
+        #expect(ref.label == "Principal")
         if case .input(let value) = model.kind(of: ref) {
-            XCTAssertEqual(value, 250_000, accuracy: 0.01)
+            #expect(abs(value - 250_000) <= 0.01)
         } else {
-            XCTFail("Expected input node")
+            Issue.record("Expected input node")
         }
     }
 
-    func testAddTextInput() {
+    @Test func addTextInput() {
         let model = ExcelModel()
         let ref = model.addTextInput(label: "Title", value: "Loan Schedule")
 
-        XCTAssertEqual(model.nodeCount, 1)
-        XCTAssertEqual(model.kind(of: ref), .textInput("Loan Schedule"))
+        #expect(model.nodeCount == 1)
+        #expect(model.kind(of: ref) == .textInput("Loan Schedule"))
     }
 
-    func testAddFormula() {
+    @Test func addFormula() {
         let model = ExcelModel()
         let rate = model.addInput(label: "Annual Rate", value: 0.065)
         let formula = NodeFormula.divide(.ref(rate), .number(12))
         let monthly = model.addFormula(label: "Monthly Rate", formula: formula)
 
-        XCTAssertEqual(model.nodeCount, 2)
-        XCTAssertEqual(model.kind(of: monthly), .formula(formula))
+        #expect(model.nodeCount == 2)
+        #expect(model.kind(of: monthly) == .formula(formula))
     }
 
-    func testAddOutput() {
+    @Test func addOutput() {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 10)
         let b = model.addInput(label: "B", value: 20)
         let sumFormula = NodeFormula.add(.ref(a), .ref(b))
         let result = model.addOutput(label: "Total", formula: sumFormula)
 
-        XCTAssertEqual(model.nodeCount, 3)
-        XCTAssertEqual(model.kind(of: result), .output(sumFormula))
+        #expect(model.nodeCount == 3)
+        #expect(model.kind(of: result) == .output(sumFormula))
     }
 
-    func testAddLabel() {
+    @Test func addLabel() {
         let model = ExcelModel()
         let ref = model.addLabel("Summary")
 
-        XCTAssertEqual(model.nodeCount, 1)
-        XCTAssertEqual(model.kind(of: ref), .label("Summary"))
+        #expect(model.nodeCount == 1)
+        #expect(model.kind(of: ref) == .label("Summary"))
     }
 
     // MARK: - Lookup
 
-    func testNodeLookupByName() {
+    @Test func nodeLookupByName() {
         let model = ExcelModel()
         let ref = model.addInput(label: "Principal", value: 100_000)
 
-        XCTAssertEqual(model.node(named: "Principal"), ref)
+        #expect(model.node(named: "Principal") == ref)
     }
 
-    func testNodeLookupMissingReturnsNil() {
+    @Test func nodeLookupMissingReturnsNil() {
         let model = ExcelModel()
-        XCTAssertNil(model.node(named: "Nonexistent"))
+        #expect(model.node(named: "Nonexistent") == nil)
     }
 
-    func testKindOfUnknownRefReturnsNil() {
+    @Test func kindOfUnknownRefReturnsNil() {
         let model = ExcelModel()
         let unknown = NodeRef(label: "Ghost")
-        XCTAssertNil(model.kind(of: unknown))
+        #expect(model.kind(of: unknown) == nil)
     }
 
     // MARK: - Sections
 
-    func testDefaultSections() {
+    @Test func defaultSections() {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
         model.addFormula(label: "Monthly", formula: .number(0.05 / 12))
         model.addOutput(label: "Result", formula: .number(100))
 
         let sectionNames = model.sections.map(\.name)
-        XCTAssertEqual(sectionNames, ["Inputs", "Calculations", "Results"])
+        #expect(sectionNames == ["Inputs", "Calculations", "Results"])
     }
 
-    func testCustomSection() {
+    @Test func customSection() {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 50, section: "Product")
         model.addInput(label: "Quantity", value: 100, section: "Product")
 
-        XCTAssertEqual(model.sections.count, 1)
-        XCTAssertEqual(model.sections[0].name, "Product")
-        XCTAssertEqual(model.sections[0].refs.count, 2)
+        #expect(model.sections.count == 1)
+        #expect(model.sections[0].name == "Product")
+        #expect(model.sections[0].refs.count == 2)
     }
 
-    func testAllRefsPreservesOrder() {
+    @Test func allRefsPreservesOrder() {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 1)
         let b = model.addInput(label: "B", value: 2)
         let c = model.addFormula(label: "C", formula: .add(.ref(a), .ref(b)))
 
         let refs = model.allRefs
-        XCTAssertEqual(refs.count, 3)
-        XCTAssertEqual(refs[0], a)
-        XCTAssertEqual(refs[1], b)
-        XCTAssertEqual(refs[2], c)
+        #expect(refs.count == 3)
+        #expect(refs[0] == a)
+        #expect(refs[1] == b)
+        #expect(refs[2] == c)
     }
 
     // MARK: - Tables
 
-    func testRegisterTable() {
+    @Test func registerTable() {
         let model = ExcelModel()
         let r0c0 = model.addInput(label: "Period_0", value: 1, section: "Schedule")
         let r0c1 = model.addInput(label: "Payment_0", value: 500, section: "Schedule")
@@ -125,56 +126,53 @@ final class ExcelModelTests: XCTestCase {
             rows: [[r0c0, r0c1], [r1c0, r1c1]]
         )
 
-        XCTAssertEqual(table.rowCount, 2)
-        XCTAssertEqual(table.columns, ["Period", "Payment"])
-        XCTAssertEqual(table.cell(row: 0, column: 0), r0c0)
-        XCTAssertEqual(table.cell(row: 1, column: 1), r1c1)
+        #expect(table.rowCount == 2)
+        #expect(table.columns == ["Period", "Payment"])
+        #expect(table.cell(row: 0, column: 0) == r0c0)
+        #expect(table.cell(row: 1, column: 1) == r1c1)
     }
 
-    func testTableLookupByName() {
+    @Test func tableLookupByName() throws {
         let model = ExcelModel()
         let ref = model.addInput(label: "Cell", value: 1, section: "Data")
         model.registerTable(label: "MyTable", columns: ["Col"], rows: [[ref]])
 
-        let table = model.table(named: "MyTable")
-        XCTAssertNotNil(table)
-        XCTAssertEqual(table?.label, "MyTable")
+        let table = try #require(model.table(named: "MyTable"))
+        #expect(table.label == "MyTable")
     }
 
-    func testTableLookupMissingReturnsNil() {
+    @Test func tableLookupMissingReturnsNil() {
         let model = ExcelModel()
-        XCTAssertNil(model.table(named: "Nonexistent"))
+        #expect(model.table(named: "Nonexistent") == nil)
     }
 
     // MARK: - Node Count
 
-    func testEmptyModelHasZeroNodes() {
+    @Test func emptyModelHasZeroNodes() {
         let model = ExcelModel()
-        XCTAssertEqual(model.nodeCount, 0)
+        #expect(model.nodeCount == 0)
     }
 
-    func testNodeCountReflectsAllTypes() throws {
+    @Test func nodeCountReflectsAllTypes() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addTextInput(label: "B", value: "text")
-        let a = try XCTUnwrap(model.node(named: "A"))
+        let a = try #require(model.node(named: "A"))
         model.addFormula(label: "C", formula: .ref(a))
         model.addOutput(label: "D", formula: .number(1))
         model.addLabel("E")
 
-        XCTAssertEqual(model.nodeCount, 5)
+        #expect(model.nodeCount == 5)
     }
 
     // MARK: - Sendable
 
-    func testSendableConformance() {
+    @Test func sendableConformance() async {
         let model = ExcelModel()
         model.addInput(label: "X", value: 1)
-        let expectation = expectation(description: "sendable")
-        Task {
-            _ = model.nodeCount
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: 1)
+        // Crossing into a Task is what requires Sendable; the compiler is the
+        // assertion. The count read on the far side shows it is the same model.
+        let count = await Task { model.nodeCount }.value
+        #expect(count == 1)
     }
 }
