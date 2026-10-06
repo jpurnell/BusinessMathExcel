@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
@@ -11,7 +12,7 @@ import SwiftXLSX
 /// calculation, and the labels that are part of no computation at all.
 ///
 /// Nothing here is fitted to a corpus. It is the definition of an edge.
-final class GraphRoleTests: XCTestCase {
+@Suite struct GraphRoleTests {
 
     private func roles(_ build: (Worksheet) -> Void) -> [String: GraphRole] {
         let workbook = Workbook()
@@ -25,7 +26,7 @@ final class GraphRoleTests: XCTestCase {
 
     /// The whole partition on one sheet: a rate nothing computes, a total nothing
     /// reads, the step between them, and a caption that is part of neither.
-    func testEveryCellTakesItsRoleFromItsEdges() {
+    @Test func everyCellTakesItsRoleFromItsEdges() {
         let roles = roles { sheet in
             sheet.write("Assumptions", to: "A1")
             sheet.write(0.05, to: "B1")
@@ -35,48 +36,48 @@ final class GraphRoleTests: XCTestCase {
             sheet.write(FormulaAST.add(.cellRef(CellRef("B3")), .cellRef(CellRef("B2"))), to: "B4")
         }
 
-        XCTAssertEqual(roles["B1"], .parameter, "a rate nothing computes, feeding something")
-        XCTAssertEqual(roles["B2"], .parameter)
-        XCTAssertEqual(roles["B3"], .calculation, "fed, and feeding")
-        XCTAssertEqual(roles["B4"], .objective, "computed from something, read by nothing")
-        XCTAssertEqual(roles["A1"], .unreachable, "a caption is part of no computation")
+        #expect(roles["B1"] == .parameter, "a rate nothing computes, feeding something")
+        #expect(roles["B2"] == .parameter)
+        #expect(roles["B3"] == .calculation, "fed, and feeding")
+        #expect(roles["B4"] == .objective, "computed from something, read by nothing")
+        #expect(roles["A1"] == .unreachable, "a caption is part of no computation")
     }
 
     /// A number can be unreachable too. What makes a cell a parameter is that
     /// something reads it, not that it holds a figure.
-    func testAFigureNothingReadsIsUnreachable() {
+    @Test func aFigureNothingReadsIsUnreachable() {
         let roles = roles { sheet in
             sheet.write(42.0, to: "D9")
             sheet.write(1.0, to: "B1")
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("B1")), .number(2)), to: "B2")
         }
 
-        XCTAssertEqual(roles["D9"], .unreachable, "a figure in no computation is still orphaned")
-        XCTAssertEqual(roles["B1"], .parameter)
-        XCTAssertEqual(roles["B2"], .objective)
+        #expect(roles["D9"] == .unreachable, "a figure in no computation is still orphaned")
+        #expect(roles["B1"] == .parameter)
+        #expect(roles["B2"] == .objective)
     }
 
     /// Every populated cell gets a role. There is no residue here and no refusal —
     /// that is the difference between this and the recognizer.
-    func testEveryPopulatedCellIsClassified() {
+    @Test func everyPopulatedCellIsClassified() {
         let roles = roles { sheet in
             sheet.write("Title", to: "A1")
             sheet.write(1.0, to: "B1")
             sheet.write(FormulaAST.add(.cellRef(CellRef("B1")), .number(1)), to: "B2")
             sheet.write(FormulaAST.add(.cellRef(CellRef("B2")), .number(1)), to: "B3")
         }
-        XCTAssertEqual(roles.count, 4, "Got: \(roles)")
+        #expect(roles.count == 4, "Got: \(roles)")
     }
 
     /// A cycle does not stop a cell having a role. Both cells are fed and feeding,
     /// so both are calculation — which is what they are.
-    func testCellsInACycleStillTakeRoles() {
+    @Test func cellsInACycleStillTakeRoles() {
         let roles = roles { sheet in
             sheet.write(FormulaAST.add(.cellRef(CellRef("B2")), .number(1)), to: "B1")
             sheet.write(FormulaAST.add(.cellRef(CellRef("B1")), .number(1)), to: "B2")
         }
 
-        XCTAssertEqual(roles["B1"], .calculation)
-        XCTAssertEqual(roles["B2"], .calculation)
+        #expect(roles["B1"] == .calculation)
+        #expect(roles["B2"] == .calculation)
     }
 }

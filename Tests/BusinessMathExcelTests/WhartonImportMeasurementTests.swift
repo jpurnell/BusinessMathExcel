@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -12,125 +13,113 @@ import SwiftXLSX
 ///
 /// These tests report a measurement rather than enforce a threshold. Coverage is
 /// tracked as a progress metric toward 100%, not as a gate that fails a build.
-final class WhartonImportMeasurementTests: XCTestCase {
-
-    private static let fixtureName = "Wharton-LBO-Practice-Model.xlsx"
+@Suite(.enabled(
+    if: WhartonFixture.isPresent,
+    "Wharton-LBO-Practice-Model.xlsx is not present. See Tests/Fixtures/README.md to fetch it."
+))
+struct WhartonImportMeasurementTests {
 
     private func fixture() throws -> Workbook {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/\(Self.fixtureName)")
-
-        guard (try? url.checkResourceIsReachable()) == true else {
-            throw XCTSkip(
-                "\(Self.fixtureName) is not present. See Tests/Fixtures/README.md to fetch it."
-            )
-        }
-        return try Workbook(contentsOf: url)
+        try Workbook(contentsOf: WhartonFixture.url)
     }
 
     // MARK: - The Fixture Identifies Itself
 
-    func testWorkbookHasTheExpectedSheets() throws {
+    @Test func workbookHasTheExpectedSheets() throws {
         let workbook = try fixture()
-        XCTAssertEqual(workbook.sheets.map(\.name), ["KEY NOTES", "BLANK MODEL", "ANSWER KEY"])
+        #expect(workbook.sheets.map(\.name) == ["KEY NOTES", "BLANK MODEL", "ANSWER KEY"])
     }
 
-    func testAnswerKeyCarriesThePublishedIRR() throws {
+    @Test func answerKeyCarriesThePublishedIRR() throws {
         let workbook = try fixture()
-        let answerKey = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let answerKey = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
 
         // C64 = IRR(D61:I61). Excel's cached result is the published 24.67%, which
         // is what makes this the right file rather than merely a similar one.
         guard case .formula(_, let cached) = answerKey.cell(at: "C64"),
               case .number(let irr)? = cached else {
-            return XCTFail("ANSWER KEY!C64 should be a formula with a cached value")
+            Issue.record("ANSWER KEY!C64 should be a formula with a cached value")
+            return
         }
-        XCTAssertEqual(irr, 0.2467, accuracy: 0.0001)
+        #expect(abs(irr - 0.2467) <= 0.0001)
     }
 
     // MARK: - Recognition
 
-    func testRecognizesThePeriodAxisOnTheModelSheets() throws {
+    @Test func recognizesThePeriodAxisOnTheModelSheets() throws {
         let workbook = try fixture()
         for name in ["ANSWER KEY", "BLANK MODEL"] {
-            let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
+            let sheet = try #require(workbook.sheets.first { $0.name == name })
             let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
 
-            XCTAssertEqual(grid.orientation, .periodsAcrossColumns, name)
-            XCTAssertEqual(grid.axisLine, 27, "\(name): the axis is row 27")
-            XCTAssertEqual(
-                grid.axisCells.map(\.reference), ["E27", "F27", "G27", "H27", "I27", "J27"],
-                "\(name): 2023 through 2028"
-            )
-            XCTAssertTrue(grid.diagnostics.isEmpty, "\(name): \(grid.diagnostics)")
+            #expect(grid.orientation == .periodsAcrossColumns, "\(name)")
+            #expect(grid.axisLine == 27, "\(name): the axis is row 27")
+            #expect(grid.axisCells.map(\.reference) == ["E27", "F27", "G27", "H27", "I27", "J27"], "\(name): 2023 through 2028")
+            #expect(grid.diagnostics.isEmpty, "\(name): \(grid.diagnostics)")
         }
     }
 
-    func testTheNotesSheetHasNoPeriodAxis() throws {
+    @Test func theNotesSheetHasNoPeriodAxis() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "KEY NOTES" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "KEY NOTES" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
 
-        XCTAssertNil(grid.orientation, "A page of prose is not a model")
-        XCTAssertEqual(grid.diagnostics.map(\.code), [.noPeriodAxis])
+        #expect(grid.orientation == nil, "A page of prose is not a model")
+        #expect(grid.diagnostics.map(\.code) == [.noPeriodAxis])
     }
 
-    func testTheAxisIsReadFromAComputedHeaderRow() throws {
+    @Test func theAxisIsReadFromAComputedHeaderRow() throws {
         // Only E27 is a typed year; F27 onward are `=E27+1`. An axis detector that
         // ignored what the file recorded Excel computing would find nothing here,
         // which is the common case rather than the exotic one.
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let result = ModelImporter.importSheet(sheet)
 
-        XCTAssertNil(result.cachedValues[CellRef("E27")], "E27 is typed, not computed")
-        XCTAssertEqual(result.cachedValues[CellRef("F27")], .number(2024))
+        #expect(result.cachedValues[CellRef("E27")] == nil, "E27 is typed, not computed")
+        #expect(result.cachedValues[CellRef("F27")] == .number(2024))
     }
 
-    func testRecoversTheModelsSixYearTimeline() throws {
+    @Test func recoversTheModelsSixYearTimeline() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
         let (axis, diagnostics) = PeriodAxis.build(from: grid)
 
-        let recovered = try XCTUnwrap(axis)
-        XCTAssertEqual(recovered.count, 6, "2023 plus five projection years")
-        XCTAssertEqual(recovered.granularity, .annual)
-        XCTAssertEqual(recovered.periods, (2023...2028).map(Period.year))
-        XCTAssertEqual(recovered.sources.map(\.reference), grid.axisCells.map(\.reference))
-        XCTAssertTrue(diagnostics.isEmpty, "Got: \(diagnostics)")
+        let recovered = try #require(axis)
+        #expect(recovered.count == 6, "2023 plus five projection years")
+        #expect(recovered.granularity == .annual)
+        #expect(recovered.periods == (2023...2028).map(Period.year))
+        #expect(recovered.sources.map(\.reference) == grid.axisCells.map(\.reference))
+        #expect(diagnostics.isEmpty, "Got: \(diagnostics)")
     }
 
-    func testBindsTheProfitAndLossRowsToTheirLabels() throws {
+    @Test func bindsTheProfitAndLossRowsToTheirLabels() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
         let (series, _) = LabeledSeries.bind(in: grid, axis: axis)
 
         let names = Set(series.map(\.name))
         for expected in ["Revenue", "EBITDA", "EBIT", "Less: D&A", "Less: Interest"] {
-            XCTAssertTrue(names.contains(expected), "Expected a series named \"\(expected)\"")
+            #expect(names.contains(expected), "Expected a series named \"\(expected)\"")
         }
 
-        let revenue = try XCTUnwrap(series.first { $0.name == "Revenue" })
-        XCTAssertEqual(
-            revenue.populatedCells.count, axis.count,
-            "Revenue runs the full timeline"
-        )
+        let revenue = try #require(series.first { $0.name == "Revenue" })
+        #expect(revenue.populatedCells.count == axis.count, "Revenue runs the full timeline")
     }
 
-    func testReportsRecognitionCoverageAndUniformity() throws {
+    @Test func reportsRecognitionCoverageAndUniformity() throws {
         let workbook = try fixture()
 
         for name in ["ANSWER KEY", "BLANK MODEL"] {
-            let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
+            let sheet = try #require(workbook.sheets.first { $0.name == name })
             let imported = ModelImporter.importSheet(sheet)
             let grid = SheetGrid.build(from: imported)
             guard let axis = PeriodAxis.build(from: grid).axis else {
-                return XCTFail("\(name) should have a period axis")
+                Issue.record("\(name) should have a period axis")
+                return
             }
             let (series, bindingDiagnostics) = LabeledSeries.bind(in: grid, axis: axis)
             let (uniformity, uniformityDiagnostics) = FormulaUniformity.assess(series, in: grid)
@@ -170,7 +159,7 @@ final class WhartonImportMeasurementTests: XCTestCase {
             // Reported, never gated. Coverage is a progress metric toward 100%,
             // and a build that fails on it invites recognizing things badly to
             // move the number.
-            XCTAssertGreaterThan(series.count, 0, "\(name): something should bind")
+            #expect(series.count > 0, "\(name): something should bind")
         }
     }
 
@@ -181,11 +170,11 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// last. Materialization throws on the first unresolved reference rather than
     /// building a definition with a hole in it, so a single row lost upstream
     /// stops the whole sheet — which is the point of reporting both.
-    func testReportsMaterializationReach() throws {
+    @Test func reportsMaterializationReach() throws {
         let workbook = try fixture()
 
         for name in ["ANSWER KEY", "BLANK MODEL"] {
-            let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == name })
+            let sheet = try #require(workbook.sheets.first { $0.name == name })
             let plan = ExcelRecognizer.recognize(sheet, in: workbook)
 
             var byCode: [String: Int] = [:]
@@ -220,8 +209,7 @@ final class WhartonImportMeasurementTests: XCTestCase {
                 """)
 
             // Reported, never gated — same reason as coverage above.
-            XCTAssertGreaterThan(
-                plan.model.accounts.count, 0, "\(name): something should translate")
+            #expect(plan.model.accounts.count > 0, "\(name): something should translate")
         }
     }
 
@@ -230,9 +218,9 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// The gate from §18.6: every `$`-formatted account is money, every genuine
     /// `%` one is a proportion, nothing formatted `General` is given a unit, and
     /// the count left unitless is reported rather than minimised.
-    func testReportsInferredUnits() throws {
+    @Test func reportsInferredUnits() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
         let plan = ExcelRecognizer.recognize(sheet, in: workbook)
 
@@ -249,8 +237,7 @@ final class WhartonImportMeasurementTests: XCTestCase {
             guard stated.count == 1, let only = stated.first else { continue }
             let expected = only == .ratio && account.unit == .rate ? UnitKind.rate : only
             if account.unit != expected {
-                wrong.append("\(account.name): cells say \(only), account says "
-                    + "\(account.unit.map { "\($0)" } ?? "nothing")")
+                wrong.append("\(account.name): cells say \(only), account says \(account.unit.map { "\($0)" } ?? "nothing")")
             }
         }
 
@@ -262,14 +249,8 @@ final class WhartonImportMeasurementTests: XCTestCase {
               stating nothing    \(plan.diagnostics.filter { $0.code == .unitInferenceFailed }.count)
             """)
 
-        XCTAssertEqual(
-            wrong, [],
-            "an account whose cells all state one dimension must carry it"
-        )
-        XCTAssertGreaterThan(
-            plan.model.accounts.filter { $0.unit != nil }.count, 20,
-            "and the sheet does state units, so something must have been read"
-        )
+        #expect(wrong == [], "an account whose cells all state one dimension must carry it")
+        #expect(plan.model.accounts.filter { $0.unit != nil }.count > 20, "and the sheet does state units, so something must have been read")
     }
 
     /// What the sheet emits as source, and how much of it is typed.
@@ -278,9 +259,9 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// the compiler will check. A definition emitted through the string API is a
     /// definition the build cannot verify — correct, but unchecked — so the split
     /// is the honest measure of what the typed layer bought on real input.
-    func testReportsEmittedSource() throws {
+    @Test func reportsEmittedSource() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let plan = ExcelRecognizer.recognize(sheet, in: workbook).model
 
         let source = TypedSourceWriter.swiftSource(
@@ -313,10 +294,8 @@ final class WhartonImportMeasurementTests: XCTestCase {
         // Reported, never gated — the same reason coverage is. A threshold here
         // would reward emitting typed source that happens to compile over emitting
         // the untyped spelling where the sheet genuinely said nothing.
-        XCTAssertGreaterThan(handles.count, 0, "the sheet does state units")
-        XCTAssertEqual(
-            definitions.count, plan.accounts.filter { $0.expression != nil }.count,
-            "every derived account is emitted, typed or not — none is silently dropped")
+        #expect(handles.count > 0, "the sheet does state units")
+        #expect(definitions.count == plan.accounts.filter { $0.expression != nil }.count, "every derived account is emitted, typed or not — none is silently dropped")
     }
 
     /// The emitted source is valid Swift as far as this package can tell.
@@ -326,9 +305,9 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// check that catches the failure a large sheet actually risks — an account
     /// name that breaks out of its string literal, or two accounts colliding on
     /// one identifier.
-    func testTheEmittedSourceIsStructurallySound() throws {
+    @Test func theEmittedSourceIsStructurallySound() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let plan = ExcelRecognizer.recognize(sheet, in: workbook).model
 
         let source = TypedSourceWriter.swiftSource(
@@ -340,15 +319,10 @@ final class WhartonImportMeasurementTests: XCTestCase {
                 let rest = line[range.upperBound...]
                 return rest.split(separator: " ").first.map(String.init)
             }
-        XCTAssertEqual(
-            declared.count, Set(declared).count,
-            "two accounts sharing a Swift identifier would not compile. Got: "
-                + "\(Dictionary(grouping: declared, by: { $0 }).filter { $0.value.count > 1 }.keys)")
+        #expect(declared.count == Set(declared).count, "two accounts sharing a Swift identifier would not compile. Got: \(Dictionary(grouping: declared, by: { $0 }).filter { $0.value.count > 1 }.keys)")
 
         for line in source.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
-            XCTAssertEqual(
-                line.filter { $0 == "\"" }.count % 2, 0,
-                "an unbalanced quote means a name broke out of its literal: \(line)")
+            #expect(line.filter { $0 == "\"" }.count % 2 == 0, "an unbalanced quote means a name broke out of its literal: \(line)")
         }
     }
 
@@ -358,55 +332,48 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// small fixture proves a transpose fails, and this proves the reading is right
     /// on the shape a real model actually uses. The values are the sheet's own,
     /// cached by Excel.
-    func testReadsTheSensitivityTable() throws {
+    @Test func readsTheSensitivityTable() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let plan = ExcelRecognizer.recognize(sheet, in: workbook)
 
-        let table = try XCTUnwrap(
-            plan.model.sensitivities.first,
-            "the ANSWER KEY holds one IRR sensitivity table")
+        let table = try #require(plan.model.sensitivities.first, "the ANSWER KEY holds one IRR sensitivity table")
 
-        XCTAssertEqual(table.rowDriver, "Revenue growth", "across the top")
-        XCTAssertEqual(
-            table.columnDriver, "Multiple (based on 2028 EBITDA)", "down the side")
+        #expect(table.rowDriver == "Revenue growth", "across the top")
+        #expect(table.columnDriver == "Multiple (based on 2028 EBITDA)", "down the side")
 
-        XCTAssertEqual(table.rowValues.count, 5)
-        XCTAssertEqual(table.columnValues, [3, 4, 5, 6, 7], "exit multiples")
+        #expect(table.rowValues.count == 5)
+        #expect(table.columnValues == [3, 4, 5, 6, 7], "exit multiples")
         for (actual, expected) in zip(table.rowValues, [0.06, 0.08, 0.10, 0.12, 0.14]) {
-            XCTAssertEqual(actual, expected, accuracy: 1e-9)
+            #expect(abs(actual - expected) <= 1e-9)
         }
 
-        XCTAssertEqual(table.results.count, 5, "one row per multiple")
-        XCTAssertEqual(table.results.first?.count, 5, "one column per growth rate")
+        #expect(table.results.count == 5, "one row per multiple")
+        #expect(table.results.first?.count == 5, "one column per growth rate")
 
         // The grid rises in both directions — a higher exit multiple and faster
         // growth both help a return — so a transposed or reversed reading would
         // still be monotonic, and only the values themselves settle it.
-        let first = try XCTUnwrap(table.results.first?.first)
-        let last = try XCTUnwrap(table.results.last?.last)
-        XCTAssertEqual(first, -0.013185, accuracy: 1e-5, "3× at 6% growth")
-        XCTAssertEqual(last, 0.420650, accuracy: 1e-5, "7× at 14% growth")
+        let first = try #require(table.results.first?.first)
+        let last = try #require(table.results.last?.last)
+        #expect(abs(first - -0.013185) <= 1e-5, "3× at 6% growth")
+        #expect(abs(last - 0.420650) <= 1e-5, "7× at 14% growth")
 
-        XCTAssertEqual(
-            table.measuredCell, CellRef("O5"),
-            "the corner cell, which points at the IRR in C64")
+        #expect(table.measuredCell == CellRef("O5"), "the corner cell, which points at the IRR in C64")
     }
 
     /// The mapping upstream keeps the orientation the analysis type documents.
-    func testTheSensitivityTableMapsUpstream() throws {
+    @Test func theSensitivityTableMapsUpstream() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let plan = ExcelRecognizer.recognize(sheet, in: workbook)
-        let analysis = try XCTUnwrap(plan.model.sensitivities.first).analysis()
+        let analysis = try #require(plan.model.sensitivities.first).analysis()
 
-        XCTAssertEqual(analysis.inputDriver1, "Multiple (based on 2028 EBITDA)")
-        XCTAssertEqual(analysis.inputValues1, [3, 4, 5, 6, 7])
-        XCTAssertEqual(analysis.inputDriver2, "Revenue growth")
-        XCTAssertEqual(analysis.results.count, 5)
-        XCTAssertEqual(
-            analysis.results[0][0], -0.013185, accuracy: 1e-5,
-            "results[i][j] is inputValues1[i] against inputValues2[j]")
+        #expect(analysis.inputDriver1 == "Multiple (based on 2028 EBITDA)")
+        #expect(analysis.inputValues1 == [3, 4, 5, 6, 7])
+        #expect(analysis.inputDriver2 == "Revenue growth")
+        #expect(analysis.results.count == 5)
+        #expect(abs(analysis.results[0][0] - -0.013185) <= 1e-5, "results[i][j] is inputValues1[i] against inputValues2[j]")
     }
 
     /// What the sheet's What-If table contributes, and what still blocks recomputing it.
@@ -415,13 +382,13 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// second needs the measured output, and on this sheet that is an aggregate
     /// over the whole timeline — which is a thing a period-local model does not
     /// compute, by design. Reported rather than rounded off.
-    func testReportsSensitivityRecognition() throws {
+    @Test func reportsSensitivityRecognition() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
         let plan = ExcelRecognizer.recognize(sheet, in: workbook)
 
-        let table = try XCTUnwrap(plan.model.sensitivities.first)
+        let table = try #require(plan.model.sensitivities.first)
         let covered = table.cells.filter { grid.cells[$0] != nil }.count
 
         // What the measured cell points at, and whether the model can produce it.
@@ -447,12 +414,8 @@ final class WhartonImportMeasurementTests: XCTestCase {
                 drops — \(resolvable.dropped.map(\.label).sorted())
             """)
 
-        XCTAssertEqual(
-            aggregate, "IRR",
-            "the measured output is an internal rate of return over a whole row")
-        XCTAssertTrue(
-            resolvable.dropped.contains { $0.label == "Equity of PE Firm" },
-            "and that row is the one already recorded as beyond a one-rule-per-account model")
+        #expect(aggregate == "IRR", "the measured output is an internal rate of return over a whole row")
+        #expect(resolvable.dropped.contains { $0.label == "Equity of PE Firm" }, "and that row is the one already recorded as beyond a one-rule-per-account model")
     }
 
     /// The measurement that matters: does the model agree with the sheet?
@@ -467,11 +430,11 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// belong to the carried account rather than to the one named for the formula.
     /// Comparing the wrong one of those reports every figure a period out, which
     /// is a bug in the comparison and looks exactly like a bug in the model.
-    func testTheRecognizedModelAgreesWithTheSheetsOwnValues() throws {
+    @Test func theRecognizedModelAgreesWithTheSheetsOwnValues() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
 
         let plan = ExcelRecognizer.recognize(sheet, in: workbook)
         let resolvable = try ModelMaterializer.buildResolvable(from: plan.model)
@@ -507,8 +470,7 @@ final class WhartonImportMeasurementTests: XCTestCase {
                 let error = abs(computed - expected) / max(abs(expected), 1)
                 if error < 1e-4 { agreed += 1 } else {
                     disagreed.append(
-                        "\(account.name) @\(cells[index].reference): "
-                            + "\(computed) vs \(expected)")
+                        "\(account.name) @\(cells[index].reference): \(computed) vs \(expected)")
                 }
             }
         }
@@ -521,12 +483,8 @@ final class WhartonImportMeasurementTests: XCTestCase {
             \(disagreed.map { "      \($0)" }.joined(separator: "\n"))
             """)
 
-        XCTAssertTrue(
-            disagreed.isEmpty,
-            "every value the model produces must match the one Excel cached in that "
-                + "cell. A model that runs and disagrees is worse than one that refuses"
-        )
-        XCTAssertGreaterThan(agreed, 100, "and it must actually be checking something")
+        #expect(disagreed.isEmpty, "every value the model produces must match the one Excel cached in that cell. A model that runs and disagrees is worse than one that refuses")
+        #expect(agreed > 100, "and it must actually be checking something")
     }
 
     /// The collision that stopped the sheet, and the rule that resolves it.
@@ -542,45 +500,39 @@ final class WhartonImportMeasurementTests: XCTestCase {
     /// between them, so `H11` belongs to `F11` and `Revenue growth` no longer
     /// claims it. Six of the `ANSWER KEY`'s seven non-uniform rows were this one
     /// overlap; the one that remains is genuinely irregular.
-    func testAssumptionRowsDoNotCollideWithThePeriodAxis() throws {
+    @Test func assumptionRowsDoNotCollideWithThePeriodAxis() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
 
         // The overlap itself is a fact about the sheet and has not gone away.
-        XCTAssertEqual(grid.axisLine, 27, "the timeline is row 27")
-        XCTAssertNotNil(grid.cells[CellRef("H27")], "and H is one of its period columns")
-        XCTAssertNotNil(grid.formulaASTs[CellRef("H11")], "H11 is a sources-and-uses total")
+        #expect(grid.axisLine == 27, "the timeline is row 27")
+        #expect(grid.formulaASTs[CellRef("H27")].map(FormulaSerializer.serialize) == "G27+1", "and H is one of its period columns")
+        #expect(grid.formulaASTs[CellRef("H11")].map(FormulaSerializer.serialize) == "SUM(H9:H10)", "H11 is a sources-and-uses total")
 
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
         let (series, _) = LabeledSeries.bind(in: grid, axis: axis)
 
-        XCTAssertFalse(
-            series.contains { $0.populatedCells.contains(CellRef("H11")) },
-            "H11 belongs to the label in F11, not to anything in column B"
-        )
+        #expect(!(series.contains { $0.populatedCells.contains(CellRef("H11")) }), "H11 belongs to the label in F11, not to anything in column B")
 
         let (uniformity, _) = FormulaUniformity.assess(series, in: grid)
         let nonUniform = uniformity.filter { $0.kind == .nonUniform }
-        XCTAssertEqual(
-            nonUniform.count, 1,
-            "seven before Rule 1. Remaining: \(nonUniform.map(\.series.name))"
-        )
+        #expect(nonUniform.count == 1, "seven before Rule 1. Remaining: \(nonUniform.map(\.series.name))")
     }
 
-    func testRecognizesTheAtCloseColumnBeforeTheTimeline() throws {
+    @Test func recognizesTheAtCloseColumnBeforeTheTimeline() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
 
-        let anchor = try XCTUnwrap(axis.anchor, "column D is headed \"Closing\"")
-        XCTAssertEqual(anchor.label, "Closing")
-        XCTAssertEqual(anchor.source.reference, "D27")
-        XCTAssertEqual(axis.count, 6, "and it is still not counted as a period")
+        let anchor = try #require(axis.anchor, "column D is headed \"Closing\"")
+        #expect(anchor.label == "Closing")
+        #expect(anchor.source.reference == "D27")
+        #expect(axis.count == 6, "and it is still not counted as a period")
     }
 
-    func testReproducesThePublishedIRRThroughRecognition() throws {
+    @Test func reproducesThePublishedIRRThroughRecognition() throws {
         // The reference figure, reached through the pipeline rather than by reading
         // the sheet's cached answer: bind the equity row, take its at-close value
         // and its periods, and compute.
@@ -589,14 +541,14 @@ final class WhartonImportMeasurementTests: XCTestCase {
         // alone the row is [0, 0, 0, 0, 240.98] with no investment in it, and a
         // return computed on that is meaningless — or worse, plausible.
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let imported = ModelImporter.importSheet(sheet)
         let grid = SheetGrid.build(from: imported)
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
         let (series, _) = LabeledSeries.bind(in: grid, axis: axis)
 
-        let equity = try XCTUnwrap(series.first { $0.name == "Equity of PE Firm" })
-        XCTAssertEqual(equity.anchorCell?.reference, "D61")
+        let equity = try #require(series.first { $0.name == "Equity of PE Firm" })
+        #expect(equity.anchorCell?.reference == "D61")
 
         func value(_ reference: CellRef?) -> Double? {
             guard let reference else { return nil }
@@ -610,32 +562,33 @@ final class WhartonImportMeasurementTests: XCTestCase {
         if let atClose = value(equity.anchorCell) { flows.append(atClose) }
         for cell in equity.cells { if let periodValue = value(cell) { flows.append(periodValue) } }
 
-        XCTAssertEqual(flows.count, 6, "at close, then five years")
-        XCTAssertEqual(flows.first, -80, "the equity cheque")
+        #expect(flows.count == 6, "at close, then five years")
+        #expect(flows.first == -80, "the equity cheque")
 
         let rate = try irr(cashFlows: flows)
-        XCTAssertEqual(rate, 0.2467, accuracy: 0.0001, "the published IRR of 24.67%")
+        #expect(abs(rate - 0.2467) <= 0.0001, "the published IRR of 24.67%")
     }
 
-    func testReproducesThePublishedMultipleOfMoney() throws {
+    @Test func reproducesThePublishedMultipleOfMoney() throws {
         let workbook = try fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let sheet = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
 
         guard case .formula(_, let exitCached) = sheet.cell(at: "I61"),
               case .number(let exit)? = exitCached,
               case .formula(_, let equityCached) = sheet.cell(at: "H10"),
               case .number(let invested)? = equityCached else {
-            return XCTFail("expected an exit value and an equity contribution")
+            Issue.record("expected an exit value and an equity contribution")
+            return
         }
 
-        XCTAssertEqual(exit / invested, 3.01, accuracy: 0.01, "the published MoM of 3.01")
+        #expect(abs(exit / invested - 3.01) <= 0.01, "the published MoM of 3.01")
     }
 
     // MARK: - Import Fidelity
 
-    func testEveryPopulatedCellBecomesANode() throws {
+    @Test func everyPopulatedCellBecomesANode() throws {
         let workbook = try fixture()
-        let answerKey = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let answerKey = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let result = ModelImporter.importSheet(answerKey)
 
         let populated = answerKey.cellReferences.filter { reference in
@@ -644,15 +597,12 @@ final class WhartonImportMeasurementTests: XCTestCase {
             return true
         }.count
 
-        XCTAssertEqual(
-            result.model.nodeCount, populated,
-            "Structural transcription must not drop cells; interpretation happens above this layer"
-        )
+        #expect(result.model.nodeCount == populated, "Structural transcription must not drop cells; interpretation happens above this layer")
     }
 
-    func testReportsImportFidelity() throws {
+    @Test func reportsImportFidelity() throws {
         let workbook = try fixture()
-        let answerKey = try XCTUnwrap(workbook.sheets.first { $0.name == "ANSWER KEY" })
+        let answerKey = try #require(workbook.sheets.first { $0.name == "ANSWER KEY" })
         let result = ModelImporter.importSheet(answerKey)
 
         var clean = 0
@@ -669,7 +619,7 @@ final class WhartonImportMeasurementTests: XCTestCase {
               warnings         \(result.warnings.count)
             """)
 
-        XCTAssertGreaterThan(clean, 0, "Some formulas must survive translation")
+        #expect(clean > 0, "Some formulas must survive translation")
     }
 
     /// Whether a formula contains any of the importer's degrade sentinels.

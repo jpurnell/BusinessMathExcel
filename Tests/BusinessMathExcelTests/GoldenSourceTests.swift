@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -23,7 +24,7 @@ import SwiftXLSX
 /// emits — and ``testTheWriterStillEmitsTheGolden`` closes it by regenerating and
 /// comparing. Together the two say: this exact text compiles, and this is still
 /// the text the writer produces.
-final class GoldenSourceTests: XCTestCase {
+@Suite struct GoldenSourceTests {
 
     /// The workbook `GoldenForecastModel.swift` was generated from.
     ///
@@ -63,7 +64,7 @@ final class GoldenSourceTests: XCTestCase {
 
     private func plan() throws -> RecognizedModel {
         let workbook = fixture()
-        let sheet = try XCTUnwrap(workbook.sheets.first)
+        let sheet = try #require(workbook.sheets.first)
         return ExcelRecognizer.recognize(sheet, in: workbook).model
     }
 
@@ -73,18 +74,18 @@ final class GoldenSourceTests: XCTestCase {
     ///
     /// These are the same figures the golden path pins: Excel's own
     /// 1,000,000 / 1,150,000 / 1,322,500, with a 40% margin on each.
-    func testTheGeneratedModelRuns() throws {
+    @Test func theGeneratedModelRuns() throws {
         let results = try GoldenForecast.run()
 
-        let revenue = try XCTUnwrap(results["Revenue"]?.valuesArray)
-        XCTAssertEqual(revenue.count, 3)
+        let revenue = try #require(results["Revenue"]?.valuesArray)
+        #expect(revenue.count == 3)
         for (actual, expected) in zip(revenue, [1_000_000.0, 1_150_000, 1_322_500]) {
-            XCTAssertEqual(actual, expected, accuracy: 1e-6)
+            #expect(abs(actual - expected) <= 1e-6)
         }
 
-        let ebitda = try XCTUnwrap(results["EBITDA"]?.valuesArray)
+        let ebitda = try #require(results["EBITDA"]?.valuesArray)
         for (actual, expected) in zip(ebitda, [400_000.0, 460_000, 529_000]) {
-            XCTAssertEqual(actual, expected, accuracy: 1e-6)
+            #expect(abs(actual - expected) <= 1e-6)
         }
     }
 
@@ -93,7 +94,7 @@ final class GoldenSourceTests: XCTestCase {
     /// Compared against each other rather than against constants. A constant would
     /// pass if both drifted together; this cannot, which is the point — the writer
     /// is a second route to the same model and has to stay one.
-    func testTheGeneratedModelAgreesWithTheMaterializedPlan() throws {
+    @Test func theGeneratedModelAgreesWithTheMaterializedPlan() throws {
         let built = try ModelMaterializer.build(from: try plan())
         let materialized = try PeriodDriver(
             definition: built.definition, rollforwards: built.rollforwards
@@ -101,25 +102,21 @@ final class GoldenSourceTests: XCTestCase {
 
         let generated = try GoldenForecast.run()
 
-        XCTAssertEqual(
-            Set(generated.keys), Set(materialized.keys),
-            "both routes produce the same accounts")
+        #expect(Set(generated.keys) == Set(materialized.keys), "both routes produce the same accounts")
 
         for (name, series) in materialized {
-            let emitted = try XCTUnwrap(generated[name]?.valuesArray, "\(name) is missing")
+            let emitted = try #require(generated[name]?.valuesArray, "\(name) is missing")
             for (actual, expected) in zip(emitted, series.valuesArray) {
-                XCTAssertEqual(actual, expected, accuracy: 1e-9, "\(name)")
+                #expect(abs(actual - expected) <= 1e-9, "\(name)")
             }
         }
     }
 
     /// The generated model passes the unit check it emits a call to.
-    func testTheGeneratedModelValidates() throws {
+    @Test func theGeneratedModelValidates() throws {
         let model = GoldenForecast.definition()
-        XCTAssertNoThrow(try model.validateUnits())
-        XCTAssertFalse(
-            model.unitDeclarations.isEmpty,
-            "and it declared units rather than validating vacuously")
+        #expect(throws: Never.self) { try model.validateUnits() }
+        #expect(!model.unitDeclarations.isEmpty, "and it declared units rather than validating vacuously")
     }
 
     // MARK: - It is still what the writer emits
@@ -128,7 +125,7 @@ final class GoldenSourceTests: XCTestCase {
     ///
     /// Without this the golden would prove only that *some* output once compiled.
     /// With it, the compiling file and the current output are the same text.
-    func testTheWriterStillEmitsTheGolden() throws {
+    @Test func theWriterStillEmitsTheGolden() throws {
         let emitted = TypedSourceWriter.swiftSource(
             for: try plan(), sheetName: "Forecast", modelName: "GoldenForecast")
 
@@ -137,10 +134,6 @@ final class GoldenSourceTests: XCTestCase {
             .appendingPathComponent("GoldenForecastModel.swift")
         let onDisk = try String(contentsOf: url, encoding: .utf8)
 
-        XCTAssertEqual(
-            emitted, onDisk,
-            "GoldenForecastModel.swift has drifted from what the writer emits. If the "
-                + "change is intended, regenerate it — but read the diff first: the file "
-                + "is checked in precisely so a change to the writer shows up as one.")
+        #expect(emitted == onDisk, "GoldenForecastModel.swift has drifted from what the writer emits. If the change is intended, regenerate it — but read the diff first: the file is checked in precisely so a change to the writer shows up as one.")
     }
 }

@@ -1,59 +1,60 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class ModelImporterTests: XCTestCase {
+@Suite struct ModelImporterTests {
 
     // MARK: - Empty Workbook
 
-    func testEmptyWorkbookProducesEmptyModel() {
+    @Test func emptyWorkbookProducesEmptyModel() {
         let wb = Workbook()
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.model.nodeCount, 0)
-        XCTAssertTrue(result.warnings.isEmpty)
+        #expect(result.model.nodeCount == 0)
+        #expect(result.warnings.isEmpty)
     }
 
     // MARK: - Value Cells
 
-    func testImportsNumberCellAsInput() throws {
+    @Test func importsNumberCellAsInput() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(42.0, to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.model.nodeCount, 1)
+        #expect(result.model.nodeCount == 1)
 
-        let ref = try XCTUnwrap(result.model.node(named: "A1"))
+        let ref = try #require(result.model.node(named: "A1"))
         if case .input(let value) = result.model.kind(of: ref) {
-            XCTAssertEqual(value, 42, accuracy: 0.01)
+            #expect(abs(value - 42) <= 0.01)
         } else {
-            XCTFail("Expected input node")
+            Issue.record("Expected input node")
         }
     }
 
-    func testImportsTextCellAsTextInput() throws {
+    @Test func importsTextCellAsTextInput() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write("Revenue", to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        let ref = try XCTUnwrap(result.model.node(named: "A1"))
-        XCTAssertEqual(result.model.kind(of: ref), .textInput("Revenue"))
+        let ref = try #require(result.model.node(named: "A1"))
+        #expect(result.model.kind(of: ref) == .textInput("Revenue"))
     }
 
-    func testSkipsBlankCells() {
+    @Test func skipsBlankCells() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
         sheet.write(2.0, to: "A3")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.model.nodeCount, 2)
+        #expect(result.model.nodeCount == 2)
     }
 
     // MARK: - Formula Cells
 
-    func testImportsFormulaCellAsFormula() throws {
+    @Test func importsFormulaCellAsFormula() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(10.0, to: "A1")
@@ -64,16 +65,16 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.model.nodeCount, 3)
+        #expect(result.model.nodeCount == 3)
 
-        let formulaRef = try XCTUnwrap(result.model.node(named: "A3"))
+        let formulaRef = try #require(result.model.node(named: "A3"))
         if case .formula = result.model.kind(of: formulaRef) {
         } else {
-            XCTFail("Expected formula node")
+            Issue.record("Expected formula node")
         }
     }
 
-    func testFormulaReferencesResolveToNodes() throws {
+    @Test func formulaReferencesResolveToNodes() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(100.0, to: "A1")
@@ -83,22 +84,22 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
-        let a2 = try XCTUnwrap(result.model.node(named: "A2"))
+        let a1 = try #require(result.model.node(named: "A1"))
+        let a2 = try #require(result.model.node(named: "A2"))
 
         if case .formula(let formula) = result.model.kind(of: a2) {
             if case .multiply(let lhs, let rhs) = formula {
-                XCTAssertEqual(lhs, .ref(a1))
-                XCTAssertEqual(rhs, .number(2))
+                #expect(lhs == .ref(a1))
+                #expect(rhs == .number(2))
             } else {
-                XCTFail("Expected multiply formula")
+                Issue.record("Expected multiply formula")
             }
         } else {
-            XCTFail("Expected formula node")
+            Issue.record("Expected formula node")
         }
     }
 
-    func testImportsFunctionFormula() throws {
+    @Test func importsFunctionFormula() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -109,49 +110,43 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+        let a3 = try #require(result.model.node(named: "A3"))
 
         if case .formula(let formula) = result.model.kind(of: a3) {
             if case .function(let name, let args) = formula {
-                XCTAssertEqual(name, "SUM")
-                XCTAssertEqual(args.count, 2)
+                #expect(name == "SUM")
+                #expect(args.count == 2)
             } else {
-                XCTFail("Expected function formula")
+                Issue.record("Expected function formula")
             }
         } else {
-            XCTFail("Expected formula node")
+            Issue.record("Expected formula node")
         }
     }
 
     // MARK: - Warnings for Unsupported Formula Nodes
 
-    func testUnsupportedFormulaNodeProducesWarning() {
+    @Test func unsupportedFormulaNodeProducesWarning() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(FormulaAST.namedRange("TaxRate"), to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertFalse(
-            result.warnings.isEmpty,
-            "An unsupported AST node must be reported, not silently dropped"
-        )
+        #expect(!result.warnings.isEmpty, "An unsupported AST node must be reported, not silently dropped")
     }
 
-    func testUnsupportedFormulaWarningNamesCellAndNodeKind() throws {
+    @Test func unsupportedFormulaWarningNamesCellAndNodeKind() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(FormulaAST.concatenate(.text("a"), .text("b")), to: "B7")
 
         let result = ModelImporter.importWorkbook(wb)
-        let warning = try XCTUnwrap(result.warnings.first)
-        XCTAssertTrue(warning.contains("B7"), "Warning should name the cell: \(warning)")
-        XCTAssertTrue(
-            warning.contains("concatenate"),
-            "Warning should name the node kind: \(warning)"
-        )
+        let warning = try #require(result.warnings.first)
+        #expect(warning.contains("B7"), "Warning should name the cell: \(warning)")
+        #expect(warning.contains("concatenate"), "Warning should name the node kind: \(warning)")
     }
 
-    func testNestedUnsupportedNodeProducesWarning() {
+    @Test func nestedUnsupportedNodeProducesWarning() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -161,13 +156,10 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertFalse(
-            result.warnings.isEmpty,
-            "Unsupported nodes nested inside a supported operator must still warn"
-        )
+        #expect(!result.warnings.isEmpty, "Unsupported nodes nested inside a supported operator must still warn")
     }
 
-    func testFullySupportedFormulaProducesNoWarnings() {
+    @Test func fullySupportedFormulaProducesNoWarnings() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -178,12 +170,12 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
     // MARK: - Cell Ranges
 
-    func testImportsCellRangeAsRange() throws {
+    @Test func importsCellRangeAsRange() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         for row in 5...16 {
@@ -195,22 +187,22 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let d17 = try XCTUnwrap(result.model.node(named: "D17"))
-        guard case .formula(let formula) = try XCTUnwrap(result.model.kind(of: d17)) else {
-            return XCTFail("Expected formula node")
+        let d17 = try #require(result.model.node(named: "D17"))
+        guard case .formula(let formula) = try #require(result.model.kind(of: d17)) else {
+            Issue.record("Expected formula node"); return
         }
         guard case .function(let name, let args) = formula else {
-            return XCTFail("Expected function formula, got \(formula)")
+            Issue.record("Expected function formula, got \(formula)"); return
         }
-        XCTAssertEqual(name, "SUM")
+        #expect(name == "SUM")
         guard case .range(let refs) = args.first else {
-            return XCTFail("Expected a range argument, got \(String(describing: args.first))")
+            Issue.record("Expected a range argument, got \(String(describing: args.first))"); return
         }
-        XCTAssertEqual(refs.count, 12)
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(refs.count == 12)
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testBareCellRangeImportsAsRange() throws {
+    @Test func bareCellRangeImportsAsRange() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -218,14 +210,14 @@ final class ModelImporterTests: XCTestCase {
         sheet.write(FormulaAST.cellRange(CellRange(from: "A1", to: "A2")), to: "A3")
 
         let result = ModelImporter.importWorkbook(wb)
-        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
-        guard case .formula(.range(let refs)) = try XCTUnwrap(result.model.kind(of: a3)) else {
-            return XCTFail("Expected a range formula")
+        let a3 = try #require(result.model.node(named: "A3"))
+        guard case .formula(.range(let refs)) = try #require(result.model.kind(of: a3)) else {
+            Issue.record("Expected a range formula"); return
         }
-        XCTAssertEqual(refs.count, 2)
+        #expect(refs.count == 2)
     }
 
-    func testCellRangeToleratesBlankInteriorCells() throws {
+    @Test func cellRangeToleratesBlankInteriorCells() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         // D9 is left blank — a separator row inside a summed range is ordinary Excel,
@@ -239,16 +231,16 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let d17 = try XCTUnwrap(result.model.node(named: "D17"))
-        guard case .formula(.function(_, let args)) = try XCTUnwrap(result.model.kind(of: d17)),
+        let d17 = try #require(result.model.node(named: "D17"))
+        guard case .formula(.function(_, let args)) = try #require(result.model.kind(of: d17)),
               case .range(let refs) = args.first else {
-            return XCTFail("Expected a range argument")
+            Issue.record("Expected a range argument"); return
         }
-        XCTAssertEqual(refs.count, 11, "Blank interior cells are skipped, not fatal")
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(refs.count == 11, "Blank interior cells are skipped, not fatal")
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testUnanchoredCellRangeWarnsAndDegrades() throws {
+    @Test func unanchoredCellRangeWarnsAndDegrades() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         // D5 and D16 are both blank, so the range has no endpoints to anchor to.
@@ -264,12 +256,12 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let warning = try XCTUnwrap(result.warnings.first)
-        XCTAssertTrue(warning.contains("D5:D16"), "Warning should name the range: \(warning)")
-        XCTAssertTrue(warning.contains("A1"), "Warning should name the cell: \(warning)")
+        let warning = try #require(result.warnings.first)
+        #expect(warning.contains("D5:D16"), "Warning should name the range: \(warning)")
+        #expect(warning.contains("A1"), "Warning should name the cell: \(warning)")
     }
 
-    func testCellRangeResolvesBackToACellRangeOnExport() throws {
+    @Test func cellRangeResolvesBackToACellRangeOnExport() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         for row in 5...16 {
@@ -282,20 +274,18 @@ final class ModelImporterTests: XCTestCase {
 
         let result = ModelImporter.importWorkbook(wb)
         let exported = try ModelExporter.export(result.model, title: "Round Trip")
-        let outSheet = try XCTUnwrap(exported.sheets.first)
-        let sumCell = try XCTUnwrap(
-            outSheet.cellReferences
+        let outSheet = try #require(exported.sheets.first)
+        let sumCell = try #require(outSheet.cellReferences
                 .compactMap { outSheet.cell(at: $0)?.formulaAST }
-                .first { if case .function("SUM", _) = $0 { return true } else { return false } }
-        )
+                .first { if case .function("SUM", _) = $0 { return true } else { return false } })
         guard case .function(_, let args) = sumCell, case .cellRange = args.first else {
-            return XCTFail("SUM should export a single CellRange argument, got \(sumCell)")
+            Issue.record("SUM should export a single CellRange argument, got \(sumCell)"); return
         }
     }
 
     // MARK: - Exponentiation
 
-    func testImportsPowerFormula() throws {
+    @Test func importsPowerFormula() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(0.08, to: "B2")
@@ -309,19 +299,19 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let b2 = try XCTUnwrap(result.model.node(named: "B2"))
-        let b3 = try XCTUnwrap(result.model.node(named: "B3"))
-        let b4 = try XCTUnwrap(result.model.node(named: "B4"))
+        let b2 = try #require(result.model.node(named: "B2"))
+        let b3 = try #require(result.model.node(named: "B3"))
+        let b4 = try #require(result.model.node(named: "B4"))
         guard case .formula(.power(let base, let exponent)) =
-            try XCTUnwrap(result.model.kind(of: b4)) else {
-            return XCTFail("Expected a power formula")
+            try #require(result.model.kind(of: b4)) else {
+            Issue.record("Expected a power formula"); return
         }
-        XCTAssertEqual(base, .add(.number(1), .ref(b2)))
-        XCTAssertEqual(exponent, .ref(b3))
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(base == .add(.number(1), .ref(b2)))
+        #expect(exponent == .ref(b3))
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testPowerResolvesBackToPowerOnExport() throws {
+    @Test func powerResolvesBackToPowerOnExport() throws {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.08)
         let periods = model.addInput(label: "Periods", value: 5)
@@ -331,12 +321,11 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let wb = try ModelExporter.export(model, title: "Power")
-        let sheet = try XCTUnwrap(wb.sheets.first)
-        let ast = try XCTUnwrap(
-            sheet.cellReferences.compactMap { sheet.cell(at: $0)?.formulaAST }.first
-        )
+        let sheet = try #require(wb.sheets.first)
+        let formulas = sheet.cellReferences.compactMap { sheet.cell(at: $0)?.formulaAST }
+        let ast = try #require(formulas.first)
         guard case .power = ast else {
-            return XCTFail("Expected a power AST — `^` must not become POWER(), got \(ast)")
+            Issue.record("Expected a power AST — `^` must not become POWER(), got \(ast)"); return
         }
     }
 
@@ -347,7 +336,7 @@ final class ModelImporterTests: XCTestCase {
     // the file and would otherwise arrive as their cached value — 224 computed
     // cells in one measured workbook, every one of them presenting as an input.
 
-    func testAnArrayMemberIsAFormulaNodeNotAnInput() throws {
+    @Test func anArrayMemberIsAFormulaNodeNotAnInput() throws {
         let result = ModelImporter.importCells([
             (reference: "D55", value: .formula(
                 .function("TRANSPOSE", [.cellRange(CellRange(from: "H35", to: "K35"))]),
@@ -356,14 +345,14 @@ final class ModelImporterTests: XCTestCase {
                 .function("_ARRAY", [.cellRef(CellRef("D55")), .text("D55:D57")]),
                 cached: .number(-0.5))),
         ])
-        let node = try XCTUnwrap(result.cellToNode[CellRef("D56")])
-        guard case .formula = try XCTUnwrap(result.model.kind(of: node)) else {
-            return XCTFail("D56 became \(String(describing: result.model.kind(of: node)))")
+        let node = try #require(result.cellToNode[CellRef("D56")])
+        guard case .formula = try #require(result.model.kind(of: node)) else {
+            Issue.record("D56 became \(String(describing: result.model.kind(of: node)))"); return
         }
     }
 
     /// And it depends on the cell that computes it, so the graph reaches it.
-    func testAnArrayMemberDependsOnItsAnchor() throws {
+    @Test func anArrayMemberDependsOnItsAnchor() throws {
         let result = ModelImporter.importCells([
             (reference: "D55", value: .formula(
                 .function("TRANSPOSE", [.cellRange(CellRange(from: "H35", to: "K35"))]),
@@ -372,14 +361,13 @@ final class ModelImporterTests: XCTestCase {
                 .function("_ARRAY", [.cellRef(CellRef("D55")), .text("D55:D57")]),
                 cached: .number(-0.5))),
         ])
-        let member = try XCTUnwrap(result.cellToNode[CellRef("D56")])
-        let anchor = try XCTUnwrap(result.cellToNode[CellRef("D55")])
+        let member = try #require(result.cellToNode[CellRef("D56")])
+        let anchor = try #require(result.cellToNode[CellRef("D55")])
         guard case .formula(let formula)? = result.model.kind(of: member),
               case .function(_, let arguments) = formula else {
-            return XCTFail("expected a marker function")
+            Issue.record("expected a marker function"); return
         }
-        XCTAssertEqual(arguments.first, .ref(anchor),
-                       "the member is computed by the anchor, and must say so")
+        #expect(arguments.first == .ref(anchor), "the member is computed by the anchor, and must say so")
     }
 
     // MARK: - Unsupported Cell Types
@@ -387,79 +375,73 @@ final class ModelImporterTests: XCTestCase {
     // `Worksheet` exposes no public write for `.array`, `.date`, or `.error`
     // cells, so these drive the importer through its `importCells` seam.
 
-    func testArrayCellWarnsAsAnArrayFormula() throws {
+    @Test func arrayCellWarnsAsAnArrayFormula() throws {
         let result = ModelImporter.importCells([
             (reference: "D5", value: .array(CellMatrix(row: [.number(1), .number(2)])))
         ])
-        let warning = try XCTUnwrap(result.warnings.first)
-        XCTAssertTrue(warning.contains("D5"), "Warning should name the cell: \(warning)")
-        XCTAssertTrue(
-            warning.lowercased().contains("array"),
-            "Warning should identify the cell as an array formula: \(warning)"
-        )
+        let warning = try #require(result.warnings.first)
+        #expect(warning.contains("D5"), "Warning should name the cell: \(warning)")
+        #expect(warning.lowercased().contains("array"), "Warning should identify the cell as an array formula: \(warning)")
     }
 
-    func testArrayWarningIsDistinctFromDateAndError() throws {
+    @Test func arrayWarningIsDistinctFromDateAndError() throws {
         let result = ModelImporter.importCells([
             (reference: "A1", value: .array(CellMatrix(row: [.number(1)]))),
             (reference: "A2", value: .date(Date(timeIntervalSince1970: 0))),
             (reference: "A3", value: .error(.value)),
         ])
-        XCTAssertEqual(result.warnings.count, 3)
+        #expect(result.warnings.count == 3)
 
-        let arrayWarning = try XCTUnwrap(result.warnings.first)
-        XCTAssertTrue(arrayWarning.lowercased().contains("array"))
-        XCTAssertFalse(
-            result.warnings.dropFirst().contains(arrayWarning),
-            "An array formula must not share the generic unsupported-cell message"
-        )
-        XCTAssertTrue(result.warnings[1].lowercased().contains("date"))
-        XCTAssertTrue(result.warnings[2].lowercased().contains("error"))
+        let arrayWarning = try #require(result.warnings.first)
+        #expect(arrayWarning.lowercased().contains("array"))
+        #expect(!result.warnings.dropFirst().contains(arrayWarning), "An array formula must not share the generic unsupported-cell message")
+        #expect(result.warnings[1].lowercased().contains("date"))
+        #expect(result.warnings[2].lowercased().contains("error"))
     }
 
-    func testArrayCellDoesNotBecomeANode() {
+    @Test func arrayCellDoesNotBecomeANode() {
         let result = ModelImporter.importCells([
             (reference: "D5", value: .array(CellMatrix(row: [.number(1), .number(2)])))
         ])
-        XCTAssertEqual(result.model.nodeCount, 0, "Recognition is Phase 6; this only stops silent loss")
+        #expect(result.model.nodeCount == 0, "Recognition is Phase 6; this only stops silent loss")
     }
 
     // MARK: - Multi-Sheet Import
 
-    func testImportAllSheetsImportsEverySheet() {
+    @Test func importAllSheetsImportsEverySheet() {
         let wb = Workbook()
         wb.addSheet(name: "Inputs").write(42.0, to: "A1")
         wb.addSheet(name: "Calcs").write(7.0, to: "B2")
 
         let result = ModelImporter.importAllSheets(wb)
-        XCTAssertEqual(result.model.nodeCount, 2)
-        XCTAssertNotNil(result.model.node(named: "Inputs!A1"))
-        XCTAssertNotNil(result.model.node(named: "Calcs!B2"))
+        #expect(result.model.nodeCount == 2)
+        #expect(result.model.node(named: "Inputs!A1")?.label == "Inputs!A1")
+        #expect(result.model.node(named: "Calcs!B2")?.label == "Calcs!B2")
     }
 
-    func testImportAllSheetsGivesEachSheetItsOwnSection() {
+    @Test func importAllSheetsGivesEachSheetItsOwnSection() {
         let wb = Workbook()
         wb.addSheet(name: "Inputs").write(42.0, to: "A1")
         wb.addSheet(name: "Calcs").write(7.0, to: "B2")
 
         let result = ModelImporter.importAllSheets(wb)
-        XCTAssertEqual(result.model.sections.map(\.name), ["Inputs", "Calcs"])
+        #expect(result.model.sections.map(\.name) == ["Inputs", "Calcs"])
     }
 
-    func testImportAllSheetsKeepsCollidingCellRefsApart() throws {
+    @Test func importAllSheetsKeepsCollidingCellRefsApart() throws {
         // Both sheets have an A1. A single flat cell map would lose one of them.
         let wb = Workbook()
         wb.addSheet(name: "One").write(1.0, to: "A1")
         wb.addSheet(name: "Two").write(2.0, to: "A1")
 
         let result = ModelImporter.importAllSheets(wb)
-        XCTAssertEqual(result.model.nodeCount, 2)
-        let one = try XCTUnwrap(result.sheetCellToNode["One"]?[CellRef("A1")])
-        let two = try XCTUnwrap(result.sheetCellToNode["Two"]?[CellRef("A1")])
-        XCTAssertNotEqual(one, two)
+        #expect(result.model.nodeCount == 2)
+        let one = try #require(result.sheetCellToNode["One"]?[CellRef("A1")])
+        let two = try #require(result.sheetCellToNode["Two"]?[CellRef("A1")])
+        #expect(one != two)
     }
 
-    func testFormulasResolveWithinTheirOwnSheet() throws {
+    @Test func formulasResolveWithinTheirOwnSheet() throws {
         let wb = Workbook()
         let one = wb.addSheet(name: "One")
         one.write(10.0, to: "A1")
@@ -467,16 +449,16 @@ final class ModelImporterTests: XCTestCase {
         wb.addSheet(name: "Two").write(99.0, to: "A1")
 
         let result = ModelImporter.importAllSheets(wb)
-        let oneA1 = try XCTUnwrap(result.model.node(named: "One!A1"))
-        let oneA2 = try XCTUnwrap(result.model.node(named: "One!A2"))
+        let oneA1 = try #require(result.model.node(named: "One!A1"))
+        let oneA2 = try #require(result.model.node(named: "One!A2"))
         guard case .formula(.multiply(let lhs, _)) =
-            try XCTUnwrap(result.model.kind(of: oneA2)) else {
-            return XCTFail("Expected a multiply formula")
+            try #require(result.model.kind(of: oneA2)) else {
+            Issue.record("Expected a multiply formula"); return
         }
-        XCTAssertEqual(lhs, .ref(oneA1), "A formula must bind to its own sheet's A1")
+        #expect(lhs == .ref(oneA1), "A formula must bind to its own sheet's A1")
     }
 
-    func testCrossSheetReferenceWarnsRatherThanVanishing() throws {
+    @Test func crossSheetReferenceWarnsRatherThanVanishing() throws {
         let wb = Workbook()
         let one = wb.addSheet(name: "One")
         one.write(
@@ -486,30 +468,30 @@ final class ModelImporterTests: XCTestCase {
         wb.addSheet(name: "Two").write(5.0, to: "A1")
 
         let result = ModelImporter.importAllSheets(wb)
-        let warning = try XCTUnwrap(result.warnings.first)
-        XCTAssertTrue(warning.contains("sheetRef"), "Got: \(warning)")
-        XCTAssertTrue(warning.contains("One!A1"), "Warning should qualify the cell: \(warning)")
+        let warning = try #require(result.warnings.first)
+        #expect(warning.contains("sheetRef"), "Got: \(warning)")
+        #expect(warning.contains("One!A1"), "Warning should qualify the cell: \(warning)")
     }
 
-    func testSingleSheetImportReportsItsSheetMapping() {
+    @Test func singleSheetImportReportsItsSheetMapping() {
         let wb = Workbook()
         wb.addSheet(name: "Data").write(42.0, to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertNotNil(result.cellToNode[CellRef("A1")])
-        XCTAssertNotNil(result.sheetCellToNode["Data"]?[CellRef("A1")])
+        #expect(result.cellToNode[CellRef("A1")]?.label == "A1")
+        #expect(result.sheetCellToNode["Data"]?[CellRef("A1")] == result.cellToNode[CellRef("A1")])
     }
 
-    func testImportAllSheetsOnAnEmptyWorkbookIsEmpty() {
+    @Test func importAllSheetsOnAnEmptyWorkbookIsEmpty() {
         let result = ModelImporter.importAllSheets(Workbook())
-        XCTAssertEqual(result.model.nodeCount, 0)
-        XCTAssertTrue(result.warnings.isEmpty)
-        XCTAssertTrue(result.sheetCellToNode.isEmpty)
+        #expect(result.model.nodeCount == 0)
+        #expect(result.warnings.isEmpty)
+        #expect(result.sheetCellToNode.isEmpty)
     }
 
     // MARK: - Forward References
 
-    func testFormulaResolvesAReferenceToALaterCell() throws {
+    @Test func formulaResolvesAReferenceToALaterCell() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         // The total sits *above* the figures it sums, which is ordinary in a
@@ -519,20 +501,20 @@ final class ModelImporterTests: XCTestCase {
         sheet.write(20.0, to: "A6")
 
         let result = ModelImporter.importWorkbook(wb)
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
-        let a5 = try XCTUnwrap(result.model.node(named: "A5"))
-        let a6 = try XCTUnwrap(result.model.node(named: "A6"))
+        let a1 = try #require(result.model.node(named: "A1"))
+        let a5 = try #require(result.model.node(named: "A5"))
+        let a6 = try #require(result.model.node(named: "A6"))
 
         guard case .formula(.add(let lhs, let rhs)) =
-            try XCTUnwrap(result.model.kind(of: a1)) else {
-            return XCTFail("Expected an add formula")
+            try #require(result.model.kind(of: a1)) else {
+            Issue.record("Expected an add formula"); return
         }
-        XCTAssertEqual(lhs, .ref(a5))
-        XCTAssertEqual(rhs, .ref(a6))
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(lhs == .ref(a5))
+        #expect(rhs == .ref(a6))
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testRangeResolvesWhenItPointsBelowTheFormula() throws {
+    @Test func rangeResolvesWhenItPointsBelowTheFormula() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(
@@ -544,16 +526,16 @@ final class ModelImporterTests: XCTestCase {
         }
 
         let result = ModelImporter.importWorkbook(wb)
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
-        guard case .formula(.function(_, let args)) = try XCTUnwrap(result.model.kind(of: a1)),
+        let a1 = try #require(result.model.node(named: "A1"))
+        guard case .formula(.function(_, let args)) = try #require(result.model.kind(of: a1)),
               case .range(let refs) = args.first else {
-            return XCTFail("Expected a range argument")
+            Issue.record("Expected a range argument"); return
         }
-        XCTAssertEqual(refs.count, 12)
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(refs.count == 12)
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testForwardReferenceChainResolves() throws {
+    @Test func forwardReferenceChainResolves() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(FormulaAST.multiply(.cellRef(CellRef("A2")), .number(2)), to: "A1")
@@ -561,23 +543,23 @@ final class ModelImporterTests: XCTestCase {
         sheet.write(5.0, to: "A3")
 
         let result = ModelImporter.importWorkbook(wb)
-        let a2 = try XCTUnwrap(result.model.node(named: "A2"))
-        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+        let a2 = try #require(result.model.node(named: "A2"))
+        let a3 = try #require(result.model.node(named: "A3"))
 
-        guard case .formula(.multiply(let lhs, _)) =
-            try XCTUnwrap(result.model.kind(of: try XCTUnwrap(result.model.node(named: "A1")))) else {
-            return XCTFail("Expected a multiply formula")
+        let a1 = try #require(result.model.node(named: "A1"))
+        guard case .formula(.multiply(let lhs, _)) = try #require(result.model.kind(of: a1)) else {
+            Issue.record("Expected a multiply formula"); return
         }
-        XCTAssertEqual(lhs, .ref(a2), "A1 should bind to A2's node, which itself binds forward")
+        #expect(lhs == .ref(a2), "A1 should bind to A2's node, which itself binds forward")
 
-        guard case .formula(.add(let innerLHS, _)) = try XCTUnwrap(result.model.kind(of: a2)) else {
-            return XCTFail("Expected an add formula")
+        guard case .formula(.add(let innerLHS, _)) = try #require(result.model.kind(of: a2)) else {
+            Issue.record("Expected an add formula"); return
         }
-        XCTAssertEqual(innerLHS, .ref(a3))
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(innerLHS == .ref(a3))
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testSectionOrderAndNodeCountAreUnchangedByTwoPassResolution() {
+    @Test func sectionOrderAndNodeCountAreUnchangedByTwoPassResolution() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -585,14 +567,14 @@ final class ModelImporterTests: XCTestCase {
         sheet.write(FormulaAST.add(.cellRef(CellRef("A1")), .number(2)), to: "C1")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.model.nodeCount, 3)
-        XCTAssertEqual(result.model.sections.map(\.name), ["Imported"])
-        XCTAssertEqual(result.model.allRefs.map(\.label), ["A1", "B1", "C1"])
+        #expect(result.model.nodeCount == 3)
+        #expect(result.model.sections.map(\.name) == ["Imported"])
+        #expect(result.model.allRefs.map(\.label) == ["A1", "B1", "C1"])
     }
 
     // MARK: - Absolute References
 
-    func testAbsoluteReferenceResolvesToTheSameNode() throws {
+    @Test func absoluteReferenceResolvesToTheSameNode() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(0.1, to: "D11")
@@ -604,35 +586,35 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let d11 = try XCTUnwrap(result.model.node(named: "D11"))
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        let d11 = try #require(result.model.node(named: "D11"))
+        let a1 = try #require(result.model.node(named: "A1"))
 
-        guard case .formula(.multiply(let lhs, _)) = try XCTUnwrap(result.model.kind(of: a1)) else {
-            return XCTFail("Expected a multiply formula")
+        guard case .formula(.multiply(let lhs, _)) = try #require(result.model.kind(of: a1)) else {
+            Issue.record("Expected a multiply formula"); return
         }
-        XCTAssertEqual(lhs, .ref(d11))
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(lhs == .ref(d11))
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testMixedAbsoluteReferencesResolve() throws {
+    @Test func mixedAbsoluteReferencesResolve() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(5.0, to: "B2")
         sheet.write(FormulaAST.add(.cellRef(CellRef("$B2")), .cellRef(CellRef("B$2"))), to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        let b2 = try XCTUnwrap(result.model.node(named: "B2"))
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
+        let b2 = try #require(result.model.node(named: "B2"))
+        let a1 = try #require(result.model.node(named: "A1"))
 
-        guard case .formula(.add(let lhs, let rhs)) = try XCTUnwrap(result.model.kind(of: a1)) else {
-            return XCTFail("Expected an add formula")
+        guard case .formula(.add(let lhs, let rhs)) = try #require(result.model.kind(of: a1)) else {
+            Issue.record("Expected an add formula"); return
         }
-        XCTAssertEqual(lhs, .ref(b2), "A column-absolute reference names the same cell")
-        XCTAssertEqual(rhs, .ref(b2), "A row-absolute reference names the same cell")
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(lhs == .ref(b2), "A column-absolute reference names the same cell")
+        #expect(rhs == .ref(b2), "A row-absolute reference names the same cell")
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testAbsoluteRangeResolves() throws {
+    @Test func absoluteRangeResolves() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         for row in 5...16 {
@@ -644,30 +626,27 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
-        guard case .formula(.function(_, let args)) = try XCTUnwrap(result.model.kind(of: a1)),
+        let a1 = try #require(result.model.node(named: "A1"))
+        guard case .formula(.function(_, let args)) = try #require(result.model.kind(of: a1)),
               case .range(let refs) = args.first else {
-            return XCTFail("Expected a range argument")
+            Issue.record("Expected a range argument"); return
         }
-        XCTAssertEqual(refs.count, 12)
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(refs.count == 12)
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testCellToNodeIsKeyedByRelativeReferences() throws {
+    @Test func cellToNodeIsKeyedByRelativeReferences() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "D11")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertNotNil(
-            result.cellToNode[CellRef("D11")],
-            "Keys are normalized so lookups do not depend on absolute markers"
-        )
+        #expect(result.cellToNode[CellRef("D11")]?.label == "D11", "Keys are normalized so lookups do not depend on absolute markers")
     }
 
     // MARK: - Comparison Operators
 
-    func testImportsEveryComparisonOperator() throws {
+    @Test func importsEveryComparisonOperator() throws {
         // Each row: the Excel AST written to A3, and the NodeFormula it must become
         // once A1 and A2 have resolved to nodes.
         let cases: [(name: String,
@@ -689,20 +668,16 @@ final class ModelImporterTests: XCTestCase {
             sheet.write(testCase.ast(.cellRef(CellRef("A1")), .cellRef(CellRef("A2"))), to: "A3")
 
             let result = ModelImporter.importWorkbook(wb)
-            let a1 = try XCTUnwrap(result.model.node(named: "A1"))
-            let a2 = try XCTUnwrap(result.model.node(named: "A2"))
-            let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+            let a1 = try #require(result.model.node(named: "A1"))
+            let a2 = try #require(result.model.node(named: "A2"))
+            let a3 = try #require(result.model.node(named: "A3"))
 
-            XCTAssertEqual(
-                result.model.kind(of: a3),
-                .formula(testCase.expected(.ref(a1), .ref(a2))),
-                "\(testCase.name) did not import as a comparison"
-            )
-            XCTAssertTrue(result.warnings.isEmpty, "\(testCase.name): \(result.warnings)")
+            #expect(result.model.kind(of: a3) == .formula(testCase.expected(.ref(a1), .ref(a2))), "\(testCase.name) did not import as a comparison")
+            #expect(result.warnings.isEmpty, "\(testCase.name): \(result.warnings)")
         }
     }
 
-    func testImportsComparisonInsideAnIfCondition() throws {
+    @Test func importsComparisonInsideAnIfCondition() throws {
         // `IF` is an Excel function, not an AST node, so it already round-trips.
         // What was missing is the operator in its condition.
         let wb = Workbook()
@@ -719,38 +694,37 @@ final class ModelImporterTests: XCTestCase {
         )
 
         let result = ModelImporter.importWorkbook(wb)
-        let a1 = try XCTUnwrap(result.model.node(named: "A1"))
-        let a2 = try XCTUnwrap(result.model.node(named: "A2"))
-        let a3 = try XCTUnwrap(result.model.node(named: "A3"))
+        let a1 = try #require(result.model.node(named: "A1"))
+        let a2 = try #require(result.model.node(named: "A2"))
+        let a3 = try #require(result.model.node(named: "A3"))
 
         guard case .formula(.function(let name, let args)) =
-            try XCTUnwrap(result.model.kind(of: a3)) else {
-            return XCTFail("Expected an IF function")
+            try #require(result.model.kind(of: a3)) else {
+            Issue.record("Expected an IF function"); return
         }
-        XCTAssertEqual(name, "IF")
-        XCTAssertEqual(args.first, .greaterThan(.ref(a1), .ref(a2)))
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(name == "IF")
+        #expect(args.first == .greaterThan(.ref(a1), .ref(a2)))
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 
-    func testComparisonSurvivesExportAndReimport() throws {
+    @Test func comparisonSurvivesExportAndReimport() throws {
         let model = ExcelModel()
         let left = model.addInput(label: "Left", value: 1)
         let right = model.addInput(label: "Right", value: 2)
         model.addOutput(label: "Test", formula: .greaterThan(.ref(left), .ref(right)))
 
         let workbook = try ModelExporter.export(model, title: "Comparison")
-        let sheet = try XCTUnwrap(workbook.sheets.first)
-        let ast = try XCTUnwrap(
-            sheet.cellReferences.compactMap { sheet.cell(at: $0)?.formulaAST }.first
-        )
+        let sheet = try #require(workbook.sheets.first)
+        let formulas = sheet.cellReferences.compactMap { sheet.cell(at: $0)?.formulaAST }
+        let ast = try #require(formulas.first)
         guard case .greaterThan = ast else {
-            return XCTFail("Expected a greaterThan AST, got \(ast)")
+            Issue.record("Expected a greaterThan AST, got \(ast)"); return
         }
     }
 
     // MARK: - Cached Values
 
-    func testPreservesTheCachedValueOfAFormulaCell() throws {
+    @Test func preservesTheCachedValueOfAFormulaCell() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(2.0, to: "A1")
@@ -758,41 +732,41 @@ final class ModelImporterTests: XCTestCase {
 
         let result = ModelImporter.importWorkbook(wb)
         // The workbook was authored in memory, so nothing cached A2 yet.
-        XCTAssertNil(result.cachedValues[CellRef("A2")])
+        #expect(result.cachedValues[CellRef("A2")] == nil)
 
         // A cell read from a file carries what Excel last computed.
         let reloaded = try Workbook(xlsxData: try wb.save())
         let fromFile = ModelImporter.importWorkbook(reloaded)
-        XCTAssertEqual(fromFile.cellToNode.count, 2)
-        XCTAssertNil(fromFile.cachedValues[CellRef("A1")], "A value cell has no cached result")
+        #expect(fromFile.cellToNode.count == 2)
+        #expect(fromFile.cachedValues[CellRef("A1")] == nil, "A value cell has no cached result")
     }
 
-    func testCachedValuesAreKeyedIndependentlyOfAbsoluteMarkers() throws {
+    @Test func cachedValuesAreKeyedIndependentlyOfAbsoluteMarkers() throws {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "D11")
         sheet.write(FormulaAST.cellRef(CellRef("$D$11")), to: "A1")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.cellToNode.count, 2)
-        XCTAssertTrue(result.cachedValues.keys.allSatisfy { !$0.absoluteColumn && !$0.absoluteRow })
+        #expect(result.cellToNode.count == 2)
+        #expect(result.cachedValues.keys.allSatisfy { !$0.absoluteColumn && !$0.absoluteRow })
     }
 
     // MARK: - Cell-to-Node Mapping
 
-    func testCellToNodeMapping() {
+    @Test func cellToNodeMapping() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(42.0, to: "B3")
 
         let result = ModelImporter.importWorkbook(wb)
         let cellRef = CellRef("B3")
-        XCTAssertNotNil(result.cellToNode[cellRef])
+        #expect(result.cellToNode[cellRef]?.label == "B3")
     }
 
     // MARK: - Round-Trip
 
-    func testRoundTripExportImport() throws {
+    @Test func roundTripExportImport() throws {
         let model = ExcelModel()
         let a = model.addInput(label: "Price", value: 100)
         let b = model.addInput(label: "Qty", value: 5)
@@ -801,12 +775,12 @@ final class ModelImporterTests: XCTestCase {
         let wb = try ModelExporter.export(model, title: "Test")
         let result = ModelImporter.importWorkbook(wb)
 
-        XCTAssertGreaterThan(result.model.nodeCount, 0)
+        #expect(result.model.nodeCount > 0)
     }
 
     // MARK: - Multiple Cells
 
-    func testImportsMultipleCells() {
+    @Test func importsMultipleCells() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Test")
         sheet.write(1.0, to: "A1")
@@ -814,18 +788,18 @@ final class ModelImporterTests: XCTestCase {
         sheet.write(3.0, to: "C1")
 
         let result = ModelImporter.importWorkbook(wb)
-        XCTAssertEqual(result.model.nodeCount, 3)
+        #expect(result.model.nodeCount == 3)
     }
 
     // MARK: - Import Sheet
 
-    func testImportSpecificSheet() {
+    @Test func importSpecificSheet() {
         let wb = Workbook()
         wb.addSheet(name: "Empty")
         let data = wb.addSheet(name: "Data")
         data.write(42.0, to: "A1")
 
         let result = ModelImporter.importSheet(data)
-        XCTAssertEqual(result.model.nodeCount, 1)
+        #expect(result.model.nodeCount == 1)
     }
 }

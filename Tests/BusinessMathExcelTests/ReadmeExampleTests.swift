@@ -1,4 +1,4 @@
-import XCTest
+import Testing
 import Foundation
 @testable import BusinessMathExcel
 
@@ -8,8 +8,8 @@ import Foundation
 /// renamed, the sample keeps reading plausibly, and the first person to hit it is a new
 /// user typing it in. These assertions are deliberately shallow — the point is that the
 /// sample still builds and produces a workbook, not that the workbook is correct.
-final class ReadmeExampleTests: XCTestCase {
-    func testReadmeExamplesCompileAndRun() throws {
+@Suite struct ReadmeExampleTests {
+    @Test func readmeExamplesCompileAndRun() throws {
         let model = ExcelModel()
         let price = model.addInput(label: "Price", value: 100)
         let quantity = model.addInput(label: "Quantity", value: 5)
@@ -17,10 +17,10 @@ final class ReadmeExampleTests: XCTestCase {
 
         let workbook = try ModelExporter.export(model, layout: VerticalLayoutStrategy())
         let assignment = VerticalLayoutStrategy().assign(model)
-        let totalCell = try XCTUnwrap(assignment.mapping[total]).reference
-        let ast = try XCTUnwrap(workbook.sheets[0].formulaAST(at: totalCell))
+        let totalCell = try #require(assignment.mapping[total]).reference
+        let ast = try #require(workbook.sheets[0].formulaAST(at: totalCell))
         // The README claims this exact formula; if layout moves, the README is wrong.
-        XCTAssertEqual(FormulaSerializer.serialize(ast), "D4*D5")
+        #expect(FormulaSerializer.serialize(ast) == "D4*D5")
 
         let amort = AmortizationModelBuilder.build(
             principal: 250_000,
@@ -28,6 +28,6 @@ final class ReadmeExampleTests: XCTestCase {
             termMonths: 360
         )
         let amortBook = try ModelExporter.export(amort, title: "Amortization")
-        XCTAssertGreaterThan(amortBook.sheets.count, 0)
+        #expect(amortBook.sheets.count > 0)
     }
 }

@@ -1,21 +1,22 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class MultiSheetAssignmentTests: XCTestCase {
+@Suite struct MultiSheetAssignmentTests {
 
     // MARK: - SheetCell
 
-    func testSheetCellEquality() {
+    @Test func sheetCellEquality() {
         let a = SheetCell(sheetName: "Inputs", cell: CellRef(column: 3, row: 4))
         let b = SheetCell(sheetName: "Inputs", cell: CellRef(column: 3, row: 4))
         let c = SheetCell(sheetName: "Results", cell: CellRef(column: 3, row: 4))
 
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
+        #expect(a == b)
+        #expect(a != c)
     }
 
-    func testSheetCellHashing() {
+    @Test func sheetCellHashing() {
         let a = SheetCell(sheetName: "Inputs", cell: CellRef(column: 3, row: 4))
         let b = SheetCell(sheetName: "Inputs", cell: CellRef(column: 3, row: 4))
         let c = SheetCell(sheetName: "Results", cell: CellRef(column: 3, row: 4))
@@ -25,12 +26,12 @@ final class MultiSheetAssignmentTests: XCTestCase {
         set.insert(b)
         set.insert(c)
 
-        XCTAssertEqual(set.count, 2)
+        #expect(set.count == 2)
     }
 
     // MARK: - MultiSheetAssignment
 
-    func testSheetsPopulatedPerSection() {
+    @Test func sheetsPopulatedPerSection() {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
         model.addOutput(label: "Result", formula: .number(100))
@@ -38,12 +39,11 @@ final class MultiSheetAssignmentTests: XCTestCase {
         let strategy = MultiSheetLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertEqual(assignment.sheets.count, 2)
-        XCTAssertNotNil(assignment.sheets["Inputs"])
-        XCTAssertNotNil(assignment.sheets["Results"])
+        #expect(assignment.sheets.count == 2)
+        #expect(Set(assignment.sheets.keys) == ["Inputs", "Results"])
     }
 
-    func testSheetOrderPreservesInsertionOrder() {
+    @Test func sheetOrderPreservesInsertionOrder() {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -52,10 +52,10 @@ final class MultiSheetAssignmentTests: XCTestCase {
         let strategy = MultiSheetLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertEqual(assignment.sheetOrder, ["Inputs", "Calculations", "Results"])
+        #expect(assignment.sheetOrder == ["Inputs", "Calculations", "Results"])
     }
 
-    func testGlobalMappingContainsAllNodes() {
+    @Test func globalMappingContainsAllNodes() {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 1)
         let b = model.addFormula(label: "B", formula: .number(2))
@@ -64,22 +64,20 @@ final class MultiSheetAssignmentTests: XCTestCase {
         let strategy = MultiSheetLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertNotNil(assignment.globalMapping[a])
-        XCTAssertNotNil(assignment.globalMapping[b])
-        XCTAssertNotNil(assignment.globalMapping[c])
+        #expect(Set(assignment.globalMapping.keys) == [a, b, c])
 
-        XCTAssertEqual(assignment.globalMapping[a]?.sheetName, "Inputs")
-        XCTAssertEqual(assignment.globalMapping[b]?.sheetName, "Calculations")
-        XCTAssertEqual(assignment.globalMapping[c]?.sheetName, "Results")
+        #expect(assignment.globalMapping[a]?.sheetName == "Inputs")
+        #expect(assignment.globalMapping[b]?.sheetName == "Calculations")
+        #expect(assignment.globalMapping[c]?.sheetName == "Results")
     }
 
-    func testEmptyModelProducesEmptyAssignment() {
+    @Test func emptyModelProducesEmptyAssignment() {
         let model = ExcelModel()
         let strategy = MultiSheetLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertTrue(assignment.sheets.isEmpty)
-        XCTAssertTrue(assignment.sheetOrder.isEmpty)
-        XCTAssertTrue(assignment.globalMapping.isEmpty)
+        #expect(assignment.sheets.isEmpty)
+        #expect(assignment.sheetOrder.isEmpty)
+        #expect(assignment.globalMapping.isEmpty)
     }
 }

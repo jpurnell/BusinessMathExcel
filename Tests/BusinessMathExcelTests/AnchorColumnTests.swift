@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
@@ -13,7 +14,7 @@ import SwiftXLSX
 /// see it: every value in a series is assumed to sit in a period column. So the
 /// anchor is recognized separately and kept separate — it is not a period, and
 /// treating it as one would put a cash flow in a year it did not happen.
-final class AnchorColumnTests: XCTestCase {
+@Suite struct AnchorColumnTests {
 
     private func build(_ make: (Worksheet) -> Void) -> (SheetGrid, PeriodAxis)? {
         let wb = Workbook()
@@ -26,8 +27,8 @@ final class AnchorColumnTests: XCTestCase {
 
     // MARK: - Detection
 
-    func testAHeadedColumnOfNumbersBeforeTheTimelineIsAnAnchor() throws {
-        let result = try XCTUnwrap(build { sheet in
+    @Test func aHeadedColumnOfNumbersBeforeTheTimelineIsAnAnchor() throws {
+        let result = try #require(build { sheet in
             sheet.write("Cash Flow", to: "A2")
             sheet.write("Closing", to: "B1")
             sheet.write("2024", to: "C1")
@@ -37,13 +38,13 @@ final class AnchorColumnTests: XCTestCase {
             sheet.write(20.0, to: "D2")
         })
 
-        let anchor = try XCTUnwrap(result.1.anchor)
-        XCTAssertEqual(anchor.label, "Closing")
-        XCTAssertEqual(anchor.source.reference, "B1")
+        let anchor = try #require(result.1.anchor)
+        #expect(anchor.label == "Closing")
+        #expect(anchor.source.reference == "B1")
     }
 
-    func testTheAnchorIsNotCountedAsAPeriod() throws {
-        let result = try XCTUnwrap(build { sheet in
+    @Test func theAnchorIsNotCountedAsAPeriod() throws {
+        let result = try #require(build { sheet in
             sheet.write("Cash Flow", to: "A2")
             sheet.write("Closing", to: "B1")
             sheet.write("2024", to: "C1")
@@ -53,17 +54,17 @@ final class AnchorColumnTests: XCTestCase {
             sheet.write(20.0, to: "D2")
         })
 
-        XCTAssertEqual(result.1.count, 2, "two years, and the anchor is not one of them")
-        XCTAssertEqual(result.1.sources.map(\.reference), ["C1", "D1"])
+        #expect(result.1.count == 2, "two years, and the anchor is not one of them")
+        #expect(result.1.sources.map(\.reference) == ["C1", "D1"])
     }
 
     // MARK: - What is not an anchor
 
-    func testALabelColumnIsNotAnAnchor() throws {
+    @Test func aLabelColumnIsNotAnAnchor() throws {
         // The discriminator is what sits *below* the heading. A label column holds
         // text; an anchor column holds figures. Without that, every sheet whose row
         // labels happen to sit against the timeline would grow a phantom period.
-        let result = try XCTUnwrap(build { sheet in
+        let result = try #require(build { sheet in
             sheet.write("Revenue", to: "B2")
             sheet.write("Cost", to: "B3")
             sheet.write("Detail", to: "B1")
@@ -75,11 +76,11 @@ final class AnchorColumnTests: XCTestCase {
             sheet.write(5.0, to: "D3")
         })
 
-        XCTAssertNil(result.1.anchor, "a column of labels is not a column of values")
+        #expect(result.1.anchor == nil, "a column of labels is not a column of values")
     }
 
-    func testAnUnheadedColumnIsNotAnAnchor() throws {
-        let result = try XCTUnwrap(build { sheet in
+    @Test func anUnheadedColumnIsNotAnAnchor() throws {
+        let result = try #require(build { sheet in
             sheet.write("Cash Flow", to: "A2")
             sheet.write("2024", to: "C1")
             sheet.write("2025", to: "D1")
@@ -88,12 +89,12 @@ final class AnchorColumnTests: XCTestCase {
             sheet.write(20.0, to: "D2")
         })
 
-        XCTAssertNil(result.1.anchor, "without a heading there is nothing to say it is one")
+        #expect(result.1.anchor == nil, "without a heading there is nothing to say it is one")
     }
 
-    func testAYearBeforeTheTimelineIsAPeriodNotAnAnchor() throws {
+    @Test func aYearBeforeTheTimelineIsAPeriodNotAnAnchor() throws {
         // If it parses as a period it would have joined the axis already.
-        let result = try XCTUnwrap(build { sheet in
+        let result = try #require(build { sheet in
             sheet.write("Cash Flow", to: "A2")
             sheet.write("2023", to: "B1")
             sheet.write("2024", to: "C1")
@@ -101,14 +102,14 @@ final class AnchorColumnTests: XCTestCase {
             for column in ["B", "C", "D"] { sheet.write(10.0, to: "\(column)2") }
         })
 
-        XCTAssertNil(result.1.anchor)
-        XCTAssertEqual(result.1.count, 3, "it is simply the first year")
+        #expect(result.1.anchor == nil)
+        #expect(result.1.count == 3, "it is simply the first year")
     }
 
     // MARK: - Binding
 
-    func testASeriesCarriesItsAnchorValueSeparately() throws {
-        let result = try XCTUnwrap(build { sheet in
+    @Test func aSeriesCarriesItsAnchorValueSeparately() throws {
+        let result = try #require(build { sheet in
             sheet.write("Cash Flow", to: "A2")
             sheet.write("Closing", to: "B1")
             sheet.write("2024", to: "C1")
@@ -119,17 +120,14 @@ final class AnchorColumnTests: XCTestCase {
         })
 
         let (series, _) = LabeledSeries.bind(in: result.0, axis: result.1)
-        let flow = try XCTUnwrap(series.first { $0.name == "Cash Flow" })
+        let flow = try #require(series.first { $0.name == "Cash Flow" })
 
-        XCTAssertEqual(flow.anchorCell?.reference, "B2")
-        XCTAssertEqual(
-            flow.cells.map { $0?.reference }, ["C2", "D2"],
-            "the period cells stay aligned to the axis, as Phase 2 promised"
-        )
+        #expect(flow.anchorCell?.reference == "B2")
+        #expect(flow.cells.map { $0?.reference } == ["C2", "D2"], "the period cells stay aligned to the axis, as Phase 2 promised")
     }
 
-    func testASeriesWithNothingInTheAnchorColumnHasNoAnchorCell() throws {
-        let result = try XCTUnwrap(build { sheet in
+    @Test func aSeriesWithNothingInTheAnchorColumnHasNoAnchorCell() throws {
+        let result = try #require(build { sheet in
             sheet.write("Cash Flow", to: "A2")
             sheet.write("Other", to: "A3")
             sheet.write("Closing", to: "B1")
@@ -143,7 +141,7 @@ final class AnchorColumnTests: XCTestCase {
         })
 
         let (series, _) = LabeledSeries.bind(in: result.0, axis: result.1)
-        let other = try XCTUnwrap(series.first { $0.name == "Other" })
-        XCTAssertNil(other.anchorCell, "not every row has an at-close value")
+        let other = try #require(series.first { $0.name == "Other" })
+        #expect(other.anchorCell == nil, "not every row has an at-close value")
     }
 }

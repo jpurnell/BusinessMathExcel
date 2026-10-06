@@ -1,8 +1,9 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class TableAwareLayoutTests: XCTestCase {
+@Suite struct TableAwareLayoutTests {
 
     // MARK: - Helpers
 
@@ -28,119 +29,116 @@ final class TableAwareLayoutTests: XCTestCase {
 
     // MARK: - HorizontalLayoutStrategy Table Awareness
 
-    func testHorizontalTableSectionPopulatesColumnHeaders() {
+    @Test func horizontalTableSectionPopulatesColumnHeaders() {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertFalse(assignment.tableColumnHeaders.isEmpty,
-            "Table column headers should be populated")
-        XCTAssertNotNil(assignment.tableColumnHeaders["Schedule"])
-        XCTAssertEqual(assignment.tableColumnHeaders["Schedule"]?.count, 2)
+        #expect(!assignment.tableColumnHeaders.isEmpty, "Table column headers should be populated")
+        #expect(Array(assignment.tableColumnHeaders.keys) == ["Schedule"])
+        #expect(assignment.tableColumnHeaders["Schedule"]?.count == 2)
     }
 
-    func testHorizontalTableBodyNodesOmittedFromLabelMapping() throws {
-        let model = makeTableModel()
-        let strategy = HorizontalLayoutStrategy()
-        let assignment = strategy.assign(model)
-
-        let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
-        for label in tableNodeLabels {
-            let ref = try XCTUnwrap(model.node(named: label))
-            XCTAssertNil(assignment.labelMapping[ref],
-                "Table body node '\(label)' should not be in labelMapping")
-        }
-    }
-
-    func testHorizontalTableBodyNodesInMapping() throws {
+    @Test func horizontalTableBodyNodesOmittedFromLabelMapping() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = try XCTUnwrap(model.node(named: label))
-            XCTAssertNotNil(assignment.mapping[ref],
-                "Table body node '\(label)' should be in mapping")
+            let ref = try #require(model.node(named: label))
+            #expect(assignment.labelMapping[ref] == nil, "Table body node '\(label)' should not be in labelMapping")
         }
     }
 
-    func testHorizontalTableSpansCorrectColumns() throws {
+    @Test func horizontalTableBodyNodesInMapping() throws {
+        let model = makeTableModel()
+        let strategy = HorizontalLayoutStrategy()
+        let assignment = strategy.assign(model)
+
+        let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
+        let unmapped = try tableNodeLabels.filter { label in
+            assignment.mapping[try #require(model.node(named: label))] == nil
+        }
+        #expect(unmapped == [], "Table body nodes should be in mapping")
+    }
+
+    @Test func horizontalTableSpansCorrectColumns() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy(startColumn: 3)
         let assignment = strategy.assign(model)
 
-        let p1 = try XCTUnwrap(model.node(named: "P1"))
-        let amt1 = try XCTUnwrap(model.node(named: "Amt1"))
+        let p1 = try #require(model.node(named: "P1"))
+        let amt1 = try #require(model.node(named: "Amt1"))
 
-        let p1Col = try XCTUnwrap(assignment.mapping[p1]?.column)
-        let amt1Col = assignment.mapping[amt1]?.column
-        XCTAssertNotNil(amt1Col)
-        XCTAssertEqual(amt1Col, p1Col + 1, "Table columns should be adjacent")
+        let p1Col = try #require(assignment.mapping[p1]?.column)
+        let amt1Col = try #require(assignment.mapping[amt1]?.column)
+        #expect(amt1Col == (p1Col + 1), "Table columns should be adjacent")
     }
 
-    func testHorizontalTableRowsStackVertically() throws {
+    @Test func horizontalTableRowsStackVertically() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let p1Row = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "P1"))]).row
-        let p2Row = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "P2"))]).row
-        XCTAssertEqual(p2Row, p1Row + 1)
+        let p1RowNode = try #require(model.node(named: "P1"))
+
+        let p1Row = try #require(assignment.mapping[p1RowNode]).row
+        let p2RowNode = try #require(model.node(named: "P2"))
+        let p2Row = try #require(assignment.mapping[p2RowNode]).row
+        #expect(p2Row == (p1Row + 1))
     }
 
-    func testHorizontalNonTableSectionsUnaffected() throws {
+    @Test func horizontalNonTableSectionsUnaffected() throws {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let rate = try XCTUnwrap(model.node(named: "Rate"))
-        XCTAssertNotNil(assignment.labelMapping[rate],
-            "Non-table node should have label mapping")
-        XCTAssertNotNil(assignment.mapping[rate],
-            "Non-table node should have value mapping")
+        let rate = try #require(model.node(named: "Rate"))
+        let rateLabel = try #require(assignment.labelMapping[rate], "Non-table node should have label mapping")
+        let rateValue = try #require(assignment.mapping[rate], "Non-table node should have value mapping")
+        #expect(rateLabel.row == rateValue.row, "a node's label sits on the row of its value")
+        #expect(rateLabel.column < rateValue.column, "and to the left of it")
     }
 
     // MARK: - DashboardLayoutStrategy Table Awareness
 
-    func testDashboardTableSectionPopulatesColumnHeaders() {
+    @Test func dashboardTableSectionPopulatesColumnHeaders() {
         let model = makeTableModel()
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
 
-        XCTAssertNotNil(assignment.tableColumnHeaders["Schedule"])
-        XCTAssertEqual(assignment.tableColumnHeaders["Schedule"]?.count, 2)
+        #expect(Array(assignment.tableColumnHeaders.keys) == ["Schedule"])
+        #expect(assignment.tableColumnHeaders["Schedule"]?.count == 2)
     }
 
-    func testDashboardTableBodyNodesOmittedFromLabelMapping() throws {
+    @Test func dashboardTableBodyNodesOmittedFromLabelMapping() throws {
         let model = makeTableModel()
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
         for label in tableNodeLabels {
-            let ref = try XCTUnwrap(model.node(named: label))
-            XCTAssertNil(assignment.labelMapping[ref],
-                "Table body node '\(label)' should not be in labelMapping")
+            let ref = try #require(model.node(named: label))
+            #expect(assignment.labelMapping[ref] == nil, "Table body node '\(label)' should not be in labelMapping")
         }
     }
 
-    func testDashboardTableBodyNodesInMapping() throws {
+    @Test func dashboardTableBodyNodesInMapping() throws {
         let model = makeTableModel()
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
 
         let tableNodeLabels = ["P1", "Amt1", "P2", "Amt2"]
-        for label in tableNodeLabels {
-            let ref = try XCTUnwrap(model.node(named: label))
-            XCTAssertNotNil(assignment.mapping[ref],
-                "Table body node '\(label)' should be in mapping")
+        let unmapped = try tableNodeLabels.filter { label in
+            assignment.mapping[try #require(model.node(named: label))] == nil
         }
+        #expect(unmapped == [], "Table body nodes should be in mapping")
     }
 
     // MARK: - No Collisions with Mixed Content
 
-    func testNoCellCollisionsWithTables() {
+    @Test func noCellCollisionsWithTables() {
         let model = makeTableModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
@@ -151,10 +149,10 @@ final class TableAwareLayoutTests: XCTestCase {
         let allCells = valueCells + labelCells + headerCells
 
         let uniqueCells = Set(allCells)
-        XCTAssertEqual(uniqueCells.count, allCells.count, "Cell collision detected")
+        #expect(uniqueCells.count == allCells.count, "Cell collision detected")
     }
 
-    func testDashboardNoCellCollisionsWithTables() {
+    @Test func dashboardNoCellCollisionsWithTables() {
         let model = makeTableModel()
         let strategy = DashboardLayoutStrategy(columnCount: 3)
         let assignment = strategy.assign(model)
@@ -165,12 +163,12 @@ final class TableAwareLayoutTests: XCTestCase {
         let allCells = valueCells + labelCells + headerCells
 
         let uniqueCells = Set(allCells)
-        XCTAssertEqual(uniqueCells.count, allCells.count, "Cell collision detected")
+        #expect(uniqueCells.count == allCells.count, "Cell collision detected")
     }
 
     // MARK: - Integration: Amortization + Table-Aware Export
 
-    func testAmortizationWithHorizontalTableExport() throws {
+    @Test func amortizationWithHorizontalTableExport() throws {
         let model = AmortizationModelBuilder.build(
             principal: 100_000,
             annualRate: 0.06,
@@ -181,7 +179,7 @@ final class TableAwareLayoutTests: XCTestCase {
         let wb = try ModelExporter.export(model, layout: strategy)
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(wb.sheets.count, 1)
-        XCTAssertNotNil(sheet)
+        #expect(wb.sheets.count == 1)
+        #expect(sheet.name == "Model")
     }
 }

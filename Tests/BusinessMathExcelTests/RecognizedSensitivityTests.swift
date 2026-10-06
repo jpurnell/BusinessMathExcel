@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -13,7 +14,7 @@ import SwiftXLSX
 ///
 /// Orientation is the thing to get wrong, so the fixtures here are deliberately
 /// asymmetric — a transposed reading fails rather than passing by symmetry.
-final class RecognizedSensitivityTests: XCTestCase {
+@Suite struct RecognizedSensitivityTests {
 
     /// A 2×3 grid: two column-inputs down, three row-inputs across.
     ///
@@ -66,32 +67,28 @@ final class RecognizedSensitivityTests: XCTestCase {
     }
 
     private func read(twoWay: Bool = true) throws -> RecognizedSensitivity {
-        let sheet = try XCTUnwrap(self.sheet(twoWay: twoWay))
+        let sheet = try #require(self.sheet(twoWay: twoWay))
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
-        return try XCTUnwrap(
-            RecognizedSensitivity.read(in: grid, axis: axis).first,
-            "no table was read")
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
+        return try #require(RecognizedSensitivity.read(in: grid, axis: axis).first, "no table was read")
     }
 
     // MARK: - Drivers
 
-    func testBothDriversAreNamedByTheirAccounts() throws {
+    @Test func bothDriversAreNamedByTheirAccounts() throws {
         let table = try read()
-        XCTAssertEqual(table.rowDriver, "Growth", "the row inputs substitute into B2")
-        XCTAssertEqual(table.columnDriver, "Multiple", "the column inputs substitute into B3")
+        #expect(table.rowDriver == "Growth", "the row inputs substitute into B2")
+        #expect(table.columnDriver == "Multiple", "the column inputs substitute into B3")
     }
 
-    func testTheMeasuredOutputIsIdentified() throws {
+    @Test func theMeasuredOutputIsIdentified() throws {
         let table = try read()
-        XCTAssertEqual(
-            table.measuredCell, CellRef("N4"),
-            "the corner, above and left of the body, is where the measured formula sits")
+        #expect(table.measuredCell == CellRef("N4"), "the corner, above and left of the body, is where the measured formula sits")
     }
 
     /// A driver the sheet gives no label falls back to its address rather than to
     /// nothing — a table whose drivers cannot be named is still a table.
-    func testAnUnlabelledDriverFallsBackToItsAddress() throws {
+    @Test func anUnlabelledDriverFallsBackToItsAddress() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         sheet.write("2024", to: "C9")
@@ -109,41 +106,39 @@ final class RecognizedSensitivityTests: XCTestCase {
             to: "O5", cached: .number(11))
 
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
-        let table = try XCTUnwrap(RecognizedSensitivity.read(in: grid, axis: axis).first)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
+        let table = try #require(RecognizedSensitivity.read(in: grid, axis: axis).first)
 
-        XCTAssertEqual(table.rowDriver, "B2")
+        #expect(table.rowDriver == "B2")
     }
 
     // MARK: - Orientation
 
     /// The asymmetry is the point: 2 rows, 3 columns, and values that differ by
     /// row and by column, so a transposed reading cannot pass.
-    func testTheGridIsReadInTheDocumentedOrientation() throws {
+    @Test func theGridIsReadInTheDocumentedOrientation() throws {
         let table = try read()
 
-        XCTAssertEqual(table.rowValues, [0.06, 0.08, 0.10], "across the top, into the row driver")
-        XCTAssertEqual(table.columnValues, [3.0, 4.0], "down the side, into the column driver")
+        #expect(table.rowValues.elementsEqual([0.06, 0.08, 0.10], by: { $0.isEqual(to: $1) }), "across the top, into the row driver")
+        #expect(table.columnValues.elementsEqual([3.0, 4.0], by: { $0.isEqual(to: $1) }), "down the side, into the column driver")
 
-        XCTAssertEqual(table.results.count, 2, "one row per column-input value")
-        XCTAssertEqual(table.results.first?.count, 3, "one column per row-input value")
-        XCTAssertEqual(table.results, [[11, 12, 13], [21, 22, 23]])
+        #expect(table.results.count == 2, "one row per column-input value")
+        #expect(table.results.first?.count == 3, "one column per row-input value")
+        #expect(table.results == [[11, 12, 13], [21, 22, 23]])
     }
 
     // MARK: - One-way tables
 
     /// The file says whether a table is two-way. Guessing would invent an axis.
-    func testAOneWayTableIsNotReadAsTwoWay() throws {
-        let sheet = try XCTUnwrap(self.sheet(twoWay: false))
+    @Test func aOneWayTableIsNotReadAsTwoWay() throws {
+        let sheet = try #require(self.sheet(twoWay: false))
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
 
-        XCTAssertTrue(
-            RecognizedSensitivity.read(in: grid, axis: axis).isEmpty,
-            "a one-way table has one driver, and reading it as two would invent the other")
+        #expect(RecognizedSensitivity.read(in: grid, axis: axis).isEmpty, "a one-way table has one driver, and reading it as two would invent the other")
     }
 
-    func testASheetWithNoTableYieldsNone() throws {
+    @Test func aSheetWithNoTableYieldsNone() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         sheet.write("2024", to: "C1")
@@ -153,8 +148,8 @@ final class RecognizedSensitivityTests: XCTestCase {
         sheet.write(110.0, to: "D2")
 
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let axis = try XCTUnwrap(PeriodAxis.build(from: grid).axis)
-        XCTAssertTrue(RecognizedSensitivity.read(in: grid, axis: axis).isEmpty)
+        let axis = try #require(PeriodAxis.build(from: grid).axis)
+        #expect(RecognizedSensitivity.read(in: grid, axis: axis).isEmpty)
     }
 
     // MARK: - Upstream
@@ -162,44 +157,40 @@ final class RecognizedSensitivityTests: XCTestCase {
     /// `TwoWayScenarioSensitivityAnalysis` documents `results[i][j]` as the output
     /// for `inputValues1[i]` and `inputValues2[j]`, so the column driver — whose
     /// values index the outer array — is driver 1.
-    func testItMapsToTheUpstreamAnalysis() throws {
+    @Test func itMapsToTheUpstreamAnalysis() throws {
         let analysis = try read().analysis()
 
-        XCTAssertEqual(analysis.inputDriver1, "Multiple")
-        XCTAssertEqual(analysis.inputValues1, [3.0, 4.0])
-        XCTAssertEqual(analysis.inputDriver2, "Growth")
-        XCTAssertEqual(analysis.inputValues2, [0.06, 0.08, 0.10])
-        XCTAssertEqual(analysis.results[1][2], 23, "second multiple, third growth rate")
+        #expect(analysis.inputDriver1 == "Multiple")
+        #expect(analysis.inputValues1.elementsEqual([3.0, 4.0], by: { $0.isEqual(to: $1) }))
+        #expect(analysis.inputDriver2 == "Growth")
+        #expect(analysis.inputValues2.elementsEqual([0.06, 0.08, 0.10], by: { $0.isEqual(to: $1) }))
+        #expect(analysis.results[1][2] == 23, "second multiple, third growth rate")
     }
 
     // MARK: - Into the plan
 
     /// A table reaches the plan, beside the accounts rather than among them.
-    func testARecognizedTableReachesThePlan() throws {
-        let sheet = try XCTUnwrap(self.sheet())
+    @Test func aRecognizedTableReachesThePlan() throws {
+        let sheet = try #require(self.sheet())
         let plan = ExcelRecognizer.recognize(sheet)
 
-        let table = try XCTUnwrap(plan.model.sensitivities.first, "no table in the plan")
-        XCTAssertEqual(table.rowDriver, "Growth")
-        XCTAssertEqual(table.columnDriver, "Multiple")
+        let table = try #require(plan.model.sensitivities.first, "no table in the plan")
+        #expect(table.rowDriver == "Growth")
+        #expect(table.columnDriver == "Multiple")
     }
 
     /// A grid of answers is not a rule. It is an analysis *of* the model — the
     /// numbers the model already produced under other assumptions — so nothing in
     /// it can define an account, and materialization has nothing to do with it.
-    func testATableIsNotAnAccount() throws {
-        let sheet = try XCTUnwrap(self.sheet())
+    @Test func aTableIsNotAnAccount() throws {
+        let sheet = try #require(self.sheet())
         let plan = ExcelRecognizer.recognize(sheet)
 
-        XCTAssertFalse(
-            plan.model.accounts.contains { $0.name.contains("Payback") && $0.formula != nil },
-            "the measured formula is read as a cell, not lifted into an account")
+        #expect(!plan.model.accounts.contains { $0.name.contains("Payback") && $0.formula != nil }, "the measured formula is read as a cell, not lifted into an account")
 
         let built = try ModelMaterializer.build(from: plan.model)
         for name in built.definition.definitions.map(\.name) {
-            XCTAssertFalse(
-                name.hasPrefix("O") || name.hasPrefix("P") || name.hasPrefix("Q"),
-                "no grid cell became a definition. Got: \(name)")
+            #expect(!(name.hasPrefix("O") || name.hasPrefix("P") || name.hasPrefix("Q")), "no grid cell became a definition. Got: \(name)")
         }
     }
 
@@ -207,27 +198,21 @@ final class RecognizedSensitivityTests: XCTestCase {
     /// a label beside the grid would otherwise claim them. Reading the table turns
     /// them from cells we exclude into cells we understand, which is the whole
     /// coverage argument for this phase.
-    func testTheTablesCellsCountAsRecognized() throws {
-        let sheet = try XCTUnwrap(self.sheet())
+    @Test func theTablesCellsCountAsRecognized() throws {
+        let sheet = try #require(self.sheet())
         let plan = ExcelRecognizer.recognize(sheet)
 
-        let table = try XCTUnwrap(plan.model.sensitivities.first)
-        XCTAssertEqual(
-            table.cells.count, 12,
-            "a 2×3 body, plus the row above and the column left, plus the corner")
+        let table = try #require(plan.model.sensitivities.first)
+        #expect(table.cells.count == 12, "a 2×3 body, plus the row above and the column left, plus the corner")
 
         // Every populated cell the table covers is accounted for.
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
         let populated = table.cells.filter { grid.cells[$0] != nil }
-        XCTAssertEqual(
-            populated.count, 12,
-            "the fixture fills the whole block, so all of it should count")
-        XCTAssertGreaterThanOrEqual(
-            plan.coverage.recognizedCells, populated.count,
-            "coverage counts them")
+        #expect(populated.count == 12, "the fixture fills the whole block, so all of it should count")
+        #expect(plan.coverage.recognizedCells >= populated.count, "coverage counts them")
     }
 
-    func testASheetWithNoTableHasNoneInThePlan() throws {
+    @Test func aSheetWithNoTableHasNoneInThePlan() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         sheet.write("2024", to: "C1")
@@ -236,10 +221,8 @@ final class RecognizedSensitivityTests: XCTestCase {
         sheet.write(100.0, to: "C2")
         sheet.write(110.0, to: "D2")
 
-        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first))
-        XCTAssertTrue(plan.model.sensitivities.isEmpty)
-        XCTAssertEqual(
-            plan.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue), [],
-            "and a sheet without one is not remarkable")
+        let plan = ExcelRecognizer.recognize(try #require(workbook.sheets.first))
+        #expect(plan.model.sensitivities.isEmpty)
+        #expect(plan.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue) == [], "and a sheet without one is not remarkable")
     }
 }

@@ -1,10 +1,10 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
 
-@available(*, deprecated)
-final class TornadoTranslatorTests: XCTestCase {
+@Suite struct TornadoTranslatorTests {
 
     private func makeSampleAnalysis() -> TornadoDiagramAnalysis {
         TornadoDiagramAnalysis(
@@ -28,68 +28,68 @@ final class TornadoTranslatorTests: XCTestCase {
         )
     }
 
-    func testCreatesWorkbook() {
+    @Test func createsWorkbook() {
         let analysis = makeSampleAnalysis()
-        let workbook = TornadoTranslator.workbook(from: analysis)
+        let workbook = legacy.tornadoWorkbook(from: analysis)
 
-        XCTAssertEqual(workbook.sheets.count, 1)
-        XCTAssertEqual(workbook.sheets[0].name, "Tornado Analysis")
+        #expect(workbook.sheets.count == 1)
+        #expect(workbook.sheets[0].name == "Tornado Analysis")
     }
 
-    func testBaseCaseHeader() {
+    @Test func baseCaseHeader() {
         let analysis = makeSampleAnalysis()
-        let workbook = TornadoTranslator.workbook(from: analysis)
+        let workbook = legacy.tornadoWorkbook(from: analysis)
         let sheet = workbook.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "A1"), .text("Base Case Output"))
+        #expect(sheet.cell(at: "A1") == .text("Base Case Output"))
         if case .number(let value) = sheet.cell(at: "B1") {
-            XCTAssertEqual(value, 100_000, accuracy: 0.01)
+            #expect(abs(value - 100_000) <= 0.01)
         } else {
-            XCTFail("B1 should contain base case output value")
+            Issue.record("B1 should contain base case output value")
         }
     }
 
-    func testColumnHeaders() {
+    @Test func columnHeaders() {
         let analysis = makeSampleAnalysis()
-        let workbook = TornadoTranslator.workbook(from: analysis)
+        let workbook = legacy.tornadoWorkbook(from: analysis)
         let sheet = workbook.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "A3"), .text("Input Driver"))
-        XCTAssertEqual(sheet.cell(at: "B3"), .text("Low Output"))
-        XCTAssertEqual(sheet.cell(at: "C3"), .text("High Output"))
-        XCTAssertEqual(sheet.cell(at: "D3"), .text("Impact"))
-        XCTAssertEqual(sheet.cell(at: "E3"), .text("% of Base"))
+        #expect(sheet.cell(at: "A3") == .text("Input Driver"))
+        #expect(sheet.cell(at: "B3") == .text("Low Output"))
+        #expect(sheet.cell(at: "C3") == .text("High Output"))
+        #expect(sheet.cell(at: "D3") == .text("Impact"))
+        #expect(sheet.cell(at: "E3") == .text("% of Base"))
     }
 
-    func testDataRowsOrderedByImpact() {
+    @Test func dataRowsOrderedByImpact() {
         let analysis = makeSampleAnalysis()
-        let workbook = TornadoTranslator.workbook(from: analysis)
+        let workbook = legacy.tornadoWorkbook(from: analysis)
         let sheet = workbook.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "A4"), .text("Revenue"))
-        XCTAssertEqual(sheet.cell(at: "A5"), .text("Cost of Goods"))
-        XCTAssertEqual(sheet.cell(at: "A6"), .text("Tax Rate"))
+        #expect(sheet.cell(at: "A4") == .text("Revenue"))
+        #expect(sheet.cell(at: "A5") == .text("Cost of Goods"))
+        #expect(sheet.cell(at: "A6") == .text("Tax Rate"))
 
-        XCTAssertTrue(sheet.cell(at: "D4")?.isFormula == true)
-        XCTAssertTrue(sheet.cell(at: "E4")?.isFormula == true)
+        #expect(sheet.cell(at: "D4")?.isFormula == true)
+        #expect(sheet.cell(at: "E4")?.isFormula == true)
     }
 
-    func testCustomSheetName() {
+    @Test func customSheetName() {
         let analysis = makeSampleAnalysis()
-        let workbook = TornadoTranslator.workbook(from: analysis, sheetName: "Drivers")
+        let workbook = legacy.tornadoWorkbook(from: analysis, sheetName: "Drivers")
 
-        XCTAssertEqual(workbook.sheets[0].name, "Drivers")
+        #expect(workbook.sheets[0].name == "Drivers")
     }
 
-    func testSavesToFile() throws {
+    @Test func savesToFile() throws {
         let analysis = makeSampleAnalysis()
-        let workbook = TornadoTranslator.workbook(from: analysis)
+        let workbook = legacy.tornadoWorkbook(from: analysis)
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("tornado_test_\(UUID().uuidString).xlsx")
         defer { try? FileManager.default.removeItem(at: url) }
 
         try workbook.save(to: url)
-        XCTAssertTrue(try url.checkResourceIsReachable())
+        #expect(try url.checkResourceIsReachable())
     }
 }

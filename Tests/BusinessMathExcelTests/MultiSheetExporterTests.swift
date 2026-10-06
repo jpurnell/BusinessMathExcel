@@ -1,23 +1,24 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class MultiSheetExporterTests: XCTestCase {
+@Suite struct MultiSheetExporterTests {
 
     // MARK: - Single Section
 
-    func testSingleSectionProducesOneSheet() throws {
+    @Test func singleSectionProducesOneSheet() throws {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
 
         let wb = try MultiSheetExporter.export(model)
 
-        XCTAssertEqual(wb.sheets.count, 1)
+        #expect(wb.sheets.count == 1)
     }
 
     // MARK: - Multi-Section
 
-    func testMultiSectionProducesMultipleSheets() throws {
+    @Test func multiSectionProducesMultipleSheets() throws {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
         model.addFormula(label: "Monthly", formula: .number(0.004167))
@@ -25,34 +26,33 @@ final class MultiSheetExporterTests: XCTestCase {
 
         let wb = try MultiSheetExporter.export(model)
 
-        XCTAssertEqual(wb.sheets.count, 3)
+        #expect(wb.sheets.count == 3)
     }
 
     // MARK: - Cross-Sheet Formula
 
-    func testCrossSheetFormulaResolvesToSheetReference() throws {
+    @Test func crossSheetFormulaResolvesToSheetReference() throws {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.05)
         model.addOutput(label: "Result", formula: .multiply(.ref(rate), .number(100)))
 
         let wb = try MultiSheetExporter.export(model)
 
-        XCTAssertEqual(wb.sheets.count, 2)
+        #expect(wb.sheets.count == 2)
 
-        let resultsSheet = wb.sheets.last
-        XCTAssertNotNil(resultsSheet)
+        let resultsSheet = try #require(wb.sheets.last)
 
-        let refs = resultsSheet?.cellReferences ?? []
+        let refs = resultsSheet.cellReferences
         var foundSheetRef = false
         for ref in refs {
-            if let ast = resultsSheet?.formulaAST(at: ref) {
+            if let ast = resultsSheet.formulaAST(at: ref) {
                 if astContainsSheetRef(ast) {
                     foundSheetRef = true
                     break
                 }
             }
         }
-        XCTAssertTrue(foundSheetRef, "Cross-sheet formula should contain a SheetReference")
+        #expect(foundSheetRef, "Cross-sheet formula should contain a SheetReference")
     }
 
     private func astContainsSheetRef(_ ast: FormulaAST) -> Bool {
@@ -73,7 +73,7 @@ final class MultiSheetExporterTests: XCTestCase {
 
     // MARK: - Same-Sheet Formula
 
-    func testSameSheetFormulaResolvesToLocalCellRef() throws {
+    @Test func sameSheetFormulaResolvesToLocalCellRef() throws {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 10)
         let b = model.addInput(label: "B", value: 20)
@@ -81,24 +81,24 @@ final class MultiSheetExporterTests: XCTestCase {
 
         let wb = try MultiSheetExporter.export(model)
 
-        XCTAssertEqual(wb.sheets.count, 1, "All nodes are in 'Inputs' section, so one sheet")
+        #expect(wb.sheets.count == 1, "All nodes are in 'Inputs' section, so one sheet")
     }
 
     // MARK: - Title
 
-    func testTitleWrittenOnEachSheet() throws {
+    @Test func titleWrittenOnEachSheet() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
 
         let wb = try MultiSheetExporter.export(model, title: "Test Model")
 
-        XCTAssertEqual(wb.sheets.count, 2)
+        #expect(wb.sheets.count == 2)
     }
 
     // MARK: - Custom Sheet Names
 
-    func testCustomSheetNamesApplied() throws {
+    @Test func customSheetNamesApplied() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -109,12 +109,12 @@ final class MultiSheetExporterTests: XCTestCase {
         ])
         let wb = try MultiSheetExporter.export(model, layout: layout)
 
-        XCTAssertEqual(wb.sheets.count, 2)
+        #expect(wb.sheets.count == 2)
     }
 
     // MARK: - Table Headers
 
-    func testTableHeadersWrittenWhenPresent() throws {
+    @Test func tableHeadersWrittenWhenPresent() throws {
         let model = ExcelModel()
         let r0c0 = model.addInput(label: "P1", value: 1, section: "Schedule")
         let r0c1 = model.addInput(label: "Amt1", value: 500, section: "Schedule")
@@ -131,12 +131,12 @@ final class MultiSheetExporterTests: XCTestCase {
         )
         let wb = try MultiSheetExporter.export(model, layout: layout)
 
-        XCTAssertEqual(wb.sheets.count, 1)
+        #expect(wb.sheets.count == 1)
     }
 
     // MARK: - Integration: DCF Model
 
-    func testDCFModelMultiSheetExport() throws {
+    @Test func dcfModelMultiSheetExport() throws {
         let model = DCFModelBuilder.build(
             discountRate: 0.10,
             cashFlows: [-50_000, 15_000, 20_000, 25_000]
@@ -144,7 +144,6 @@ final class MultiSheetExporterTests: XCTestCase {
 
         let wb = try MultiSheetExporter.export(model)
 
-        XCTAssertGreaterThanOrEqual(wb.sheets.count, 2,
-            "DCF model should produce at least 2 sheets")
+        #expect(wb.sheets.count >= 2, "DCF model should produce at least 2 sheets")
     }
 }

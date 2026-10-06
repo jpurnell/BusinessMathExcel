@@ -1,49 +1,48 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class HorizontalLayoutStrategyTests: XCTestCase {
+@Suite struct HorizontalLayoutStrategyTests {
 
     // MARK: - Empty Model
 
-    func testEmptyModelProducesEmptyAssignment() {
+    @Test func emptyModelProducesEmptyAssignment() {
         let model = ExcelModel()
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertTrue(assignment.mapping.isEmpty)
-        XCTAssertTrue(assignment.labelMapping.isEmpty)
-        XCTAssertTrue(assignment.sectionRows.isEmpty)
-        XCTAssertTrue(assignment.tableColumnHeaders.isEmpty)
+        #expect(assignment.mapping.isEmpty)
+        #expect(assignment.labelMapping.isEmpty)
+        #expect(assignment.sectionRows.isEmpty)
+        #expect(assignment.tableColumnHeaders.isEmpty)
     }
 
     // MARK: - Single Section
 
-    func testSingleSectionPlacesLabelsAtStartColumn() {
+    @Test func singleSectionPlacesLabelsAtStartColumn() throws {
         let model = ExcelModel()
         let ref = model.addInput(label: "Price", value: 100)
 
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let labelCell = assignment.labelMapping[ref]
-        XCTAssertNotNil(labelCell)
-        XCTAssertEqual(labelCell?.column, 3)
+        let labelCell = try #require(assignment.labelMapping[ref])
+        #expect(labelCell.column == 3)
     }
 
-    func testSingleSectionPlacesValuesNextToLabels() {
+    @Test func singleSectionPlacesValuesNextToLabels() throws {
         let model = ExcelModel()
         let ref = model.addInput(label: "Price", value: 100)
 
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let valueCell = assignment.mapping[ref]
-        XCTAssertNotNil(valueCell)
-        XCTAssertEqual(valueCell?.column, 4)
+        let valueCell = try #require(assignment.mapping[ref])
+        #expect(valueCell.column == 4)
     }
 
-    func testSingleSectionNodeStartsAtStartRow() {
+    @Test func singleSectionNodeStartsAtStartRow() {
         let model = ExcelModel()
         let ref = model.addInput(label: "Price", value: 100)
 
@@ -51,20 +50,20 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let assignment = strategy.assign(model)
 
         let sectionRow = assignment.sectionRows["Inputs"]
-        XCTAssertEqual(sectionRow, 3)
+        #expect(sectionRow == 3)
 
         let valueRow = assignment.mapping[ref]?.row
-        XCTAssertEqual(valueRow, 4)
+        #expect(valueRow == 4)
     }
 
     // MARK: - Multi-Section Side-by-Side
 
-    func testTwoSectionsPlacedSideBySide() throws {
+    @Test func twoSectionsPlacedSideBySide() throws {
         let model = ExcelModel()
         model.addInput(label: "Rate", value: 0.05)
-        let rate = try XCTUnwrap(model.node(named: "Rate"))
+        let rate = try #require(model.node(named: "Rate"))
         model.addOutput(label: "Result", formula: .ref(rate))
-        let result = try XCTUnwrap(model.node(named: "Result"))
+        let result = try #require(model.node(named: "Result"))
 
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
@@ -72,11 +71,11 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let rateCol = assignment.mapping[rate]?.column
         let resultCol = assignment.mapping[result]?.column
 
-        XCTAssertEqual(rateCol, 4)
-        XCTAssertEqual(resultCol, 7)
+        #expect(rateCol == 4)
+        #expect(resultCol == 7)
     }
 
-    func testSectionsShareSameStartRow() {
+    @Test func sectionsShareSameStartRow() {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -87,10 +86,10 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let inputsRow = assignment.sectionRows["Inputs"]
         let resultsRow = assignment.sectionRows["Results"]
 
-        XCTAssertEqual(inputsRow, resultsRow)
+        #expect(inputsRow == resultsRow)
     }
 
-    func testThreeSectionsWithCorrectGaps() throws {
+    @Test func threeSectionsWithCorrectGaps() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addFormula(label: "B", formula: .number(2))
@@ -99,18 +98,22 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy(startColumn: 3, sectionGap: 1)
         let assignment = strategy.assign(model)
 
-        let aCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).column
-        let bCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B"))]).column
-        let cCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "C"))]).column
+        let aColNode = try #require(model.node(named: "A"))
 
-        XCTAssertEqual(aCol, 4)
-        XCTAssertEqual(bCol, 7)
-        XCTAssertEqual(cCol, 10)
+        let aCol = try #require(assignment.mapping[aColNode]).column
+        let bColNode = try #require(model.node(named: "B"))
+        let bCol = try #require(assignment.mapping[bColNode]).column
+        let cColNode = try #require(model.node(named: "C"))
+        let cCol = try #require(assignment.mapping[cColNode]).column
+
+        #expect(aCol == 4)
+        #expect(bCol == 7)
+        #expect(cCol == 10)
     }
 
     // MARK: - Section Headers
 
-    func testSectionHeadersAtCorrectColumns() {
+    @Test func sectionHeadersAtCorrectColumns() {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -118,24 +121,23 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertNotNil(assignment.sectionRows["Inputs"])
-        XCTAssertNotNil(assignment.sectionRows["Results"])
+        #expect(Set(assignment.sectionRows.keys) == ["Inputs", "Results"])
     }
 
     // MARK: - Custom Parameters
 
-    func testCustomStartColumn() {
+    @Test func customStartColumn() {
         let model = ExcelModel()
         let ref = model.addInput(label: "X", value: 1)
 
         let strategy = HorizontalLayoutStrategy(startColumn: 5)
         let assignment = strategy.assign(model)
 
-        XCTAssertEqual(assignment.labelMapping[ref]?.column, 5)
-        XCTAssertEqual(assignment.mapping[ref]?.column, 6)
+        #expect(assignment.labelMapping[ref]?.column == 5)
+        #expect(assignment.mapping[ref]?.column == 6)
     }
 
-    func testCustomSectionGap() throws {
+    @Test func customSectionGap() throws {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addOutput(label: "B", formula: .number(2))
@@ -143,27 +145,30 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy(startColumn: 3, sectionGap: 3)
         let assignment = strategy.assign(model)
 
-        let aCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "A"))]).column
-        let bCol = try XCTUnwrap(assignment.mapping[XCTUnwrap(model.node(named: "B"))]).column
+        let aColNode = try #require(model.node(named: "A"))
 
-        XCTAssertEqual(aCol, 4)
-        XCTAssertEqual(bCol, 9)
+        let aCol = try #require(assignment.mapping[aColNode]).column
+        let bColNode = try #require(model.node(named: "B"))
+        let bCol = try #require(assignment.mapping[bColNode]).column
+
+        #expect(aCol == 4)
+        #expect(bCol == 9)
     }
 
-    func testCustomStartRow() {
+    @Test func customStartRow() {
         let model = ExcelModel()
         let ref = model.addInput(label: "X", value: 1)
 
         let strategy = HorizontalLayoutStrategy(startRow: 5)
         let assignment = strategy.assign(model)
 
-        XCTAssertEqual(assignment.sectionRows["Inputs"], 5)
-        XCTAssertEqual(assignment.mapping[ref]?.row, 6)
+        #expect(assignment.sectionRows["Inputs"] == 5)
+        #expect(assignment.mapping[ref]?.row == 6)
     }
 
     // MARK: - All Refs Assigned
 
-    func testAllRefsGetAssignments() {
+    @Test func allRefsGetAssignments() {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addInput(label: "B", value: 2)
@@ -173,15 +178,15 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        for ref in model.allRefs {
-            XCTAssertNotNil(assignment.mapping[ref], "Missing mapping for \(ref.label)")
-            XCTAssertNotNil(assignment.labelMapping[ref], "Missing label mapping for \(ref.label)")
-        }
+        let withoutValueCell = model.allRefs.filter { assignment.mapping[$0] == nil }.map(\.label)
+        let withoutLabelCell = model.allRefs.filter { assignment.labelMapping[$0] == nil }.map(\.label)
+        #expect(withoutValueCell == [], "Missing mapping")
+        #expect(withoutLabelCell == [], "Missing label mapping")
     }
 
     // MARK: - No Cell Collisions
 
-    func testNoCellCollisions() {
+    @Test func noCellCollisions() {
         let model = ExcelModel()
         model.addInput(label: "A", value: 1)
         model.addInput(label: "B", value: 2)
@@ -196,12 +201,12 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let allCells = valueCells + labelCells
 
         let uniqueCells = Set(allCells)
-        XCTAssertEqual(uniqueCells.count, allCells.count, "Cell collision detected")
+        #expect(uniqueCells.count == allCells.count, "Cell collision detected")
     }
 
     // MARK: - Nodes Stack Vertically Within Section
 
-    func testNodesStackVerticallyWithinSection() throws {
+    @Test func nodesStackVerticallyWithinSection() throws {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 1)
         let b = model.addInput(label: "B", value: 2)
@@ -210,27 +215,26 @@ final class HorizontalLayoutStrategyTests: XCTestCase {
         let strategy = HorizontalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        let rowA = try XCTUnwrap(assignment.mapping[a]?.row)
-        let rowB = try XCTUnwrap(assignment.mapping[b]?.row)
-        let rowC = assignment.mapping[c]?.row
-        XCTAssertNotNil(rowC)
-        XCTAssertEqual(rowB, rowA + 1)
-        XCTAssertEqual(rowC, rowB + 1)
+        let rowA = try #require(assignment.mapping[a]?.row)
+        let rowB = try #require(assignment.mapping[b]?.row)
+        let rowC = try #require(assignment.mapping[c]?.row)
+        #expect(rowB == (rowA + 1))
+        #expect(rowC == (rowB + 1))
     }
 
     // MARK: - Integration with ModelExporter
 
-    func testExportProducesValidWorkbook() throws {
+    @Test func exportProducesValidWorkbook() throws {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 100)
         model.addInput(label: "Qty", value: 5)
-        let price = try XCTUnwrap(model.node(named: "Price"))
-        let qty = try XCTUnwrap(model.node(named: "Qty"))
+        let price = try #require(model.node(named: "Price"))
+        let qty = try #require(model.node(named: "Qty"))
         model.addOutput(label: "Total", formula: .multiply(.ref(price), .ref(qty)))
 
         let strategy = HorizontalLayoutStrategy()
         let wb = try ModelExporter.export(model, layout: strategy)
 
-        XCTAssertEqual(wb.sheets.count, 1)
+        #expect(wb.sheets.count == 1)
     }
 }

@@ -1,22 +1,23 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class LayoutFoundationTests: XCTestCase {
+@Suite struct LayoutFoundationTests {
 
     // MARK: - CellAssignment tableColumnHeaders
 
-    func testCellAssignmentDefaultTableColumnHeadersIsEmpty() {
+    @Test func cellAssignmentDefaultTableColumnHeadersIsEmpty() {
         let assignment = CellAssignment(
             mapping: [:],
             labelMapping: [:],
             sectionRows: [:],
             lastRow: 1
         )
-        XCTAssertTrue(assignment.tableColumnHeaders.isEmpty)
+        #expect(assignment.tableColumnHeaders.isEmpty)
     }
 
-    func testCellAssignmentExplicitTableColumnHeaders() {
+    @Test func cellAssignmentExplicitTableColumnHeaders() {
         let headers: [String: [CellRef]] = [
             "Schedule": [
                 CellRef(column: 3, row: 5),
@@ -31,44 +32,43 @@ final class LayoutFoundationTests: XCTestCase {
             lastRow: 1,
             tableColumnHeaders: headers
         )
-        XCTAssertEqual(assignment.tableColumnHeaders.count, 1)
-        XCTAssertEqual(assignment.tableColumnHeaders["Schedule"]?.count, 3)
+        #expect(assignment.tableColumnHeaders.count == 1)
+        #expect(assignment.tableColumnHeaders["Schedule"]?.count == 3)
     }
 
     // MARK: - ExcelModel.allTables
 
-    func testAllTablesEmptyByDefault() {
+    @Test func allTablesEmptyByDefault() {
         let model = ExcelModel()
-        XCTAssertTrue(model.allTables.isEmpty)
+        #expect(model.allTables.isEmpty)
     }
 
-    func testAllTablesReturnsRegisteredTables() {
+    @Test func allTablesReturnsRegisteredTables() {
         let model = ExcelModel()
         let r0 = model.addInput(label: "P1", value: 1, section: "Schedule")
         let r1 = model.addInput(label: "P2", value: 2, section: "Schedule")
         model.registerTable(label: "Schedule", columns: ["Period"], rows: [[r0], [r1]])
 
-        XCTAssertEqual(model.allTables.count, 1)
-        XCTAssertNotNil(model.allTables["Schedule"])
-        XCTAssertEqual(model.allTables["Schedule"]?.columns, ["Period"])
-        XCTAssertEqual(model.allTables["Schedule"]?.rowCount, 2)
+        #expect(model.allTables.count == 1)
+        #expect(Array(model.allTables.keys) == ["Schedule"])
+        #expect(model.allTables["Schedule"]?.columns == ["Period"])
+        #expect(model.allTables["Schedule"]?.rowCount == 2)
     }
 
-    func testAllTablesReturnsMultipleTables() {
+    @Test func allTablesReturnsMultipleTables() {
         let model = ExcelModel()
         let a = model.addInput(label: "A", value: 1, section: "T1")
         let b = model.addInput(label: "B", value: 2, section: "T2")
         model.registerTable(label: "T1", columns: ["Col1"], rows: [[a]])
         model.registerTable(label: "T2", columns: ["Col2"], rows: [[b]])
 
-        XCTAssertEqual(model.allTables.count, 2)
-        XCTAssertNotNil(model.allTables["T1"])
-        XCTAssertNotNil(model.allTables["T2"])
+        #expect(model.allTables.count == 2)
+        #expect(Set(model.allTables.keys) == ["T1", "T2"])
     }
 
     // MARK: - ModelExporter writes table column headers
 
-    func testExporterWritesTableColumnHeaders() throws {
+    @Test func exporterWritesTableColumnHeaders() throws {
         let model = ExcelModel()
         let r0c0 = model.addInput(label: "P1", value: 1, section: "Schedule")
         let r0c1 = model.addInput(label: "Amt1", value: 500, section: "Schedule")
@@ -84,20 +84,20 @@ final class LayoutFoundationTests: XCTestCase {
         let wb = try ModelExporter.export(model, layout: strategy)
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "C4"), .text("Period"))
-        XCTAssertEqual(sheet.cell(at: "D4"), .text("Amount"))
+        #expect(sheet.cell(at: "C4") == .text("Period"))
+        #expect(sheet.cell(at: "D4") == .text("Amount"))
     }
 
     // MARK: - Backward compatibility
 
-    func testVerticalLayoutStillProducesEmptyTableHeaders() {
+    @Test func verticalLayoutStillProducesEmptyTableHeaders() {
         let model = ExcelModel()
         model.addInput(label: "X", value: 1)
 
         let strategy = VerticalLayoutStrategy()
         let assignment = strategy.assign(model)
 
-        XCTAssertTrue(assignment.tableColumnHeaders.isEmpty)
+        #expect(assignment.tableColumnHeaders.isEmpty)
     }
 }
 

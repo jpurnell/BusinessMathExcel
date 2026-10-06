@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
@@ -7,7 +8,7 @@ import SwiftXLSX
 /// A format is frequently the only statement a workbook makes about what a number
 /// *is*. It is carried, not interpreted, at this layer: `Import/` never decides
 /// what anything means, and `Recognition/` cannot decide without the evidence.
-final class NumberFormatImportTests: XCTestCase {
+@Suite struct NumberFormatImportTests {
 
     private func sheet(_ build: (Worksheet) -> Void) -> Worksheet {
         let workbook = Workbook()
@@ -16,28 +17,24 @@ final class NumberFormatImportTests: XCTestCase {
         return sheet
     }
 
-    func testTheImporterCarriesEachCellsNumberFormat() throws {
+    @Test func theImporterCarriesEachCellsNumberFormat() throws {
         let sheet = sheet {
             $0.write(1_000_000.0, to: "B2", style: .general.with(numberFormat: .currency))
             $0.write(0.4, to: "B3", style: .general.with(numberFormat: .percent))
         }
 
         let result = ModelImporter.importSheet(sheet)
-        XCTAssertEqual(result.numberFormats[CellRef("B2")], "$#,##0.00")
-        XCTAssertEqual(result.numberFormats[CellRef("B3")], "0.00%")
+        #expect(result.numberFormats[CellRef("B2")] == "$#,##0.00")
+        #expect(result.numberFormats[CellRef("B3")] == "0.00%")
     }
 
-    func testAGeneralFormatIsCarriedAsWritten() throws {
+    @Test func aGeneralFormatIsCarriedAsWritten() throws {
         let sheet = sheet { $0.write(5.0, to: "B2") }
 
-        XCTAssertEqual(
-            ModelImporter.importSheet(sheet).numberFormats[CellRef("B2")], "General",
-            "carried rather than dropped — 'General' is what the file says, and "
-                + "deciding it means nothing is the next stage's job"
-        )
+        #expect(ModelImporter.importSheet(sheet).numberFormats[CellRef("B2")] == "General", "carried rather than dropped — 'General' is what the file says, and deciding it means nothing is the next stage's job")
     }
 
-    func testTheGridCarriesFormatsThrough() throws {
+    @Test func theGridCarriesFormatsThrough() throws {
         let sheet = sheet {
             $0.write("2024", to: "C1")
             $0.write("2025", to: "D1")
@@ -49,15 +46,15 @@ final class NumberFormatImportTests: XCTestCase {
         }
 
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        XCTAssertEqual(grid.numberFormats[CellRef("D2")], "$#,##0.00")
+        #expect(grid.numberFormats[CellRef("D2")] == "$#,##0.00")
     }
 
-    func testASheetWithNoStylesCarriesNoSurprises() throws {
+    @Test func aSheetWithNoStylesCarriesNoSurprises() throws {
         let sheet = sheet { $0.write("Revenue", to: "A2") }
         let result = ModelImporter.importSheet(sheet)
 
-        XCTAssertEqual(result.numberFormats[CellRef("A2")], "General")
-        XCTAssertNil(result.numberFormats[CellRef("Z99")], "nothing is there")
-        XCTAssertTrue(result.warnings.isEmpty, "Got: \(result.warnings)")
+        #expect(result.numberFormats[CellRef("A2")] == "General")
+        #expect(result.numberFormats[CellRef("Z99")] == nil, "nothing is there")
+        #expect(result.warnings.isEmpty, "Got: \(result.warnings)")
     }
 }

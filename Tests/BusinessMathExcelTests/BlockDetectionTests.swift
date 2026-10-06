@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -10,7 +11,7 @@ import SwiftXLSX
 /// timeline's columns by nothing more than where the page was laid out. Rule 1
 /// stops a label claiming another table's figures. This is the other half: saying
 /// what those figures *are*, rather than dropping them.
-final class BlockDetectionTests: XCTestCase {
+@Suite struct BlockDetectionTests {
 
     private func scalars(
         _ build: (Worksheet) -> Void
@@ -32,18 +33,18 @@ final class BlockDetectionTests: XCTestCase {
 
     // MARK: - Outside the block
 
-    func testALabelWithOneValueAboveTheAxisIsAScalar() throws {
+    @Test func aLabelWithOneValueAboveTheAxisIsAScalar() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             sheet.write("Revenue growth", to: "A2")
             sheet.write(0.10, to: "B2")
         }
 
-        let scalar = try XCTUnwrap(result.scalars.first { $0.name == "Revenue growth" })
-        XCTAssertEqual(scalar.valueCell, CellRef("B2"))
+        let scalar = try #require(result.scalars.first { $0.name == "Revenue growth" })
+        #expect(scalar.valueCell == CellRef("B2"))
     }
 
-    func testEachTableOnALineBindsItsOwnScalar() throws {
+    @Test func eachTableOnALineBindsItsOwnScalar() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             sheet.write("Purchase Multiple", to: "A2")
@@ -52,29 +53,21 @@ final class BlockDetectionTests: XCTestCase {
             sheet.write(40.0, to: "D2")
         }
 
-        XCTAssertEqual(
-            result.scalars.map(\.name).sorted(), ["Entry EBITDA", "Purchase Multiple"],
-            "two tables side by side are two assumptions, not one confused row"
-        )
-        XCTAssertEqual(
-            result.scalars.first { $0.name == "Entry EBITDA" }?.valueCell, CellRef("D2"))
+        #expect(result.scalars.map(\.name).sorted() == ["Entry EBITDA", "Purchase Multiple"], "two tables side by side are two assumptions, not one confused row")
+        #expect(result.scalars.first { $0.name == "Entry EBITDA" }?.valueCell == CellRef("D2"))
     }
 
-    func testASectionHeadingWithNoValueIsNotAScalar() throws {
+    @Test func aSectionHeadingWithNoValueIsNotAScalar() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             sheet.write("Assumptions", to: "A2")
             sheet.write("Purchase Price Analysis", to: "C2")
         }
 
-        XCTAssertTrue(
-            result.scalars.isEmpty,
-            "a heading owns no value, and inventing one for it would be worse than "
-                + "leaving it unrecognized. Got: \(result.scalars.map(\.name))"
-        )
+        #expect(result.scalars.isEmpty, "a heading owns no value, and inventing one for it would be worse than leaving it unrecognized. Got: \(result.scalars.map(\.name))")
     }
 
-    func testARowOfManyValuesAboveTheAxisIsNotAScalar() throws {
+    @Test func aRowOfManyValuesAboveTheAxisIsNotAScalar() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             // A header row of its own — several values, so not one assumption.
@@ -82,43 +75,35 @@ final class BlockDetectionTests: XCTestCase {
             for column in ["C", "D", "E"] { sheet.write(1.0, to: "\(column)2") }
         }
 
-        XCTAssertTrue(result.scalars.isEmpty, "Got: \(result.scalars.map(\.name))")
-        XCTAssertEqual(
-            result.diagnostics.map(\.code), [.ambiguousAssumption],
-            "reported rather than read as its first figure, which would be right "
-                + "often enough to be dangerous"
-        )
+        #expect(result.scalars.isEmpty, "Got: \(result.scalars.map(\.name))")
+        #expect(result.diagnostics.map(\.code) == [.ambiguousAssumption], "reported rather than read as its first figure, which would be right often enough to be dangerous")
     }
 
-    func testAHeadingIsNotReportedAsAnAmbiguousAssumption() throws {
+    @Test func aHeadingIsNotReportedAsAnAmbiguousAssumption() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             sheet.write("Assumptions", to: "A2")
             sheet.write("Purchase Price Analysis", to: "C2")
         }
 
-        XCTAssertTrue(
-            result.diagnostics.isEmpty,
-            "a title owns nothing and is not a finding. Got: "
-                + "\(result.diagnostics.map(\.code.rawValue))"
-        )
+        #expect(result.diagnostics.isEmpty, "a title owns nothing and is not a finding. Got: \(result.diagnostics.map(\.code.rawValue))")
     }
 
     // MARK: - Inside the block
 
-    func testARowOnTheTimelineIsNotAScalar() throws {
+    @Test func aRowOnTheTimelineIsNotAScalar() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             sheet.write("Revenue", to: "A6")
             for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)6") }
         }
 
-        XCTAssertTrue(result.scalars.isEmpty, "row 6 is on the timeline")
+        #expect(result.scalars.isEmpty, "row 6 is on the timeline")
     }
 
     // MARK: - Through recognition
 
-    func testAScalarBecomesAnAccountHoldingItsValueInEveryPeriod() throws {
+    @Test func aScalarBecomesAnAccountHoldingItsValueInEveryPeriod() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         withAxisBelow(sheet)
@@ -127,19 +112,16 @@ final class BlockDetectionTests: XCTestCase {
         sheet.write("Revenue", to: "A6")
         for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)6") }
 
-        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first))
-        let growth = try XCTUnwrap(
-            plan.model.accounts.first { $0.name == "Revenue growth" },
-            "Got: \(plan.model.accounts.map(\.name))"
-        )
-        let values = try XCTUnwrap(growth.values)
-        XCTAssertEqual(values.count, 3, "an assumption holds for every period")
+        let plan = ExcelRecognizer.recognize(try #require(workbook.sheets.first))
+        let growth = try #require(plan.model.accounts.first { $0.name == "Revenue growth" }, "Got: \(plan.model.accounts.map(\.name))")
+        let values = try #require(growth.values)
+        #expect(values.count == 3, "an assumption holds for every period")
         for period in plan.model.periods {
-            XCTAssertEqual(values[period] ?? .nan, 0.10, accuracy: 1e-9)
+            #expect(abs((values[period] ?? .nan) - 0.10) <= 1e-9)
         }
     }
 
-    func testAScalarWhoseValueIsAFormulaStaysDerived() throws {
+    @Test func aScalarWhoseValueIsAFormulaStaysDerived() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         withAxisBelow(sheet)
@@ -151,20 +133,14 @@ final class BlockDetectionTests: XCTestCase {
         sheet.write(
             FormulaAST.multiply(.cellRef(CellRef("B3")), .cellRef(CellRef("B2"))), to: "B4")
 
-        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first))
-        let total = try XCTUnwrap(
-            plan.model.accounts.first { $0.name == "Total Purchase Price" },
-            "Got: \(plan.model.accounts.map(\.name))"
-        )
-        XCTAssertEqual(
-            total.formula, "([Entry EBITDA] * [Purchase Multiple])",
-            "200 is the answer, not the model"
-        )
-        XCTAssertNil(total.values)
+        let plan = ExcelRecognizer.recognize(try #require(workbook.sheets.first))
+        let total = try #require(plan.model.accounts.first { $0.name == "Total Purchase Price" }, "Got: \(plan.model.accounts.map(\.name))")
+        #expect(total.formula == "([Entry EBITDA] * [Purchase Multiple])", "200 is the answer, not the model")
+        #expect(total.values == nil)
     }
 
     /// A reference names the account that owns the cell, not the row's first label.
-    func testAReferenceNamesTheAccountThatOwnsTheCell() throws {
+    @Test func aReferenceNamesTheAccountThatOwnsTheCell() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         withAxisBelow(sheet)
@@ -176,15 +152,9 @@ final class BlockDetectionTests: XCTestCase {
         sheet.write("Doubled", to: "A3")
         sheet.write(FormulaAST.multiply(.cellRef(CellRef("D2")), .number(2)), to: "B3")
 
-        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first))
-        let doubled = try XCTUnwrap(
-            plan.model.accounts.first { $0.name == "Doubled" },
-            "Got: \(plan.model.accounts.map(\.name))"
-        )
-        XCTAssertEqual(
-            doubled.formula, "(Right * 2.0)",
-            "D2 belongs to Right; naming it Left would build a model off the wrong number"
-        )
+        let plan = ExcelRecognizer.recognize(try #require(workbook.sheets.first))
+        let doubled = try #require(plan.model.accounts.first { $0.name == "Doubled" }, "Got: \(plan.model.accounts.map(\.name))")
+        #expect(doubled.formula == "(Right * 2.0)", "D2 belongs to Right; naming it Left would build a model off the wrong number")
     }
 
     // MARK: - What-If tables
@@ -197,7 +167,7 @@ final class BlockDetectionTests: XCTestCase {
     /// the column to the left, which is what makes it two-way, so the block a
     /// reader must account for is one row taller and one column wider than the
     /// span the file states.
-    func testATwoWayTableOccupiesItsHeadersToo() throws {
+    @Test func aTwoWayTableOccupiesItsHeadersToo() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         sheet.write("2024", to: "C9")
@@ -210,15 +180,15 @@ final class BlockDetectionTests: XCTestCase {
             to: "D4")
 
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let block = try XCTUnwrap(DataTableBlock.find(in: grid).first)
+        let block = try #require(DataTableBlock.find(in: grid).first)
 
-        XCTAssertEqual(block.body, CellRange(from: CellRef("D4"), to: CellRef("E5")))
-        XCTAssertTrue(block.contains(CellRef("D4")), "the body")
-        XCTAssertTrue(block.contains(CellRef("C3")), "the corner, above and left")
-        XCTAssertTrue(block.contains(CellRef("D3")), "a column input, in the row above")
-        XCTAssertTrue(block.contains(CellRef("C5")), "a row input, in the column left")
-        XCTAssertFalse(block.contains(CellRef("B4")), "and no further than that")
-        XCTAssertFalse(block.contains(CellRef("F4")))
+        #expect(block.body == CellRange(from: CellRef("D4"), to: CellRef("E5")))
+        #expect(block.contains(CellRef("D4")), "the body")
+        #expect(block.contains(CellRef("C3")), "the corner, above and left")
+        #expect(block.contains(CellRef("D3")), "a column input, in the row above")
+        #expect(block.contains(CellRef("C5")), "a row input, in the column left")
+        #expect(!block.contains(CellRef("B4")), "and no further than that")
+        #expect(!block.contains(CellRef("F4")))
     }
 
     /// A label beside a table does not own the table's cells.
@@ -228,7 +198,7 @@ final class BlockDetectionTests: XCTestCase {
     /// T on the same rows as the assumption tables, so `Total Purchase Price` in
     /// `F5` owned its own value in `H5` *and* six cells of the grid's header row,
     /// and was refused as owning seven things.
-    func testALabelDoesNotOwnTheCellsOfATableBesideIt() throws {
+    @Test func aLabelDoesNotOwnTheCellsOfATableBesideIt() throws {
         let result = scalars { sheet in
             withAxisBelow(sheet)
             sheet.write("Total Purchase Price", to: "A2")
@@ -242,11 +212,8 @@ final class BlockDetectionTests: XCTestCase {
             for column in ["E", "F", "G"] { sheet.write(0.06, to: "\(column)2") }
         }
 
-        let scalar = try XCTUnwrap(
-            result.scalars.first { $0.name == "Total Purchase Price" },
-            "Got: \(result.scalars.map(\.name)), \(result.diagnostics.map(\.code.rawValue))"
-        )
-        XCTAssertEqual(scalar.valueCell, CellRef("B2"), "its own value, and only that")
+        let scalar = try #require(result.scalars.first { $0.name == "Total Purchase Price" }, "Got: \(result.scalars.map(\.name)), \(result.diagnostics.map(\.code.rawValue))")
+        #expect(scalar.valueCell == CellRef("B2"), "its own value, and only that")
     }
 
     /// A one-way table is taken at exactly the span the file states.
@@ -255,7 +222,7 @@ final class BlockDetectionTests: XCTestCase {
     /// the reader does not carry. Guessing both sides would swallow a column of
     /// real accounts; claiming neither leaves a label reported rather than read,
     /// and reported is the failure worth having.
-    func testAOneWayTableClaimsOnlyItsBody() throws {
+    @Test func aOneWayTableClaimsOnlyItsBody() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         sheet.write("2024", to: "C9")
@@ -267,10 +234,10 @@ final class BlockDetectionTests: XCTestCase {
             to: "D4")
 
         let grid = SheetGrid.build(from: ModelImporter.importSheet(sheet))
-        let block = try XCTUnwrap(DataTableBlock.find(in: grid).first)
+        let block = try #require(DataTableBlock.find(in: grid).first)
 
-        XCTAssertTrue(block.contains(CellRef("D4")))
-        XCTAssertFalse(block.contains(CellRef("C3")), "no header row or column is assumed")
+        #expect(block.contains(CellRef("D4")))
+        #expect(!block.contains(CellRef("C3")), "no header row or column is assumed")
     }
 
     /// A reference names the account the binder gave that cell, not a re-derived
@@ -286,7 +253,7 @@ final class BlockDetectionTests: XCTestCase {
     /// that includes `Debt` in row 58, and resolved it to the `Debt` assumption in
     /// row 4, which is 60%. Every period came out as 0.6 against a sheet saying
     /// 0 and then 240.98 — a model that ran, converged, and was wrong.
-    func testAReferenceUsesTheBindersNameForTheCell() throws {
+    @Test func aReferenceUsesTheBindersNameForTheCell() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Model")
         sheet.write("2024", to: "C5")
@@ -311,19 +278,11 @@ final class BlockDetectionTests: XCTestCase {
         let plan = ExcelRecognizer.recognize(sheet)
         let names = plan.model.accounts.map(\.name)
 
-        let equity = try XCTUnwrap(plan.model.accounts.first { $0.name == "Equity" }, "\(names)")
-        XCTAssertEqual(
-            equity.formula, "Debt",
-            "the row on the timeline keeps the plain heading, and the reference to "
-                + "its cell resolves there"
-        )
+        let equity = try #require(plan.model.accounts.first { $0.name == "Equity" }, "\(names)")
+        #expect(equity.formula == "Debt", "the row on the timeline keeps the plain heading, and the reference to its cell resolves there")
 
-        let loan = try XCTUnwrap(plan.model.accounts.first { $0.name == "Loan" }, "\(names)")
-        XCTAssertEqual(
-            loan.formula, "[Debt (A2)]",
-            "and the assumption, distinguished by its cell, stays reachable. Dropping "
-                + "it would lose 60% and send this reference to the row instead"
-        )
-        XCTAssertTrue(names.contains("Debt (A2)"), "both survive. Got: \(names)")
+        let loan = try #require(plan.model.accounts.first { $0.name == "Loan" }, "\(names)")
+        #expect(loan.formula == "[Debt (A2)]", "and the assumption, distinguished by its cell, stays reachable. Dropping it would lose 60% and send this reference to the row instead")
+        #expect(names.contains("Debt (A2)"), "both survive. Got: \(names)")
     }
 }

@@ -1,15 +1,16 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import SwiftXLSX
 
-final class ModelExporterTests: XCTestCase {
+@Suite struct ModelExporterTests {
 
     private func makeSimpleModel() throws -> ExcelModel {
         let model = ExcelModel()
         model.addInput(label: "Price", value: 100)
         model.addInput(label: "Quantity", value: 5)
-        let price = try XCTUnwrap(model.node(named: "Price"))
-        let qty = try XCTUnwrap(model.node(named: "Quantity"))
+        let price = try #require(model.node(named: "Price"))
+        let qty = try #require(model.node(named: "Quantity"))
         model.addOutput(
             label: "Total",
             formula: .multiply(.ref(price), .ref(qty))
@@ -19,87 +20,87 @@ final class ModelExporterTests: XCTestCase {
 
     // MARK: - Basic Export
 
-    func testCreatesWorkbookWithOneSheet() throws {
+    @Test func createsWorkbookWithOneSheet() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
 
-        XCTAssertEqual(wb.sheets.count, 1)
+        #expect(wb.sheets.count == 1)
     }
 
-    func testDefaultSheetName() throws {
+    @Test func defaultSheetName() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
 
-        XCTAssertEqual(wb.sheets[0].name, "Model")
+        #expect(wb.sheets[0].name == "Model")
     }
 
-    func testCustomSheetName() throws {
+    @Test func customSheetName() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, sheetName: "Revenue")
 
-        XCTAssertEqual(wb.sheets[0].name, "Revenue")
+        #expect(wb.sheets[0].name == "Revenue")
     }
 
     // MARK: - Title
 
-    func testWritesTitle() throws {
+    @Test func writesTitle() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, title: "Revenue Model")
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "C1"), .text("Revenue Model"))
+        #expect(sheet.cell(at: "C1") == .text("Revenue Model"))
     }
 
-    func testCustomTitle() throws {
+    @Test func customTitle() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, title: "Cost Analysis")
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "C1"), .text("Cost Analysis"))
+        #expect(sheet.cell(at: "C1") == .text("Cost Analysis"))
     }
 
     // MARK: - Section Headers
 
-    func testWritesSectionHeaders() throws {
+    @Test func writesSectionHeaders() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "C3"), .text("Inputs"))
+        #expect(sheet.cell(at: "C3") == .text("Inputs"))
     }
 
     // MARK: - Input Nodes
 
-    func testWritesInputLabels() throws {
+    @Test func writesInputLabels() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "C4"), .text("Price"))
-        XCTAssertEqual(sheet.cell(at: "C5"), .text("Quantity"))
+        #expect(sheet.cell(at: "C4") == .text("Price"))
+        #expect(sheet.cell(at: "C5") == .text("Quantity"))
     }
 
-    func testWritesInputValues() throws {
+    @Test func writesInputValues() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
         if case .number(let value) = sheet.cell(at: "D4") {
-            XCTAssertEqual(value, 100, accuracy: 0.01)
+            #expect(abs(value - 100) <= 0.01)
         } else {
-            XCTFail("D4 should contain input value 100")
+            Issue.record("D4 should contain input value 100")
         }
 
         if case .number(let value) = sheet.cell(at: "D5") {
-            XCTAssertEqual(value, 5, accuracy: 0.01)
+            #expect(abs(value - 5) <= 0.01)
         } else {
-            XCTFail("D5 should contain input value 5")
+            Issue.record("D5 should contain input value 5")
         }
     }
 
     // MARK: - Formula Nodes
 
-    func testWritesFormulaNode() throws {
+    @Test func writesFormulaNode() throws {
         let model = ExcelModel()
         let rate = model.addInput(label: "Annual Rate", value: 0.065)
         model.addFormula(
@@ -110,63 +111,61 @@ final class ModelExporterTests: XCTestCase {
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
-        let formulaCell = sheet.cell(at: "D7")
-        XCTAssertNotNil(formulaCell)
-        XCTAssertTrue(formulaCell?.isFormula == true)
+        let formulaCell = try #require(sheet.cell(at: "D7"))
+        #expect(formulaCell.isFormula == true)
     }
 
     // MARK: - Output Nodes
 
-    func testWritesOutputAsFormula() throws {
+    @Test func writesOutputAsFormula() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
         let outputRef = "D8"
-        let outputCell = sheet.cell(at: outputRef)
-        XCTAssertNotNil(outputCell)
-        XCTAssertTrue(outputCell?.isFormula == true)
+        let outputCell = try #require(sheet.cell(at: outputRef))
+        #expect(outputCell.isFormula == true)
     }
 
     // MARK: - Label Nodes
 
-    func testWritesLabelNode() throws {
+    @Test func writesLabelNode() throws {
         let model = ExcelModel()
         model.addLabel("Summary")
 
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "D4"), .text("Summary"))
+        #expect(sheet.cell(at: "D4") == .text("Summary"))
     }
 
     // MARK: - Text Input Nodes
 
-    func testWritesTextInputNode() throws {
+    @Test func writesTextInputNode() throws {
         let model = ExcelModel()
         model.addTextInput(label: "Title", value: "Loan Schedule")
 
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
-        XCTAssertEqual(sheet.cell(at: "D4"), .text("Loan Schedule"))
+        #expect(sheet.cell(at: "D4") == .text("Loan Schedule"))
     }
 
     // MARK: - Error Handling
 
-    func testDanglingReferenceThrows() {
+    @Test func danglingReferenceThrows() {
         let model = ExcelModel()
         let orphan = NodeRef(label: "Ghost")
         model.addOutput(label: "Bad", formula: .ref(orphan))
 
-        XCTAssertThrowsError(try ModelExporter.export(model)) { error in
-            XCTAssertTrue(error is ResolutionError)
+        if let error = #expect(throws: (any Error).self, performing: { try ModelExporter.export(model) }) {
+            #expect(error is ResolutionError)
         }
     }
 
     // MARK: - Financial Formulas
 
-    func testPMTFormulaResolvesCorrectly() throws {
+    @Test func pmtFormulaResolvesCorrectly() throws {
         let model = ExcelModel()
         let rate = model.addInput(label: "Rate", value: 0.005)
         let nper = model.addInput(label: "Periods", value: 360)
@@ -180,23 +179,22 @@ final class ModelExporterTests: XCTestCase {
         let wb = try ModelExporter.export(model)
         let sheet = wb.sheets[0]
 
-        let paymentAST = sheet.formulaAST(at: "D9")
-        XCTAssertNotNil(paymentAST)
+        let paymentAST = try #require(sheet.formulaAST(at: "D9"))
 
         if case .function(let name, let args) = paymentAST {
-            XCTAssertEqual(name, "PMT")
-            XCTAssertEqual(args.count, 3)
-            XCTAssertEqual(args[0], .cellRef(CellRef(column: 4, row: 4)))
-            XCTAssertEqual(args[1], .cellRef(CellRef(column: 4, row: 5)))
-            XCTAssertEqual(args[2], .cellRef(CellRef(column: 4, row: 6)))
+            #expect(name == "PMT")
+            #expect(args.count == 3)
+            #expect(args[0] == .cellRef(CellRef(column: 4, row: 4)))
+            #expect(args[1] == .cellRef(CellRef(column: 4, row: 5)))
+            #expect(args[2] == .cellRef(CellRef(column: 4, row: 6)))
         } else {
-            XCTFail("Expected PMT function")
+            Issue.record("Expected PMT function")
         }
     }
 
     // MARK: - Round-Trip
 
-    func testSavesToFile() throws {
+    @Test func savesToFile() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model)
 
@@ -205,17 +203,17 @@ final class ModelExporterTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try wb.save(to: url)
-        XCTAssertTrue(try url.checkResourceIsReachable())
+        #expect(try url.checkResourceIsReachable())
     }
 
-    func testRoundTripPreservesValues() throws {
+    @Test func roundTripPreservesValues() throws {
         let model = try makeSimpleModel()
         let wb = try ModelExporter.export(model, title: "Test")
 
         let data = try wb.save()
         let reloaded = try Workbook(xlsxData: data)
 
-        XCTAssertEqual(reloaded.sheets.count, 1)
-        XCTAssertEqual(reloaded.sheets[0].cell(at: "C1"), .text("Test"))
+        #expect(reloaded.sheets.count == 1)
+        #expect(reloaded.sheets[0].cell(at: "C1") == .text("Test"))
     }
 }

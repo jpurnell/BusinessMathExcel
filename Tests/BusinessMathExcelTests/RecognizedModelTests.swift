@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -9,7 +10,7 @@ import SwiftXLSX
 /// `ModelDefinition` and never throws: a workbook that does not fit yields a
 /// partial plan plus residue, which can be read and argued with before anything
 /// is built from it.
-final class RecognizedModelTests: XCTestCase {
+@Suite struct RecognizedModelTests {
 
     private func recognize(_ build: (Worksheet) -> Void) throws -> RecognitionResult {
         let wb = Workbook()
@@ -18,12 +19,12 @@ final class RecognizedModelTests: XCTestCase {
         sheet.write("2025", to: "D1")
         sheet.write("2026", to: "E1")
         build(sheet)
-        return ExcelRecognizer.recognize(try XCTUnwrap(wb.sheets.first))
+        return ExcelRecognizer.recognize(try #require(wb.sheets.first))
     }
 
     // MARK: - Inputs and formulas
 
-    func testARowOfLiteralsBecomesAnInputAccount() throws {
+    @Test func aRowOfLiteralsBecomesAnInputAccount() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -31,12 +32,12 @@ final class RecognizedModelTests: XCTestCase {
             sheet.write(121.0, to: "E2")
         }
 
-        let revenue = try XCTUnwrap(result.model.accounts.first { $0.name == "Revenue" })
-        XCTAssertNil(revenue.formula, "an input is supplied, not derived")
-        XCTAssertEqual(revenue.values?.count, 3)
+        let revenue = try #require(result.model.accounts.first { $0.name == "Revenue" })
+        #expect(revenue.formula == nil, "an input is supplied, not derived")
+        #expect(revenue.values?.count == 3)
     }
 
-    func testARowOfFormulasBecomesADerivedAccount() throws {
+    @Test func aRowOfFormulasBecomesADerivedAccount() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Cost", to: "A3")
@@ -51,15 +52,15 @@ final class RecognizedModelTests: XCTestCase {
             }
         }
 
-        let profit = try XCTUnwrap(result.model.accounts.first { $0.name == "Profit" })
-        let formula = try XCTUnwrap(profit.formula)
-        XCTAssertTrue(formula.contains("Revenue"))
-        XCTAssertNil(profit.values, "a derived account carries no literals")
+        let profit = try #require(result.model.accounts.first { $0.name == "Profit" })
+        let formula = try #require(profit.formula)
+        #expect(formula.contains("Revenue"))
+        #expect(profit.values == nil, "a derived account carries no literals")
     }
 
     // MARK: - Provenance
 
-    func testEveryAccountNamesTheCellsItCameFrom() throws {
+    @Test func everyAccountNamesTheCellsItCameFrom() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -67,30 +68,24 @@ final class RecognizedModelTests: XCTestCase {
         }
 
         for account in result.model.accounts {
-            XCTAssertFalse(
-                account.provenance.isEmpty,
-                "\(account.name) claims values from nowhere"
-            )
+            #expect(!account.provenance.isEmpty, "\(account.name) claims values from nowhere")
         }
     }
 
-    func testProvenanceCellsHoldWhatTheAccountClaims() throws {
+    @Test func provenanceCellsHoldWhatTheAccountClaims() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
             sheet.write(110.0, to: "D2")
         }
 
-        let revenue = try XCTUnwrap(result.model.accounts.first { $0.name == "Revenue" })
-        XCTAssertEqual(
-            Set(revenue.provenance.map(\.reference)), ["C2", "D2"],
-            "the cells named are the cells read"
-        )
+        let revenue = try #require(result.model.accounts.first { $0.name == "Revenue" })
+        #expect(Set(revenue.provenance.map(\.reference)) == ["C2", "D2"], "the cells named are the cells read")
     }
 
     // MARK: - Residue
 
-    func testAnUnregisteredFunctionGoesToResidueRatherThanAnAccount() throws {
+    @Test func anUnregisteredFunctionGoesToResidueRatherThanAnAccount() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Looked up", to: "A4")
@@ -102,16 +97,13 @@ final class RecognizedModelTests: XCTestCase {
             }
         }
 
-        XCTAssertNil(
-            result.model.accounts.first { $0.name == "Looked up" },
-            "a row we cannot translate must not become an account"
-        )
-        let residue = try XCTUnwrap(result.model.residue.first { $0.label == "Looked up" })
-        XCTAssertEqual(residue.reason, .unregisteredFunction)
-        XCTAssertFalse(residue.cells.isEmpty, "residue says where it came from too")
+        #expect(result.model.accounts.first { $0.name == "Looked up" } == nil, "a row we cannot translate must not become an account")
+        let residue = try #require(result.model.residue.first { $0.label == "Looked up" })
+        #expect(residue.reason == .unregisteredFunction)
+        #expect(!residue.cells.isEmpty, "residue says where it came from too")
     }
 
-    func testAHandEditedRowGoesToResidue() throws {
+    @Test func aHandEditedRowGoesToResidue() throws {
         let result = try recognize { sheet in
             sheet.write("Base", to: "A2")
             sheet.write("Doubled", to: "A3")
@@ -121,14 +113,14 @@ final class RecognizedModelTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("E2")), .number(2)), to: "E3")
         }
 
-        XCTAssertNil(result.model.accounts.first { $0.name == "Doubled" })
-        let residue = try XCTUnwrap(result.model.residue.first { $0.label == "Doubled" })
-        XCTAssertEqual(residue.reason, .nonUniformRow)
+        #expect(result.model.accounts.first { $0.name == "Doubled" } == nil)
+        let residue = try #require(result.model.residue.first { $0.label == "Doubled" })
+        #expect(residue.reason == .nonUniformRow)
     }
 
     // MARK: - Rollforwards
 
-    func testASelfReferencingRowContributesARollforward() throws {
+    @Test func aSelfReferencingRowContributesARollforward() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -136,25 +128,22 @@ final class RecognizedModelTests: XCTestCase {
             sheet.write(FormulaAST.multiply(.cellRef(CellRef("D2")), .number(1.15)), to: "E2")
         }
 
-        XCTAssertFalse(
-            result.model.rollforwards.isEmpty,
-            "growth off last year's figure is a carry, and the plan must say so"
-        )
+        #expect(!result.model.rollforwards.isEmpty, "growth off last year's figure is a carry, and the plan must say so")
     }
 
     // MARK: - Shape
 
-    func testRecognitionNeverThrowsOnASheetItCannotRead() {
+    @Test func recognitionNeverThrowsOnASheetItCannotRead() {
         let wb = Workbook()
         let sheet = wb.addSheet(name: "Notes")
         sheet.write("Just some prose", to: "A1")
 
         let result = ExcelRecognizer.recognize(sheet)
-        XCTAssertTrue(result.model.accounts.isEmpty)
-        XCTAssertFalse(result.diagnostics.isEmpty, "and it says why")
+        #expect(result.model.accounts.isEmpty)
+        #expect(!result.diagnostics.isEmpty, "and it says why")
     }
 
-    func testCoverageIsReported() throws {
+    @Test func coverageIsReported() throws {
         let result = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -162,7 +151,7 @@ final class RecognizedModelTests: XCTestCase {
             sheet.write(121.0, to: "E2")
         }
 
-        XCTAssertGreaterThan(result.coverage.populatedCells, 0)
-        XCTAssertGreaterThan(result.coverage.fraction, 0)
+        #expect(result.coverage.populatedCells > 0)
+        #expect(result.coverage.fraction > 0)
     }
 }

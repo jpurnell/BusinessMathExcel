@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -15,7 +16,7 @@ import SwiftXLSX
 /// at 10%, a correct cyclic solve accrues **11.75**; a model that quietly breaks
 /// the circle by accruing on the beginning balance instead gets **12.00**. Both
 /// run, both converge, and only one is right.
-final class CircularSweepTests: XCTestCase {
+@Suite struct CircularSweepTests {
 
     /// A three-year revolver: interest on the average balance, cash-swept.
     ///
@@ -71,75 +72,55 @@ final class CircularSweepTests: XCTestCase {
 
     // MARK: - The cycle
 
-    func testTheSweepIsRecognizedAsExactlyOneCycle() throws {
-        let sheet = try XCTUnwrap(revolver(openingDebt: drawnDown))
+    @Test func theSweepIsRecognizedAsExactlyOneCycle() throws {
+        let sheet = try #require(revolver(openingDebt: drawnDown))
         let plan = ExcelRecognizer.recognize(sheet)
         // Info notes are not problems; a fixture with no number formats reports
         // that unit inference found none.
-        XCTAssertEqual(
-            plan.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue), [])
+        #expect(plan.diagnostics.filter { $0.severity != .info }.map(\.code.rawValue) == [])
 
         let report = try ModelMaterializer.build(from: plan.model).definition.dependencyReport()
-        XCTAssertEqual(report.cycles.count, 1, "one circle, not one per account in it")
+        #expect(report.cycles.count == 1, "one circle, not one per account in it")
 
-        let cycle = try XCTUnwrap(report.cycles.first)
-        XCTAssertTrue(
-            cycle.accounts.contains("Interest") && cycle.accounts.contains("Closing Debt"),
-            "the circle is interest against the balance it accrues on. Got: \(cycle.accounts)"
-        )
+        let cycle = try #require(report.cycles.first)
+        #expect(cycle.accounts.contains("Interest") && cycle.accounts.contains("Closing Debt"), "the circle is interest against the balance it accrues on. Got: \(cycle.accounts)")
     }
 
     // MARK: - The number that decides it
 
-    func testYearOneInterestAccruesOnTheAverageBalance() throws {
-        let sheet = try XCTUnwrap(revolver(openingDebt: drawnDown))
+    @Test func yearOneInterestAccruesOnTheAverageBalance() throws {
+        let sheet = try #require(revolver(openingDebt: drawnDown))
         let built = try ModelMaterializer.build(from: ExcelRecognizer.recognize(sheet).model)
         let evaluated = try PeriodDriver(
             definition: built.definition, rollforwards: built.rollforwards
         ).run(over: built.periods)
 
-        let interest = try XCTUnwrap(evaluated["Interest"]?.valuesArray.first)
-        XCTAssertEqual(
-            interest, 11.75, accuracy: 1e-9,
-            "120 opening, 115 closing, 117.5 average, 10% — 11.75. Accruing on the "
-                + "beginning balance instead gives 12.00, which is what breaking the cycle "
-                + "by timing looks like from the outside: a model that runs and converges"
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(evaluated["Closing Debt"]?.valuesArray.first), 115, accuracy: 1e-9,
-            "and the balance the interest was accrued on is the one that closes"
-        )
+        let interest = try #require(evaluated["Interest"]?.valuesArray.first)
+        #expect(abs(interest - 11.75) <= 1e-9, "120 opening, 115 closing, 117.5 average, 10% — 11.75. Accruing on the beginning balance instead gives 12.00, which is what breaking the cycle by timing looks like from the outside: a model that runs and converges")
+        #expect(abs((try #require(evaluated["Closing Debt"]?.valuesArray.first)) - 115) <= 1e-9, "and the balance the interest was accrued on is the one that closes")
     }
 
-    func testTheCarrySeedsFromTheRowsOwnFirstPeriod() throws {
-        let sheet = try XCTUnwrap(revolver(openingDebt: drawnDown))
-        let carry = try XCTUnwrap(ExcelRecognizer.recognize(sheet).model.rollforwards.first)
+    @Test func theCarrySeedsFromTheRowsOwnFirstPeriod() throws {
+        let sheet = try #require(revolver(openingDebt: drawnDown))
+        let carry = try #require(ExcelRecognizer.recognize(sheet).model.rollforwards.first)
         // D4 = C7, but the opening balance is the 120 typed into C4. Seeding from
         // the referenced cell reads a formula that has no prior period to compute
         // from, which is where the zero came from.
-        XCTAssertEqual(carry.seedCell, CellRef("C4"))
-        XCTAssertEqual(carry.seed, 120, accuracy: 1e-9)
+        #expect(carry.seedCell == CellRef("C4"))
+        #expect(abs(carry.seed - 120) <= 1e-9)
     }
 
     // MARK: - When the sheet does not say
 
-    func testACarryWithNoStatedOpeningIsRefused() throws {
-        let sheet = try XCTUnwrap(
-            revolver(openingDebt: {
+    @Test func aCarryWithNoStatedOpeningIsRefused() throws {
+        let sheet = try #require(revolver(openingDebt: {
                 // C4 computed, and no cached value for it — the file states no
                 // opening balance anywhere.
                 $0.write(FormulaAST.multiply(.cellRef(CellRef("C3")), .number(2)), to: "C4")
             }))
         let plan = ExcelRecognizer.recognize(sheet)
 
-        XCTAssertTrue(
-            plan.diagnostics.contains { $0.code == .unseededCarry },
-            "an unstated opening is reported, not defaulted. Got: "
-                + "\(plan.diagnostics.map(\.code.rawValue))"
-        )
-        XCTAssertFalse(
-            plan.model.rollforwards.contains { $0.seed == 0 },
-            "and no rollforward is seeded with an invented zero"
-        )
+        #expect(plan.diagnostics.contains { $0.code == .unseededCarry }, "an unstated opening is reported, not defaulted. Got: \(plan.diagnostics.map(\.code.rawValue))")
+        #expect(!(plan.model.rollforwards.contains { $0.seed == 0 }), "and no rollforward is seeded with an invented zero")
     }
 }

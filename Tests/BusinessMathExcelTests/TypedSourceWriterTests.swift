@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -13,7 +14,7 @@ import SwiftXLSX
 /// compile is worse than none, so every rule here exists to keep the writer from
 /// producing something the build would reject — and where it cannot be sure, it
 /// emits the untyped spelling rather than guessing at a unit.
-final class TypedSourceWriterTests: XCTestCase {
+@Suite struct TypedSourceWriterTests {
 
     private func account(
         _ name: String,
@@ -51,7 +52,7 @@ final class TypedSourceWriterTests: XCTestCase {
 
     // MARK: - Typed declarations
 
-    func testAnAccountWithAKnownUnitIsDeclaredTyped() {
+    @Test func anAccountWithAKnownUnitIsDeclaredTyped() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Revenue", [1_000, 1_150], unit: .money, at: "C6"),
@@ -62,40 +63,35 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(
-            source.contains(#"let revenue = LineItem<Money>("Revenue")"#),
-            "Got:\n\(source)")
-        XCTAssertTrue(source.contains(#"let margin = LineItem<Ratio>("Margin")"#))
-        XCTAssertTrue(source.contains("revenue.expr * margin.expr"))
+        #expect(source.contains(#"let revenue = LineItem<Money>("Revenue")"#), "Got:\n\(source)")
+        #expect(source.contains(#"let margin = LineItem<Ratio>("Margin")"#))
+        #expect(source.contains("revenue.expr * margin.expr"))
     }
 
     /// `Count` upstream, not `Duration` — the standard library owns that name, so
     /// BusinessMath renamed the unit and the writer must emit what compiles.
-    func testTheDurationUnitEmitsAsCount() {
+    @Test func theDurationUnitEmitsAsCount() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([input("Years", [5], unit: .duration, at: "D22")]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains(#"LineItem<Count>("Years")"#), "Got:\n\(source)")
-        XCTAssertFalse(source.contains("Duration"))
+        #expect(source.contains(#"LineItem<Count>("Years")"#), "Got:\n\(source)")
+        #expect(!source.contains("Duration"))
     }
 
-    func testEveryDeclarationCarriesItsProvenance() {
+    @Test func everyDeclarationCarriesItsProvenance() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([input("Revenue", [1_000], unit: .money, at: "E30")]),
             sheetName: "ANSWER KEY")
 
-        XCTAssertTrue(
-            source.contains("// ANSWER KEY!E30"),
-            "the only way to check the recognizer's work against the workbook by hand"
-        )
+        #expect(source.contains("// ANSWER KEY!E30"), "the only way to check the recognizer's work against the workbook by hand")
     }
 
     // MARK: - Untyped fallback
 
     /// Sixteen of the Wharton sheet's 46 accounts state no unit, so this is the
     /// common case on real input rather than a corner.
-    func testAnAccountWithNoUnitEmitsTheStringAPI() {
+    @Test func anAccountWithNoUnitEmitsTheStringAPI() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Total FCF", [10], unit: nil, at: "E47"),
@@ -104,18 +100,13 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertFalse(
-            source.contains("LineItem"),
-            "LineItem<U> has no untyped form, and picking a unit would be inventing one"
-        )
-        XCTAssertTrue(
-            source.contains(#".defining("Doubled", as: "([Total FCF] * 2.0)")"#),
-            "Got:\n\(source)")
+        #expect(!source.contains("LineItem"), "LineItem<U> has no untyped form, and picking a unit would be inventing one")
+        #expect(source.contains(#".defining("Doubled", as: "([Total FCF] * 2.0)")"#), "Got:\n\(source)")
     }
 
     /// A definition reading one typed and one untyped account cannot be written
     /// typed, because there is no `Expr` for the untyped side.
-    func testAMixedExpressionEmitsUntypedWhole() {
+    @Test func aMixedExpressionEmitsUntypedWhole() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Revenue", [1_000], unit: .money, at: "C6"),
@@ -125,17 +116,12 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(
-            source.contains(#".defining("Total", as: "(Revenue + Mystery)")"#),
-            "emitted whole rather than half-cast into something that would not compile. "
-                + "Got:\n\(source)")
-        XCTAssertTrue(
-            source.contains(#"let revenue = LineItem<Money>("Revenue")"#),
-            "and the typed handle still exists for anything that can use it")
+        #expect(source.contains(#".defining("Total", as: "(Revenue + Mystery)")"#), "emitted whole rather than half-cast into something that would not compile. Got:\n\(source)")
+        #expect(source.contains(#"let revenue = LineItem<Money>("Revenue")"#), "and the typed handle still exists for anything that can use it")
     }
 
     /// The typed algebra has no comparison operators and no `IF`.
-    func testAComparisonEmitsUntyped() {
+    @Test func aComparisonEmitsUntyped() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Cash", [10], unit: .money, at: "C6"),
@@ -145,11 +131,11 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains(#".defining("Covered", as:"#), "Got:\n\(source)")
+        #expect(source.contains(#".defining("Covered", as:"#), "Got:\n\(source)")
     }
 
     /// `MIN`, `MAX` and `ABS` exist in the typed layer. Nothing else does.
-    func testOnlyTheTypedFunctionsEmitTyped() {
+    @Test func onlyTheTypedFunctionsEmitTyped() {
         let plan = plan([
             input("Cash", [10], unit: .money, at: "C6"),
             input("Debt", [5], unit: .money, at: "C7"),
@@ -160,12 +146,12 @@ final class TypedSourceWriterTests: XCTestCase {
         ])
         let source = TypedSourceWriter.swiftSource(for: plan, sheetName: "Model")
 
-        XCTAssertTrue(source.contains("min(cash.expr, debt.expr)"), "Got:\n\(source)")
-        XCTAssertTrue(source.contains(#".defining("Total", as: "SUM(Cash, Debt)")"#))
+        #expect(source.contains("min(cash.expr, debt.expr)"), "Got:\n\(source)")
+        #expect(source.contains(#".defining("Total", as: "SUM(Cash, Debt)")"#))
     }
 
     /// An illegal combination cannot be emitted typed, because it would not build.
-    func testAnExpressionTheAlgebraRejectsEmitsUntyped() {
+    @Test func anExpressionTheAlgebraRejectsEmitsUntyped() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Revenue", [1_000], unit: .money, at: "C6"),
@@ -176,15 +162,15 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains(#".defining("Nonsense", as:"#), "Got:\n\(source)")
-        XCTAssertFalse(source.contains("revenue.expr + margin.expr"))
+        #expect(source.contains(#".defining("Nonsense", as:"#), "Got:\n\(source)")
+        #expect(!(source.contains("revenue.expr + margin.expr")))
     }
 
     // MARK: - Literals
 
     /// A bare number is dimensionless unless that will not compile. A rate would
     /// be a claim about periodicity the sheet never made.
-    func testABareNumberIsARatio() {
+    @Test func aBareNumberIsARatio() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Revenue", [1_000], unit: .money, at: "C6"),
@@ -193,7 +179,7 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains("revenue.expr * ratio(1.15)"), "Got:\n\(source)")
+        #expect(source.contains("revenue.expr * ratio(1.15)"), "Got:\n\(source)")
     }
 
     /// `Revenue × (1 + g)` is the commonest line in modelling, and the recognizer
@@ -201,7 +187,7 @@ final class TypedSourceWriterTests: XCTestCase {
     /// and a per-period rate are not the same dimension — which is why `factor(_:)`
     /// exists upstream. Recognising the idiom is the difference between emitting it
     /// typed and sending every growth row to the string API.
-    func testTheGrowthFactorIdiomEmitsAsFactor() {
+    @Test func theGrowthFactorIdiomEmitsAsFactor() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Revenue", [1_000], unit: .money, at: "C6"),
@@ -213,13 +199,12 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(
-            source.contains("revenue.expr * factor(growth.expr)"), "Got:\n\(source)")
+        #expect(source.contains("revenue.expr * factor(growth.expr)"), "Got:\n\(source)")
     }
 
     /// Only exactly `1 + rate`. Widening it would emit `factor` for arithmetic
     /// that means something else.
-    func testAdditionThatIsNotAGrowthFactorIsNotOne() {
+    @Test func additionThatIsNotAGrowthFactorIsNotOne() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Growth", [0.15], unit: .rate, at: "B2"),
@@ -229,13 +214,13 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertFalse(source.contains("factor("), "Got:\n\(source)")
-        XCTAssertTrue(source.contains("(growth.expr + premium.expr)"))
+        #expect(!source.contains("factor("), "Got:\n\(source)")
+        #expect(source.contains("(growth.expr + premium.expr)"))
     }
 
     // MARK: - A runnable file
 
-    func testTheFileIsRunnableRatherThanAFragment() {
+    @Test func theFileIsRunnableRatherThanAFragment() {
         let source = TypedSourceWriter.swiftSource(
             for: plan(
                 [
@@ -249,25 +234,19 @@ final class TypedSourceWriterTests: XCTestCase {
                 ]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains("import BusinessMath"), "Got:\n\(source)")
-        XCTAssertTrue(source.contains("Period.year(2024)"), "the timeline")
-        XCTAssertTrue(source.contains("TimeSeries(periods:"), "the data")
-        XCTAssertTrue(
-            source.contains(#"Rollforward(opening: "Opening", closing: "Closing", seed: 100.0)"#),
-            "the carries")
-        XCTAssertTrue(source.contains("try model.validateUnits()"))
-        XCTAssertTrue(
-            source.contains("enum ImportedModel {"),
-            "an enum of static members, not top-level code — top-level statements "
-                + "are legal only in main.swift, so a file of them cannot be compiled "
-                + "into the library or test target where a generated model belongs")
+        #expect(source.contains("import BusinessMath"), "Got:\n\(source)")
+        #expect(source.contains("Period.year(2024)"), "the timeline")
+        #expect(source.contains("TimeSeries(periods:"), "the data")
+        #expect(source.contains(#"Rollforward(opening: "Opening", closing: "Closing", seed: 100.0)"#), "the carries")
+        #expect(source.contains("try model.validateUnits()"))
+        #expect(source.contains("enum ImportedModel {"), "an enum of static members, not top-level code — top-level statements are legal only in main.swift, so a file of them cannot be compiled into the library or test target where a generated model belongs")
     }
 
     /// An opening balance is the closing balance at another moment, so it has the
     /// same unit — and nothing in the plan declares it, because the driver supplies
     /// it. Without this, every definition reading an opening balance falls untyped,
     /// which on a debt schedule is most of them.
-    func testARollforwardsOpeningAccountInheritsItsClosingUnit() {
+    @Test func aRollforwardsOpeningAccountInheritsItsClosingUnit() {
         let source = TypedSourceWriter.swiftSource(
             for: plan(
                 [
@@ -283,17 +262,13 @@ final class TypedSourceWriterTests: XCTestCase {
                 ]),
             sheetName: "Model")
 
-        XCTAssertTrue(
-            source.contains(#"let openingDebt = LineItem<Money>("Opening Debt")"#),
-            "Got:\n\(source)")
-        XCTAssertTrue(
-            source.contains("openingDebt.expr * rate.expr"),
-            "and the definition reading it is typed rather than falling back")
+        #expect(source.contains(#"let openingDebt = LineItem<Money>("Opening Debt")"#), "Got:\n\(source)")
+        #expect(source.contains("openingDebt.expr * rate.expr"), "and the definition reading it is typed rather than falling back")
     }
 
     // MARK: - Names
 
-    func testNamesBecomeLegalSwiftIdentifiers() {
+    @Test func namesBecomeLegalSwiftIdentifiers() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("EBITDA margin", [0.4], unit: .ratio, at: "C6"),
@@ -302,14 +277,12 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains("let ebitdaMargin ="), "Got:\n\(source)")
-        XCTAssertTrue(source.contains("let lessInterest ="))
-        XCTAssertTrue(
-            source.contains("let revenue2023 ="),
-            "a leading digit is not a legal identifier, and the year still belongs in the name")
+        #expect(source.contains("let ebitdaMargin ="), "Got:\n\(source)")
+        #expect(source.contains("let lessInterest ="))
+        #expect(source.contains("let revenue2023 ="), "a leading digit is not a legal identifier, and the year still belongs in the name")
     }
 
-    func testNamesThatCollideAreDistinguished() {
+    @Test func namesThatCollideAreDistinguished() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([
                 input("Interest", [10], unit: .money, at: "C6"),
@@ -317,10 +290,8 @@ final class TypedSourceWriterTests: XCTestCase {
             ]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains("let interest ="), "Got:\n\(source)")
-        XCTAssertTrue(
-            source.contains("let interest2 ="),
-            "two accounts differing only in case are one Swift identifier, and both must exist")
+        #expect(source.contains("let interest ="), "Got:\n\(source)")
+        #expect(source.contains("let interest2 ="), "two accounts differing only in case are one Swift identifier, and both must exist")
     }
 
     /// A model name that is already a legal identifier keeps the caller's casing.
@@ -328,27 +299,27 @@ final class TypedSourceWriterTests: XCTestCase {
     /// Running it through the account-name path would flatten it: `GoldenForecast`
     /// has no separators to split on, so it came back as one lowercased word and
     /// the emitted namespace did not match what the caller asked for.
-    func testAModelNameKeepsItsOwnCasing() {
+    @Test func aModelNameKeepsItsOwnCasing() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([input("Revenue", [1], unit: .money, at: "C6")]),
             sheetName: "Model", modelName: "GoldenForecast")
 
-        XCTAssertTrue(source.contains("enum GoldenForecast {"), "Got:\n\(source)")
+        #expect(source.contains("enum GoldenForecast {"), "Got:\n\(source)")
     }
 
-    func testAModelNameThatIsNotAnIdentifierIsMadeIntoOne() {
+    @Test func aModelNameThatIsNotAnIdentifierIsMadeIntoOne() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([input("Revenue", [1], unit: .money, at: "C6")]),
             sheetName: "Model", modelName: "ANSWER KEY")
 
-        XCTAssertTrue(source.contains("enum AnswerKey {"), "Got:\n\(source)")
+        #expect(source.contains("enum AnswerKey {"), "Got:\n\(source)")
     }
 
-    func testAKeywordIsEscaped() {
+    @Test func aKeywordIsEscaped() {
         let source = TypedSourceWriter.swiftSource(
             for: plan([input("Return", [10], unit: .money, at: "C6")]),
             sheetName: "Model")
 
-        XCTAssertTrue(source.contains("let `return` ="), "Got:\n\(source)")
+        #expect(source.contains("let `return` ="), "Got:\n\(source)")
     }
 }

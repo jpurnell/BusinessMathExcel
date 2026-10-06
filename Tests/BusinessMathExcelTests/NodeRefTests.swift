@@ -1,45 +1,45 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 
-final class NodeRefTests: XCTestCase {
+@Suite struct NodeRefTests {
 
-    func testStoresLabel() {
+    @Test func storesLabel() {
         let ref = NodeRef(label: "Revenue")
-        XCTAssertEqual(ref.label, "Revenue")
+        #expect(ref.label == "Revenue")
     }
 
-    func testSameInstanceIsEqual() {
+    @Test func sameInstanceIsEqual() {
         let ref = NodeRef(label: "Revenue")
-        XCTAssertEqual(ref, ref)
+        #expect(ref == ref)
     }
 
-    func testDifferentInstancesAreNotEqual() {
+    @Test func differentInstancesAreNotEqual() {
         let a = NodeRef(label: "Revenue")
         let b = NodeRef(label: "Revenue")
-        XCTAssertNotEqual(a, b)
+        #expect(a != b)
     }
 
-    func testHashableAsDictionaryKey() {
+    @Test func hashableAsDictionaryKey() {
         let ref = NodeRef(label: "Rate")
         var dict: [NodeRef: Int] = [:]
         dict[ref] = 42
-        XCTAssertEqual(dict[ref], 42)
+        #expect(dict[ref] == 42)
     }
 
-    func testDistinctRefsProduceDistinctHashes() {
+    @Test func distinctRefsProduceDistinctHashes() {
         let a = NodeRef(label: "A")
         let b = NodeRef(label: "A")
         let set: Set<NodeRef> = [a, b]
-        XCTAssertEqual(set.count, 2)
+        #expect(set.count == 2)
     }
 
-    func testSendableConformance() {
+    @Test func sendableConformance() async {
         let ref = NodeRef(label: "Test")
-        let expectation = expectation(description: "sendable")
-        Task {
-            _ = ref.label
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: 1)
+        // Crossing into a Task is what requires Sendable; the compiler is the
+        // assertion. Reading the label back shows the value that crossed is the
+        // one that was sent.
+        let label = await Task { ref.label }.value
+        #expect(label == "Test")
     }
 }

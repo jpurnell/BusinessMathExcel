@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -9,7 +10,7 @@ import SwiftXLSX
 /// workbook that half-fits still yields a readable plan. Materialization is the
 /// opposite — it validates and **throws**, because a `ModelDefinition` built from
 /// a plan with a hole in it would run and produce numbers.
-final class ModelMaterializerTests: XCTestCase {
+@Suite struct ModelMaterializerTests {
 
     private let years = [Period.year(2024), Period.year(2025), Period.year(2026)]
 
@@ -20,12 +21,12 @@ final class ModelMaterializerTests: XCTestCase {
         sheet.write("2025", to: "D1")
         sheet.write("2026", to: "E1")
         build(sheet)
-        return ExcelRecognizer.recognize(try XCTUnwrap(wb.sheets.first)).model
+        return ExcelRecognizer.recognize(try #require(wb.sheets.first)).model
     }
 
     // MARK: - Materializing
 
-    func testAPlanBecomesAModelThatEvaluates() throws {
+    @Test func aPlanBecomesAModelThatEvaluates() throws {
         let plan = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write("Cost", to: "A3")
@@ -42,10 +43,10 @@ final class ModelMaterializerTests: XCTestCase {
 
         let built = try ModelMaterializer.build(from: plan)
         let results = try built.definition.evaluate()
-        XCTAssertEqual(results["Profit"]?.valuesArray, [60, 70, 80])
+        #expect(results["Profit"]?.valuesArray == [60, 70, 80])
     }
 
-    func testSuppliedAccountsBecomeInputs() throws {
+    @Test func suppliedAccountsBecomeInputs() throws {
         let plan = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -54,12 +55,12 @@ final class ModelMaterializerTests: XCTestCase {
         }
 
         let built = try ModelMaterializer.build(from: plan)
-        XCTAssertEqual(built.definition.inputs["Revenue"]?.valuesArray, [100, 110, 121])
+        #expect(built.definition.inputs["Revenue"]?.valuesArray == [100, 110, 121])
     }
 
     // MARK: - Refusals
 
-    func testADuplicateAccountIsRefused() {
+    @Test func aDuplicateAccountIsRefused() {
         let plan = RecognizedModel(
             periods: years,
             accounts: [
@@ -70,12 +71,12 @@ final class ModelMaterializerTests: XCTestCase {
             residue: []
         )
 
-        XCTAssertThrowsError(try ModelMaterializer.build(from: plan)) { error in
-            XCTAssertEqual(error as? MaterializationError, .duplicateAccount("Revenue"))
+        if let error = #expect(throws: (any Error).self, performing: { try ModelMaterializer.build(from: plan) }) {
+            #expect(error as? MaterializationError == .duplicateAccount("Revenue"))
         }
     }
 
-    func testAFormulaReadingAnAccountThatDoesNotExistIsRefused() {
+    @Test func aFormulaReadingAnAccountThatDoesNotExistIsRefused() {
         let plan = RecognizedModel(
             periods: years,
             accounts: [
@@ -86,15 +87,15 @@ final class ModelMaterializerTests: XCTestCase {
             residue: []
         )
 
-        XCTAssertThrowsError(try ModelMaterializer.build(from: plan)) { error in
+        if let error = #expect(throws: (any Error).self, performing: { try ModelMaterializer.build(from: plan) }) {
             guard case .unresolvedReference(let account, _)? = error as? MaterializationError else {
-                return XCTFail("Expected an unresolved reference, got \(error)")
+                Issue.record("Expected an unresolved reference, got \(error)"); return
             }
-            XCTAssertEqual(account, "Profit")
+            #expect(account == "Profit")
         }
     }
 
-    func testTheUnresolvedErrorNamesWhatWasMissing() {
+    @Test func theUnresolvedErrorNamesWhatWasMissing() {
         let plan = RecognizedModel(
             periods: years,
             accounts: [
@@ -106,15 +107,15 @@ final class ModelMaterializerTests: XCTestCase {
             residue: []
         )
 
-        XCTAssertThrowsError(try ModelMaterializer.build(from: plan)) { error in
+        if let error = #expect(throws: (any Error).self, performing: { try ModelMaterializer.build(from: plan) }) {
             guard case .unresolvedReference(_, let missing)? = error as? MaterializationError else {
-                return XCTFail("Expected an unresolved reference, got \(error)")
+                Issue.record("Expected an unresolved reference, got \(error)"); return
             }
-            XCTAssertEqual(missing, "Revenue", "so the gap is actionable, not just reported")
+            #expect(missing == "Revenue", "so the gap is actionable, not just reported")
         }
     }
 
-    func testAnUnparseableFormulaIsRefused() {
+    @Test func anUnparseableFormulaIsRefused() {
         let plan = RecognizedModel(
             periods: years,
             accounts: [
@@ -124,15 +125,15 @@ final class ModelMaterializerTests: XCTestCase {
             residue: []
         )
 
-        XCTAssertThrowsError(try ModelMaterializer.build(from: plan)) { error in
+        if let error = #expect(throws: (any Error).self, performing: { try ModelMaterializer.build(from: plan) }) {
             guard case .invalidFormula(let account, _)? = error as? MaterializationError else {
-                return XCTFail("Expected an invalid formula, got \(error)")
+                Issue.record("Expected an invalid formula, got \(error)"); return
             }
-            XCTAssertEqual(account, "Broken")
+            #expect(account == "Broken")
         }
     }
 
-    func testResidueIsNotMaterialized() throws {
+    @Test func residueIsNotMaterialized() throws {
         // A row we could not translate must not reappear as an account with a
         // value invented for it.
         let plan = try recognize { sheet in
@@ -147,14 +148,14 @@ final class ModelMaterializerTests: XCTestCase {
         }
 
         let built = try ModelMaterializer.build(from: plan)
-        XCTAssertNil(built.definition.inputs["Looked up"])
-        XCTAssertNil(built.definition.formula(for: "Looked up"))
-        XCTAssertFalse(plan.residue.isEmpty, "and it is still recorded as residue")
+        #expect(built.definition.inputs["Looked up"] == nil)
+        #expect(built.definition.formula(for: "Looked up") == nil)
+        #expect(!plan.residue.isEmpty, "and it is still recorded as residue")
     }
 
     // MARK: - Rollforwards
 
-    func testACarryBecomesARollforwardWithItsSeed() throws {
+    @Test func aCarryBecomesARollforwardWithItsSeed() throws {
         let plan = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             sheet.write(100.0, to: "C2")
@@ -163,13 +164,13 @@ final class ModelMaterializerTests: XCTestCase {
         }
 
         let built = try ModelMaterializer.build(from: plan)
-        let carry = try XCTUnwrap(built.rollforwards.first)
-        XCTAssertEqual(carry.seed, 100, "seeded from the first period's own cell")
+        let carry = try #require(built.rollforwards.first)
+        #expect(carry.seed == 100, "seeded from the first period's own cell")
         // The row grows off itself, so its printed values are the openings and the
         // formula computes the close. Naming these the other way round evaluates
         // cleanly and reports every period one step early — see GoldenPathTests.
-        XCTAssertEqual(carry.opening, "Revenue")
-        XCTAssertEqual(carry.closing, "Revenue Closing")
+        #expect(carry.opening == "Revenue")
+        #expect(carry.closing == "Revenue Closing")
     }
 
     // MARK: - Building what resolves
@@ -185,7 +186,7 @@ final class ModelMaterializerTests: XCTestCase {
     /// This is refusal, not repair. Nothing is filled in, guessed, or defaulted —
     /// the accounts that cannot resolve are removed and returned, and so is
     /// everything that depended on them.
-    func testWhatCannotResolveIsDroppedAndNamed() throws {
+    @Test func whatCannotResolveIsDroppedAndNamed() throws {
         let plan = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
@@ -209,17 +210,17 @@ final class ModelMaterializerTests: XCTestCase {
 
         let pruned = try ModelMaterializer.buildResolvable(from: holed)
 
-        XCTAssertEqual(pruned.dropped.map(\.label), ["Exit"])
-        XCTAssertEqual(pruned.dropped.first?.reason, .unresolvedReference)
-        XCTAssertNotNil(pruned.model.definition.formula(for: "Doubled"), "the rest still builds")
+        #expect(pruned.dropped.map(\.label) == ["Exit"])
+        #expect(pruned.dropped.first?.reason == .unresolvedReference)
+        #expect(pruned.model.definition.formula(for: "Doubled") == "(Revenue * 2.0)", "the rest still builds")
 
         let evaluated = try PeriodDriver(
             definition: pruned.model.definition, rollforwards: pruned.model.rollforwards
         ).run(over: pruned.model.periods)
-        XCTAssertEqual(evaluated["Doubled"]?.valuesArray, [200, 200, 200])
+        #expect(evaluated["Doubled"]?.valuesArray == [200, 200, 200])
     }
 
-    func testDroppingIsTransitive() throws {
+    @Test func droppingIsTransitive() throws {
         let plan = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
@@ -237,19 +238,16 @@ final class ModelMaterializerTests: XCTestCase {
         )
 
         let pruned = try ModelMaterializer.buildResolvable(from: holed)
-        XCTAssertEqual(
-            pruned.dropped.map(\.label).sorted(), ["Equity", "Exit"],
-            "a model built on a dropped account is not a model"
-        )
+        #expect(pruned.dropped.map(\.label).sorted() == ["Equity", "Exit"], "a model built on a dropped account is not a model")
     }
 
-    func testAWholeModelDropsNothing() throws {
+    @Test func aWholeModelDropsNothing() throws {
         let plan = try recognize { sheet in
             sheet.write("Revenue", to: "A2")
             for column in ["C", "D", "E"] { sheet.write(100.0, to: "\(column)2") }
         }
 
         let pruned = try ModelMaterializer.buildResolvable(from: plan)
-        XCTAssertTrue(pruned.dropped.isEmpty)
+        #expect(pruned.dropped.isEmpty)
     }
 }

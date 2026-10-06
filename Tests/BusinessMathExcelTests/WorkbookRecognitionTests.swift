@@ -1,4 +1,5 @@
-import XCTest
+import Foundation
+import Testing
 @testable import BusinessMathExcel
 import BusinessMath
 import SwiftXLSX
@@ -14,7 +15,7 @@ import SwiftXLSX
 /// Recognizing a sheet at a time cannot see that. Worse, it names accounts bare,
 /// so two sheets with a `Revenue` row yield two accounts called `Revenue` — which
 /// `validateUnits()` would then report as one account meaning two things.
-final class WorkbookRecognitionTests: XCTestCase {
+@Suite struct WorkbookRecognitionTests {
 
     /// A sheet with a timeline and one labelled row per name given.
     private func addSheet(
@@ -33,42 +34,38 @@ final class WorkbookRecognitionTests: XCTestCase {
 
     // MARK: - An account knows where it came from
 
-    func testAnAccountCarriesItsSheet() throws {
+    @Test func anAccountCarriesItsSheet() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Forecast", rows: [("Revenue", 1_000)])
 
-        let plan = ExcelRecognizer.recognize(try XCTUnwrap(workbook.sheets.first), in: workbook)
-        let revenue = try XCTUnwrap(plan.model.accounts.first { $0.name == "Revenue" })
+        let plan = ExcelRecognizer.recognize(try #require(workbook.sheets.first), in: workbook)
+        let revenue = try #require(plan.model.accounts.first { $0.name == "Revenue" })
 
-        XCTAssertEqual(revenue.sheet, "Forecast")
+        #expect(revenue.sheet == "Forecast")
     }
 
     /// Provenance is not the name. An account knows its sheet whether or not
     /// anything made it necessary to say so.
-    func testASingleSheetWorkbookNamesAccountsBare() throws {
+    @Test func aSingleSheetWorkbookNamesAccountsBare() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Forecast", rows: [("Revenue", 1_000), ("Cost", 400)])
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertEqual(
-            Set(plan.model.accounts.map(\.name)), ["Revenue", "Cost"],
-            "no qualification where nothing is ambiguous. Got: \(plan.model.accounts.map(\.name))")
+        #expect(Set(plan.model.accounts.map(\.name)) == ["Revenue", "Cost"], "no qualification where nothing is ambiguous. Got: \(plan.model.accounts.map(\.name))")
     }
 
     // MARK: - Recognizing the whole workbook
 
-    func testEverySheetWithATimelineContributes() throws {
+    @Test func everySheetWithATimelineContributes() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Data", rows: [("Units", 10)])
         addSheet(workbook, named: "Calc", rows: [("Price", 5)])
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertEqual(Set(plan.model.accounts.map(\.name)), ["Units", "Price"])
-        XCTAssertEqual(
-            Set(plan.model.accounts.compactMap(\.sheet)), ["Data", "Calc"],
-            "and each remembers which sheet it came from")
+        #expect(Set(plan.model.accounts.map(\.name)) == ["Units", "Price"])
+        #expect(Set(plan.model.accounts.compactMap(\.sheet)) == ["Data", "Calc"], "and each remembers which sheet it came from")
     }
 
     /// Both sides get qualified, not just the second one found.
@@ -76,36 +73,30 @@ final class WorkbookRecognitionTests: XCTestCase {
     /// Qualifying only the later would make which sheet keeps the bare name depend
     /// on the order sheets happen to sit in the workbook — a name that changes when
     /// somebody drags a tab.
-    func testANameOnTwoSheetsIsQualifiedOnBoth() throws {
+    @Test func aNameOnTwoSheetsIsQualifiedOnBoth() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Paid", rows: [("Revenue", 1_000)])
         addSheet(workbook, named: "Display", rows: [("Revenue", 2_000)])
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertEqual(
-            Set(plan.model.accounts.map(\.name)), ["Paid!Revenue", "Display!Revenue"],
-            "Got: \(plan.model.accounts.map(\.name))")
-        XCTAssertTrue(
-            plan.diagnostics.contains { $0.code == .duplicateAccountName },
-            "and it is reported, because one name meaning two things is worth seeing")
+        #expect(Set(plan.model.accounts.map(\.name)) == ["Paid!Revenue", "Display!Revenue"], "Got: \(plan.model.accounts.map(\.name))")
+        #expect(plan.diagnostics.contains { $0.code == .duplicateAccountName }, "and it is reported, because one name meaning two things is worth seeing")
     }
 
-    func testANameOnOneSheetStaysBareEvenAlongsideACollision() throws {
+    @Test func aNameOnOneSheetStaysBareEvenAlongsideACollision() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Paid", rows: [("Revenue", 1_000), ("Clicks", 50)])
         addSheet(workbook, named: "Display", rows: [("Revenue", 2_000)])
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertTrue(
-            plan.model.accounts.contains { $0.name == "Clicks" },
-            "only what collides is qualified. Got: \(plan.model.accounts.map(\.name))")
+        #expect(plan.model.accounts.contains { $0.name == "Clicks" }, "only what collides is qualified. Got: \(plan.model.accounts.map(\.name))")
     }
 
     // MARK: - Sheets that are not models
 
-    func testASheetWithNoTimelineContributesNothingAndIsNotAnError() throws {
+    @Test func aSheetWithNoTimelineContributesNothingAndIsNotAnError() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Forecast", rows: [("Revenue", 1_000)])
         let notes = workbook.addSheet(name: "Notes")
@@ -114,40 +105,37 @@ final class WorkbookRecognitionTests: XCTestCase {
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertEqual(plan.model.accounts.map(\.name), ["Revenue"])
-        XCTAssertFalse(
-            plan.diagnostics.contains { $0.severity == .error },
-            "a page of prose in a workbook is not a failure of the workbook. Got: "
-                + "\(plan.diagnostics.map(\.code.rawValue))")
+        #expect(plan.model.accounts.map(\.name) == ["Revenue"])
+        #expect(!(plan.diagnostics.contains { $0.severity == .error }), "a page of prose in a workbook is not a failure of the workbook. Got: \(plan.diagnostics.map(\.code.rawValue))")
     }
 
-    func testAWorkbookWithNoModelAtAllYieldsNoAccounts() throws {
+    @Test func aWorkbookWithNoModelAtAllYieldsNoAccounts() throws {
         let workbook = Workbook()
         let notes = workbook.addSheet(name: "Notes")
         notes.write("Nothing here.", to: "A1")
 
         let plan = ExcelRecognizer.recognize(workbook)
-        XCTAssertTrue(plan.model.accounts.isEmpty)
-        XCTAssertTrue(plan.model.periods.isEmpty)
+        #expect(plan.model.accounts.isEmpty)
+        #expect(plan.model.periods.isEmpty)
     }
 
     // MARK: - The timeline
 
     /// Sheets sharing a timeline share it. A model spanning sheets has one.
-    func testSheetsShareOneTimeline() throws {
+    @Test func sheetsShareOneTimeline() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Data", rows: [("Units", 10)])
         addSheet(workbook, named: "Calc", rows: [("Price", 5)])
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertEqual(plan.model.periods.count, 3)
-        XCTAssertEqual(plan.model.periods.first, Period.year(2024))
+        #expect(plan.model.periods.count == 3)
+        #expect(plan.model.periods.first == Period.year(2024))
     }
 
     /// Coverage is over the whole workbook, so a sheet nobody could read counts
     /// against it rather than being quietly left out of the denominator.
-    func testCoverageSpansTheWorkbook() throws {
+    @Test func coverageSpansTheWorkbook() throws {
         let workbook = Workbook()
         addSheet(workbook, named: "Forecast", rows: [("Revenue", 1_000)])
         let notes = workbook.addSheet(name: "Notes")
@@ -155,10 +143,8 @@ final class WorkbookRecognitionTests: XCTestCase {
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertGreaterThan(plan.coverage.populatedCells, 4, "the notes cell is counted too")
-        XCTAssertLessThan(
-            plan.coverage.recognizedCells, plan.coverage.populatedCells,
-            "and it is not recognized, so coverage says so")
+        #expect(plan.coverage.populatedCells > 4, "the notes cell is counted too")
+        #expect(plan.coverage.recognizedCells < plan.coverage.populatedCells, "and it is not recognized, so coverage says so")
     }
 
     // MARK: - A reference crossing a sheet
@@ -197,47 +183,39 @@ final class WorkbookRecognitionTests: XCTestCase {
     /// Without this the calculation sheet recovers nothing: every formula on it
     /// reaches off the sheet, and an unresolvable reference sends the whole row to
     /// residue. A hundred sheets of that is a hundred disconnected islands.
-    func testAReferenceToAnotherSheetResolves() throws {
+    @Test func aReferenceToAnotherSheetResolves() throws {
         let plan = ExcelRecognizer.recognize(dataAndCalc())
 
-        let adjusted = try XCTUnwrap(
-            plan.model.accounts.first { $0.name.hasSuffix("Adjusted Spend") },
-            "Got: \(plan.model.accounts.map(\.name))")
+        let adjusted = try #require(plan.model.accounts.first { $0.name.hasSuffix("Adjusted Spend") }, "Got: \(plan.model.accounts.map(\.name))")
 
-        XCTAssertEqual(
-            adjusted.formula, "([Cost - Data!Spend] * Uplift)",
-            "the foreign account by its qualified name, the local one bare")
+        #expect(adjusted.formula == "([Cost - Data!Spend] * Uplift)", "the foreign account by its qualified name, the local one bare")
     }
 
     /// An account something off-sheet reads is qualified, whether or not its name
     /// collides — a reference has to name one account, and `Spend` alone would
     /// stop meaning `Cost - Data`'s the moment another sheet grew one.
-    func testAnExternallyReferencedAccountIsQualified() throws {
+    @Test func anExternallyReferencedAccountIsQualified() throws {
         let plan = ExcelRecognizer.recognize(dataAndCalc())
 
-        XCTAssertTrue(
-            plan.model.accounts.contains { $0.name == "Cost - Data!Spend" },
-            "Got: \(plan.model.accounts.map(\.name))")
-        XCTAssertTrue(
-            plan.model.accounts.contains { $0.name == "Uplift" },
-            "and an account nothing off-sheet reads stays bare")
+        #expect(plan.model.accounts.contains { $0.name == "Cost - Data!Spend" }, "Got: \(plan.model.accounts.map(\.name))")
+        #expect(plan.model.accounts.contains { $0.name == "Uplift" }, "and an account nothing off-sheet reads stays bare")
     }
 
     /// The model runs across the sheet boundary.
-    func testTheCrossSheetModelMaterializesAndRuns() throws {
+    @Test func theCrossSheetModelMaterializesAndRuns() throws {
         let plan = ExcelRecognizer.recognize(dataAndCalc())
         let built = try ModelMaterializer.build(from: plan.model)
         let results = try built.definition.solve()
 
-        let adjusted = try XCTUnwrap(results["Cost - Input+Calc!Adjusted Spend"]
+        let adjusted = try #require(results["Cost - Input+Calc!Adjusted Spend"]
             ?? results["Adjusted Spend"])
-        XCTAssertEqual(adjusted[Period.year(2024)] ?? .nan, 120, accuracy: 1e-9)
-        XCTAssertEqual(adjusted[Period.year(2026)] ?? .nan, 144, accuracy: 1e-9)
+        #expect(abs((adjusted[Period.year(2024)] ?? .nan) - 120) <= 1e-9)
+        #expect(abs((adjusted[Period.year(2026)] ?? .nan) - 144) <= 1e-9)
     }
 
     /// A reference to a sheet the model does not hold is still refused, and says
     /// which sheet — a missing page is a fact worth reporting, not a zero.
-    func testAReferenceToASheetOutsideTheModelIsRefused() throws {
+    @Test func aReferenceToASheetOutsideTheModelIsRefused() throws {
         let workbook = Workbook()
         let sheet = workbook.addSheet(name: "Calc")
         for (column, year) in zip(["C", "D", "E"], ["2024", "2025", "2026"]) {
@@ -255,26 +233,19 @@ final class WorkbookRecognitionTests: XCTestCase {
 
         let plan = ExcelRecognizer.recognize(workbook)
 
-        XCTAssertTrue(
-            plan.model.residue.contains { $0.label == "Reads Away" },
-            "Got residue: \(plan.model.residue.map(\.label))")
-        let reported = plan.diagnostics.first { $0.code == .crossSheetReference }
-        XCTAssertNotNil(reported, "Got: \(plan.diagnostics.map(\.code.rawValue))")
-        XCTAssertTrue(
-            reported?.message.contains("Absent") ?? false,
-            "the sheet is named. Got: \(reported?.message ?? "")")
+        #expect(plan.model.residue.contains { $0.label == "Reads Away" }, "Got residue: \(plan.model.residue.map(\.label))")
+        let reported = try #require(plan.diagnostics.first { $0.code == .crossSheetReference }, "Got: \(plan.diagnostics.map(\.code.rawValue))")
+        #expect(reported.message.contains("Absent"), "the sheet is named. Got: \(reported.message)")
     }
 
     /// Recognizing one sheet alone still refuses a reference off it — there is
     /// nothing to resolve against, and guessing would invent an account.
-    func testASheetReadAloneStillRefusesAForeignReference() throws {
+    @Test func aSheetReadAloneStillRefusesAForeignReference() throws {
         let workbook = dataAndCalc()
-        let calc = try XCTUnwrap(workbook.sheets.first { $0.name == "Cost - Input+Calc" })
+        let calc = try #require(workbook.sheets.first { $0.name == "Cost - Input+Calc" })
 
         let plan = ExcelRecognizer.recognize(calc, in: workbook)
 
-        XCTAssertTrue(
-            plan.model.residue.contains { $0.label == "Adjusted Spend" },
-            "Got: \(plan.model.residue.map(\.label))")
+        #expect(plan.model.residue.contains { $0.label == "Adjusted Spend" }, "Got: \(plan.model.residue.map(\.label))")
     }
 }
