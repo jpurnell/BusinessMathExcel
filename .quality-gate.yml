@@ -7,7 +7,14 @@
 # a single checker is a `--exclude` flag on the command line, not a file setting.
 
 consistency:
-  corpusPath: ${ORG_JUDGEMENT_CORPUS:-}   # set in the environment; no absolute path in the repo
+  # A literal path, relative to this repository's root. Relative on purpose: this repository is
+  # public, and the 2026-09-12 history remediation removed the absolute path that used to be
+  # here. It was replaced then with `${ORG_JUDGEMENT_CORPUS:-}`, which the gate does not expand
+  # — nothing in this file is passed through a shell — so every run since wrote its telemetry
+  # into a directory with that literal name inside this checkout, and `consistency` passed by
+  # skipping. Where the corpus is not checked out beside the code, the checker says it could
+  # not check; it does not fail.
+  corpusPath: ../../../Tools/org-judgement-corpus
   projectID: BusinessMathExcel
   consistencyThreshold: 0.7
   defaultRiskTier: 2

@@ -195,6 +195,13 @@ BusinessMathExcel/
 - [x] Test dates built from one fixed calendar, at noon UTC; suite passes under three time zones
 - [x] Full gate green: 46 of 46 checkers, 0 errors, 0 warnings, no overrides
 
+### Unreleased — Telemetry reaches the corpus again
+- [x] `consistency.corpusPath` is a literal relative path. It had been `${ORG_JUDGEMENT_CORPUS:-}`
+      since the 2026-09-12 remediation; the gate never expanded it, wrote 130 telemetry files
+      into a directory of that name here, and `consistency` passed by skipping
+- [x] Stranded telemetry moved out of the repository into a holding directory in the corpus
+- [x] `consistency` runs for real: 1.00 against 0.70, no findings. Gate 46 of 46, 0/0
+
 ### 0.7.0 — Excel→ModelDefinition Recognizer, Phase 0
 - [x] BusinessMath pin bumped 2.2.1 → 2.7.0, which is where `ModelDefinition`, `Period`,
       `PeriodType`, and the cycle solvers live — 2.2.1 had no `Model Definition/` at all
@@ -455,6 +462,6 @@ where it was found rather than guessed at here.
 
 ---
 
-**Last Updated:** 2026-10-06 — reconciled after the Swift Testing migration; not a release. The Technology Stack table's Testing row said "XCTest, 293 tests across 24 files" and its Dependencies row still named SwiftXLSX 0.2.0 and BusinessMath 2.2.1 pinned `exact:` — both rows were several releases stale and are corrected to what `Package.swift` and the suite now say (573 tests, 50 suites, 46/46 checkers, 0/0). An "Unreleased" block was added to Current Status for the migration. Not reconciled, and recorded so it is not mistaken for done: the `v0.9.0` tag exists and `CHANGELOG.md` has no 0.9.0 section — its newest release heading is 0.8.0 — and the Module Status line below the stack table still reads "138 public APIs … 293 tests". Neither was touched here because neither could be verified from this change.
+**Last Updated:** 2026-10-06 — `corpusPath` repaired and noted under Current Status (telemetry had not reached the corpus since 2026-09-12; see CHANGELOG). Earlier the same day: reconciled after the Swift Testing migration; not a release. The Technology Stack table's Testing row said "XCTest, 293 tests across 24 files" and its Dependencies row still named SwiftXLSX 0.2.0 and BusinessMath 2.2.1 pinned `exact:` — both rows were several releases stale and are corrected to what `Package.swift` and the suite now say (573 tests, 50 suites, 46/46 checkers, 0/0). An "Unreleased" block was added to Current Status for the migration. Not reconciled, and recorded so it is not mistaken for done: the `v0.9.0` tag exists and `CHANGELOG.md` has no 0.9.0 section — its newest release heading is 0.8.0 — and the Module Status line below the stack table still reads "138 public APIs … 293 tests". Neither was touched here because neither could be verified from this change.
 
 **Previously:** 2026-09-10 — reconciled for the **0.8.0** release. Counts refreshed to 572 tests, 45/45 checkers, 0/0. `SimulationInputs` shipped, and with it the SwiftExcelFunctions dependency this repo had deliberately trailed: a Risk Solver workbook's own formulas now say which cells are uncertain and which are reported, which is a question recognition cannot answer from structure alone. Recorded against it, because a plan that hides where it was wrong is worth less than one that shows it: **this release ships a scheduled build failure.** BusinessMath is pinned `exact: "2.15.0"` here while SwiftExcelFunctions' `main` requires `.upToNextMinor(from: "3.0.0-alpha.3")`; 0.8.0 resolves only because it pins SwiftExcelFunctions v0.7.1, whose manifest still asks for `from: "2.11.0"`. The break lands at the next upstream bump. It is the first item in the handoff and is documented in `CLAUDE.md`.
